@@ -55,6 +55,8 @@ export interface MovementInput {
   externalMovementId?: string;
   syncId?: string;
   refId?: string;
+  /** Punto gastronómico (si falta, Depósito Central). */
+  outletId?: string;
 }
 
 export interface MovementResult {
@@ -78,7 +80,8 @@ export async function applyMovement(input: MovementInput): Promise<MovementResul
     const product = await db.products.get(input.productId);
     if (!product) throw new Error('El producto no existe.');
 
-    const before = product.stock;
+    // Depósito Central: stock guardado en el producto. Punto: se calcula con sus movimientos.
+    const before = input.outletId ? await outletStockOf(input.outletId, product.id) : product.stock;
     let after: number;
     if (input.newQuantity !== undefined) after = input.newQuantity;
     else if (input.delta !== undefined) after = before + input.delta;
@@ -105,9 +108,10 @@ export async function applyMovement(input: MovementInput): Promise<MovementResul
       refId: input.refId,
       absolute: input.newQuantity !== undefined && (input.type === 'ajuste' || input.type === 'conteo'),
       performedBy: getCurrentActor(),
+      outletId: input.outletId || undefined,
     };
     await db.movements.add(movement);
-    await db.products.update(product.id, { stock: after, updatedAt: t });
+    if (!movement.outletId) await db.products.update(product.id, { stock: after, updatedAt: t });
     return { movement, duplicate: false };
   });
 }
@@ -121,6 +125,7 @@ export async function revertMovement(movement: StockMovement): Promise<MovementR
     reason: 'Deshacer movimiento',
     origin: 'deshacer',
     idempotencyKey: `undo:${movement.id}`,
+    outletId: movement.outletId,
   });
 }
 
@@ -158,6 +163,31 @@ export function foldStock(movements: StockMovement[]): number | undefined {
 export async function recomputeStock(productId: string): Promise<void> {
   const product = await db.products.get(productId);
   if (!product) return;
-  const stock = foldStock(await db.movements.where('productId').equals(productId).toArray());
+  const stock = foldStock((await db.movements.where('productId').equals(productId).toArray()).filter((m) => !m.outletId));
   if (stock !== undefined && stock !== product.stock) await db.products.update(productId, { stock });
+}
+
+/** Stock de un producto en un punto gastronómico (0 si nunca recibió). */
+export async function outletStockOf(outletId: string, productId: string): Promise<number> {
+  const movs = (await db.movements.where('productId').equals(productId).toArray()).filter((m) => m.outletId === outletId);
+  return foldStock(movs) ?? 0;
+}
+
+/** Stock de cada producto en cada punto: Map<outletId, Map<productId, cantidad>>. */
+export function stockByOutlet(movements: StockMovement[]): Map<string, Map<string, number>> {
+  const groups = new Map<string, StockMovement[]>();
+  for (const m of movements) {
+    if (!m.outletId) continue;
+    const k = `${m.outletId}\u0000${m.productId}`;
+    const g = groups.get(k);
+    if (g) g.push(m);
+    else groups.set(k, [m]);
+  }
+  const out = new Map<string, Map<string, number>>();
+  for (const [k, list] of groups) {
+    const [outletId, productId] = k.split('\u0000');
+    if (!out.has(outletId)) out.set(outletId, new Map());
+    out.get(outletId)!.set(productId, foldStock(list) ?? 0);
+  }
+  return out;
 }

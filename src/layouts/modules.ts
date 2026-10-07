@@ -1,5 +1,5 @@
 import {
-  ArrowLeftRight, Boxes, Cloud, UserCog, ClipboardCheck, Download, Home, MapPin, Package, Plug, Receipt, Ruler, Scale, Settings, ShoppingCart, Tags, Truck,
+  ArrowLeftRight, Boxes, Cloud, UserCog, ClipboardCheck, Download, Home, MapPin, Package, Plug, Receipt, Ruler, Forklift, Scale, Settings, ShoppingCart, Tags, Truck,
   type LucideIcon,
 } from 'lucide-react';
 import type { ModuleKey, Permission } from '../models';
@@ -10,6 +10,7 @@ export const MODULE_PATH: Record<ModuleKey, string> = {
   count: '/conteo',
   orders: '/pedidos',
   invoices: '/facturas',
+  transfers: '/remitos',
   products: '/productos',
   suppliers: '/proveedores',
   locations: '/ubicaciones',
@@ -30,6 +31,7 @@ export const MODULE_ICON: Record<ModuleKey, LucideIcon> = {
   count: ClipboardCheck,
   orders: ShoppingCart,
   invoices: Receipt,
+  transfers: Forklift,
   products: Package,
   suppliers: Truck,
   locations: MapPin,
@@ -54,6 +56,7 @@ export const MODULE_PERMISSIONS: Record<ModuleKey, Permission[]> = {
   count: ['count.do'],
   orders: ['orders.manage', 'orders.receive'],
   invoices: ['invoices'],
+  transfers: ['transfers'],
   products: ['catalog.manage'],
   suppliers: ['catalog.manage'],
   locations: ['catalog.manage'],

@@ -12,6 +12,7 @@ export const useSuppliers = () => useLiveQuery(() => db.suppliers.orderBy('name'
 export const useCategories = () => useLiveQuery(() => db.categories.orderBy('name').toArray(), []) ?? EMPTY;
 export const useUnits = () => useLiveQuery(() => db.units.orderBy('name').toArray(), []) ?? EMPTY;
 export const useLocations = () => useLiveQuery(() => db.locations.orderBy('name').toArray(), []) ?? EMPTY;
+export const useOutlets = () => useLiveQuery(() => db.outlets.orderBy('name').toArray(), []) ?? EMPTY;
 export const useIntegration = () => useLiveQuery(() => getIntegration(), []);
 export const usePendingJobs = () => useLiveQuery(() => db.syncJobs.where('status').anyOf('pendiente', 'error').count(), []) ?? 0;
 

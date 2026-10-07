@@ -64,7 +64,7 @@ export function CountDetailPage() {
       title: 'Aplicar conteo al stock',
       message: (
         <>
-          <p>Se ajustará el stock de Stock Manager a las cantidades contadas ({changes.length} productos con diferencia).</p>
+          <p>Se ajustará el stock {count.outletId ? 'del punto' : 'de Stock Manager'} a las cantidades contadas ({changes.length} productos con diferencia).</p>
           {count.baseline === 'maxirest' && <p className="small muted">Esto ajusta sólo Stock Manager. Para Maxirest usá “Enviar a Maxirest” o el Excel.</p>}
         </>
       ),
@@ -127,8 +127,8 @@ export function CountDetailPage() {
           <div className="row wrap">
             {count.status === 'finalizado' && can('count.apply') && <button type="button" className="btn btn-primary" onClick={apply}>Aplicar al stock</button>}
             {count.status === 'finalizado' && <button type="button" className="btn" onClick={() => run(() => reopenCount(id))}>Seguir contando</button>}
-            {canSync && can('admin') && linkedDiffs.length > 0 && count.status !== 'descartado' && <button type="button" className="btn" onClick={send}><Send size={16} aria-hidden /> Enviar a Maxirest</button>}
-            {can('export') && <button type="button" className="btn" onClick={() => run(() => exportBridgeWorkbook(id, count.name), 'Excel generado')}><FileSpreadsheet size={16} aria-hidden /> Excel para Maxirest</button>}
+            {canSync && !count.outletId && can('admin') && linkedDiffs.length > 0 && count.status !== 'descartado' && <button type="button" className="btn" onClick={send}><Send size={16} aria-hidden /> Enviar a Maxirest</button>}
+            {can('export') && !count.outletId && <button type="button" className="btn" onClick={() => run(() => exportBridgeWorkbook(id, count.name), 'Excel generado')}><FileSpreadsheet size={16} aria-hidden /> Excel para Maxirest</button>}
             {count.status === 'finalizado' && can('count.apply') && (
               <button type="button" className="btn btn-danger" onClick={async () => (await confirm({ title: 'Descartar conteo', message: 'El conteo quedará guardado como descartado y no modificará el stock.', danger: true, confirmLabel: 'Descartar' })) && run(() => discardCount(id))}>Descartar</button>
             )}

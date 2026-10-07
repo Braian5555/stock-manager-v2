@@ -11,6 +11,7 @@ interface ConfirmOptions {
   title: string;
   message: ReactNode;
   confirmLabel?: string;
+  cancelLabel?: string;
   danger?: boolean;
 }
 interface FeedbackApi {
@@ -91,7 +92,7 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
         footer={
           <>
             <button type="button" className="btn" onClick={() => close(false)}>
-              Cancelar
+              {confirmState?.cancelLabel ?? 'Cancelar'}
             </button>
             <button type="button" data-autofocus className={`btn ${confirmState?.danger ? 'btn-danger-solid' : 'btn-primary'}`} onClick={() => close(true)}>
               {confirmState?.confirmLabel ?? 'Confirmar'}

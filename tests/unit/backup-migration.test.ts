@@ -38,7 +38,7 @@ describe('backup', () => {
 });
 
 describe('migraciones', () => {
-  it('v1 → v5 conserva productos y completa campos nuevos', async () => {
+  it('v1 → v6 conserva productos y completa campos nuevos', async () => {
     db.close();
     await Dexie.delete('migration-test');
     const v1 = new Dexie('migration-test');
@@ -49,7 +49,8 @@ describe('migraciones', () => {
     v1.close();
     const v2 = new StockDatabase('migration-test');
     await v2.open();
-    expect(v2.verno).toBe(5);
+    expect(v2.verno).toBe(6);
+    expect(await v2.transfers.count()).toBe(0);
     expect(await v2.invoices.count()).toBe(0);
     // v3: el número de pedido ya no es único (dos dispositivos pueden numerar a la vez)
     await v2.orders.add({ id: 'o2', number: 1, status: 'borrador', date: 'x', createdAt: 'x', updatedAt: 'x' });

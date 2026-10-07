@@ -409,3 +409,4 @@ hr.sep { border: 0; border-top: 1px solid var(--border); margin: 16px 0; }
 .invoice-page figcaption { padding: 8px 10px; background: var(--surface); border-top: 1px solid var(--border); justify-content: flex-end; }
 .invoice-page-msg { min-height: 160px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 16px; color: var(--text-3); text-align: center; }
 .invoice-page-msg img { width: 120px; opacity: 0.6; filter: blur(1px); }
+.transfer-line { padding: 8px 0; border-bottom: 1px solid var(--border); }

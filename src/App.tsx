@@ -14,6 +14,8 @@ import { StockPage } from './pages/StockPage';
 import { CountsPage } from './pages/CountsPage';
 import { OrdersPage } from './pages/OrdersPage';
 import { InvoicesPage } from './pages/InvoicesPage';
+import { TransfersPage } from './pages/TransfersPage';
+import { TransferEditorPage } from './pages/TransferEditorPage';
 import { MorePage } from './pages/MorePage';
 import { NotFoundPage } from './pages/NotFoundPage';
 const UsersPage = lazy(() => import('./pages/UsersPage').then((m) => ({ default: m.UsersPage })));
@@ -81,6 +83,8 @@ export function App() {
                 <Route path="conteo/:id" element={<Guard module="count"><CountDetailPage /></Guard>} />
                 <Route path="pedidos" element={<Guard module="orders"><OrdersPage /></Guard>} />
                 <Route path="pedidos/:id" element={<Guard module="orders"><OrderEditorPage /></Guard>} />
+                <Route path="remitos" element={<Guard module="transfers"><TransfersPage /></Guard>} />
+                <Route path="remitos/nuevo" element={<Guard module="transfers"><TransferEditorPage /></Guard>} />
                 <Route path="facturas" element={<Guard module="invoices"><InvoicesPage /></Guard>} />
                 <Route path="movimientos" element={<Guard module="movements"><MovementsPage /></Guard>} />
                 <Route path="conciliacion" element={<Guard module="reconciliation"><ReconciliationPage /></Guard>} />

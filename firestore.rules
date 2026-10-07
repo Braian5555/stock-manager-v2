@@ -76,7 +76,7 @@ service cloud.firestore {
         allow read, write: if isMember(wsId) && table in [
           'settings', 'categories', 'units', 'locations', 'suppliers', 'products',
           'orders', 'orderItems', 'movements', 'counts', 'countItems', 'users',
-          'invoices', 'invoiceImages'
+          'invoices', 'invoiceImages', 'outlets', 'transfers'
         ];
       }
     }

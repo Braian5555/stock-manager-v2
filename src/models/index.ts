@@ -78,7 +78,7 @@ export interface Product extends BaseEntity {
 export const MOVEMENT_TYPES = ['ingreso', 'salida', 'ajuste', 'conteo', 'devolucion', 'perdida', 'consumo'] as const;
 export type MovementType = (typeof MOVEMENT_TYPES)[number];
 
-export type MovementOrigin = 'manual' | 'conteo' | 'pedido' | 'importacion' | 'sincronizacion' | 'deshacer' | 'alta';
+export type MovementOrigin = 'manual' | 'conteo' | 'pedido' | 'importacion' | 'sincronizacion' | 'deshacer' | 'alta' | 'remito';
 export type SourceSystem = 'local' | ExternalSystemId | 'excel';
 
 export interface StockMovement extends BaseEntity {
@@ -105,6 +105,11 @@ export interface StockMovement extends BaseEntity {
   absolute?: boolean;
   /** Usuario que registró el movimiento (copia del nombre para el historial). */
   performedBy?: Actor;
+  /**
+   * Punto gastronómico donde ocurre el movimiento. Si falta, es el Depósito Central
+   * (el stock de `Product.stock`). El stock de cada punto se calcula con sus movimientos.
+   */
+  outletId?: ID;
 }
 
 /** Quién hizo algo: id del usuario y su nombre en ese momento. */
@@ -147,6 +152,8 @@ export interface InventoryCount extends BaseEntity {
   baseline: CountBaseline;
   finishedAt?: ISODate;
   appliedAt?: ISODate;
+  /** Conteo en un punto gastronómico (si falta, es en el Depósito Central). */
+  outletId?: ID;
 }
 
 export interface InventoryCountItem extends BaseEntity {
@@ -161,7 +168,7 @@ export type ThemeMode = 'light' | 'dark' | 'system';
 export type LogoKind = 'default' | 'emoji' | 'image';
 export type ModuleKey =
   | 'dashboard' | 'stock' | 'count' | 'orders' | 'products' | 'suppliers' | 'locations' | 'categories'
-  | 'units' | 'movements' | 'reconciliation' | 'export' | 'settings' | 'integrations' | 'cloud' | 'users' | 'invoices';
+  | 'units' | 'movements' | 'reconciliation' | 'export' | 'settings' | 'integrations' | 'cloud' | 'users' | 'invoices' | 'transfers';
 
 export interface MenuItemSetting {
   key: ModuleKey;
@@ -248,7 +255,7 @@ export type StockStatus = 'normal' | 'bajo' | 'critico' | 'sin_stock';
 
 export const PERMISSIONS = [
   'stock.view', 'stock.move', 'count.do', 'count.apply', 'orders.manage', 'orders.receive', 'catalog.manage',
-  'movements.view', 'export', 'admin', 'invoices',
+  'movements.view', 'export', 'admin', 'invoices', 'transfers',
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];
 
@@ -304,4 +311,41 @@ export interface InvoiceImage {
   data: string;
   /** 1 = ya está en la nube (o no hace falta subirla), 0 = pendiente. */
   uploaded: 0 | 1;
+}
+
+// ───────────────────────── Puntos y remitos internos ─────────────────────────
+
+/** Punto gastronómico que recibe mercadería del Depósito Central (Parador, Xenote…). */
+export interface Outlet extends BaseEntity {
+  name: string;
+  /** Cómo se llama este depósito/punto en Maxirest (para el Excel de importación). */
+  maxirestName?: string;
+  active: boolean;
+}
+
+export interface TransferItem {
+  productId: ID;
+  /** Cantidad en unidad de stock. */
+  quantity: number;
+}
+
+/** pendiente: falta cargarlo en Maxirest · cargado: ya está · no_aplica: anulado antes de cargarlo. */
+export type MaxirestLoadStatus = 'pendiente' | 'cargado' | 'no_aplica';
+
+/** Remito interno: mercadería que sale del Depósito Central hacia un punto. */
+export interface Transfer extends BaseEntity {
+  number: number;
+  /** Fecha del remito (YYYY-MM-DD). */
+  date: string;
+  outletId: ID;
+  items: TransferItem[];
+  notes?: string;
+  status: 'enviado' | 'anulado';
+  voidedAt?: ISODate;
+  voidedBy?: Actor;
+  createdBy?: Actor;
+  /** Control de carga manual en Maxirest (no hay API para hacerlo automático). */
+  maxirest: MaxirestLoadStatus;
+  maxirestAt?: ISODate;
+  maxirestBy?: Actor;
 }

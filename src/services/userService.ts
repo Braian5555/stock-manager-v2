@@ -21,6 +21,7 @@ export const PERMISSION_LABEL: Record<Permission, string> = {
   'movements.view': 'Ver historial de movimientos',
   export: 'Exportar datos',
   invoices: 'Cargar, ver y descargar facturas',
+  transfers: 'Hacer remitos internos a los puntos y marcarlos en Maxirest',
   admin: 'Administración (usuarios, configuración, integraciones, nube y backups)',
 };
 
@@ -33,7 +34,7 @@ export const ROLE_LABEL: Record<UserRole, string> = {
 
 export const ROLE_PERMISSIONS: Record<Exclude<UserRole, 'custom'>, Permission[]> = {
   admin: [...PERMISSIONS],
-  manager: ['stock.view', 'stock.move', 'count.do', 'count.apply', 'orders.manage', 'orders.receive', 'catalog.manage', 'movements.view', 'export', 'invoices'],
+  manager: ['stock.view', 'stock.move', 'count.do', 'count.apply', 'orders.manage', 'orders.receive', 'catalog.manage', 'movements.view', 'export', 'invoices', 'transfers'],
   staff: ['stock.view', 'count.do', 'orders.receive', 'invoices'],
 };
 

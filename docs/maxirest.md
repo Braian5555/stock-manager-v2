@@ -198,6 +198,14 @@ Estados: `No configurado` · `Configurado` · `Conectado` · `Error` · `Descone
 
 > Si tu versión de Maxirest permite importar ese Excel directamente, probalo primero con un inventario de prueba: el formato de importación no está documentado.
 
+### Remitos internos (Depósito Central → puntos)
+
+- Cada remito resta del Depósito Central y suma al stock del punto (movimientos con `outletId`).
+- Maxirest no expone una interfaz oficial para registrar transferencias entre depósitos, así que **no se envían automáticamente**. Cada remito queda "Pendiente en Maxirest" hasta que alguien lo carga allá y lo marca como cargado.
+- **Remitos internos → Excel para Maxirest** descarga los pendientes (una fila por insumo: fecha, remito, tipo, depósito origen/destino, código Maxirest, insumo, cantidad, unidad). Es un formato genérico: se ajusta al formato de importación real de Maxirest cuando se tenga un archivo de ejemplo.
+- Si se anula un remito ya cargado, vuelve a quedar pendiente con tipo "Anulación" para revertirlo en Maxirest.
+- El nombre de cada punto en Maxirest se configura en **Remitos internos → Puntos**.
+
 ## 9. Habilitación: qué pedirle a Maxirest
 
 1. ¿Existe una API / web service para terceros (o acceso como partner)? Documentación, ambiente de pruebas y términos.

@@ -11,6 +11,7 @@ export const MODULES: { key: ModuleKey; label: string; primary?: boolean; locked
   { key: 'count', label: 'Conteo', primary: true },
   { key: 'orders', label: 'Pedidos', primary: true },
   { key: 'invoices', label: 'Facturas' },
+  { key: 'transfers', label: 'Remitos internos' },
   { key: 'products', label: 'Productos' },
   { key: 'suppliers', label: 'Proveedores' },
   { key: 'locations', label: 'Ubicaciones' },
