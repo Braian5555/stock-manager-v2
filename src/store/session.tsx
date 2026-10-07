@@ -10,7 +10,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, type ReactNode } from 'react';
 import { db } from '../database/db';
 import type { AppUser, Permission } from '../models';
-import { saveUser, setCurrentActor, verifyPin } from '../services/userService';
+import { effectivePermissions, saveUser, setCurrentActor, verifyPin } from '../services/userService';
 import { useSettings } from './settings';
 
 const SESSION_KEY = 'session';
@@ -116,7 +116,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   );
 
   const api = useMemo<SessionApi>(() => {
-    const perms = new Set(status === 'unlocked' ? (user?.permissions ?? []) : []);
+    const perms = new Set(status === 'unlocked' && user ? effectivePermissions(user) : []);
     return {
       status,
       user: status === 'unlocked' ? user : undefined,

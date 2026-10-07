@@ -7,7 +7,7 @@
  * de los datos en la nube la siguen dando la cuenta de Google vinculada y las reglas de Firestore.
  */
 import { db } from '../database/db';
-import type { AppUser, Permission, UserRole } from '../models';
+import { PERMISSIONS, type AppUser, type Permission, type UserRole } from '../models';
 import { nowIso, uuid } from '../utils/id';
 
 export const PERMISSION_LABEL: Record<Permission, string> = {
@@ -20,6 +20,7 @@ export const PERMISSION_LABEL: Record<Permission, string> = {
   'catalog.manage': 'Administrar productos, proveedores y catálogos',
   'movements.view': 'Ver historial de movimientos',
   export: 'Exportar datos',
+  invoices: 'Cargar, ver y descargar facturas',
   admin: 'Administración (usuarios, configuración, integraciones, nube y backups)',
 };
 
@@ -31,10 +32,20 @@ export const ROLE_LABEL: Record<UserRole, string> = {
 };
 
 export const ROLE_PERMISSIONS: Record<Exclude<UserRole, 'custom'>, Permission[]> = {
-  admin: ['stock.view', 'stock.move', 'count.do', 'count.apply', 'orders.manage', 'orders.receive', 'catalog.manage', 'movements.view', 'export', 'admin'],
-  manager: ['stock.view', 'stock.move', 'count.do', 'count.apply', 'orders.manage', 'orders.receive', 'catalog.manage', 'movements.view', 'export'],
-  staff: ['stock.view', 'count.do', 'orders.receive'],
+  admin: [...PERMISSIONS],
+  manager: ['stock.view', 'stock.move', 'count.do', 'count.apply', 'orders.manage', 'orders.receive', 'catalog.manage', 'movements.view', 'export', 'invoices'],
+  staff: ['stock.view', 'count.do', 'orders.receive', 'invoices'],
 };
+
+/**
+ * Permisos vigentes de un usuario. Los roles fijos toman SIEMPRE la lista actual del rol
+ * (así, si una versión nueva agrega un permiso, los usuarios existentes lo reciben);
+ * el administrador tiene todos.
+ */
+export function effectivePermissions(u: Pick<AppUser, 'role' | 'permissions'>): Permission[] {
+  if (u.role !== 'custom' && ROLE_PERMISSIONS[u.role]) return ROLE_PERMISSIONS[u.role];
+  return u.permissions.includes('admin') ? [...PERMISSIONS] : u.permissions;
+}
 
 export const PIN_RE = /^\d{4,6}$/;
 const ITERATIONS = 100_000;

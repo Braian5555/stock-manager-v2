@@ -1,7 +1,7 @@
 import Dexie, { type Table } from 'dexie';
 import type {
   Business, Category, ExternalReference, InventoryCount, InventoryCountItem, Integration, Location, Order,
-  OrderItem, Product, Settings, StockMovement, Supplier, SyncJob, Unit, AppUser,
+  OrderItem, Product, Settings, StockMovement, Supplier, SyncJob, Unit, AppUser, Invoice, InvoiceImage,
 } from '../models';
 
 export const DB_NAME = 'stock-manager';
@@ -49,11 +49,21 @@ export const SCHEMA_V4 = {
   users: 'id, name',
 };
 
-export const CURRENT_DB_VERSION = 4;
+/**
+ * v5: facturas de proveedores. Las fotos (invoiceImages) NO van por la sincronización
+ * general: se suben y bajan bajo demanda para no descargar todas en cada dispositivo.
+ */
+export const SCHEMA_V5 = {
+  ...SCHEMA_V4,
+  invoices: 'id, date, supplierId, orderId, updatedAt',
+  invoiceImages: 'id, invoiceId, uploaded',
+};
+
+export const CURRENT_DB_VERSION = 5;
 
 /** Tablas de negocio que se sincronizan con la nube. */
 export const SYNC_TABLES = [
-  'settings', 'categories', 'units', 'locations', 'suppliers', 'products', 'orders', 'orderItems', 'movements', 'counts', 'countItems', 'users',
+  'settings', 'categories', 'units', 'locations', 'suppliers', 'products', 'orders', 'orderItems', 'movements', 'counts', 'countItems', 'users', 'invoices',
 ] as const;
 export type SyncTableName = (typeof SYNC_TABLES)[number];
 const SYNC_SET = new Set<string>(SYNC_TABLES);
@@ -92,6 +102,8 @@ export class StockDatabase extends Dexie {
   externalReferences!: Table<ExternalReference, string>;
   meta!: Table<MetaRecord, string>;
   users!: Table<AppUser, string>;
+  invoices!: Table<Invoice, string>;
+  invoiceImages!: Table<InvoiceImage, string>;
 
   constructor(name = DB_NAME) {
     super(name);
@@ -111,6 +123,8 @@ export class StockDatabase extends Dexie {
     this.version(3).stores(SCHEMA_V3);
     // v4: usuarios con PIN.
     this.version(4).stores(SCHEMA_V4);
+    // v5: facturas con fotos.
+    this.version(5).stores(SCHEMA_V5);
 
     // Middleware: informa qué registros cambiaron en las tablas sincronizadas.
     this.use({
@@ -146,6 +160,6 @@ export const db = new StockDatabase();
 /** Tablas incluidas en backups y exportaciones completas. */
 export const DATA_TABLES = [
   'businesses', 'settings', 'categories', 'units', 'locations', 'suppliers', 'products', 'orders', 'orderItems',
-  'movements', 'counts', 'countItems', 'integrations', 'syncJobs', 'externalReferences', 'users',
+  'movements', 'counts', 'countItems', 'integrations', 'syncJobs', 'externalReferences', 'users', 'invoices',
 ] as const;
 export type DataTableName = (typeof DATA_TABLES)[number];

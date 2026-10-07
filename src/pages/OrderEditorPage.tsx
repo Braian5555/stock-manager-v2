@@ -1,6 +1,6 @@
 import { useSession } from '../store/session';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { ArrowLeft, ClipboardCopy, Copy, PackageCheck, Plus, Trash2, X } from 'lucide-react';
+import { ArrowLeft, Camera, ClipboardCopy, Copy, PackageCheck, Plus, Trash2, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { db } from '../database/db';
@@ -14,6 +14,10 @@ import { Modal } from '../components/ui/Modal';
 import { Badge, Field, Input, NumberInput, PageHeader, Select, Textarea } from '../components/ui';
 import { fmtNumber } from '../utils/format';
 import { ORDER_TONE } from './OrdersPage';
+import { InvoiceEditor } from '../components/invoices/InvoiceEditor';
+import { InvoiceViewer } from '../components/invoices/InvoiceViewer';
+import { InvoiceList } from '../components/invoices/InvoiceList';
+import type { Invoice } from '../models';
 
 interface Draft {
   supplierId?: string;
@@ -41,6 +45,9 @@ export function OrderEditorPage() {
   const [receiving, setReceiving] = useState(false);
   const [received, setReceived] = useState<Record<string, number | undefined>>({});
   const byId = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
+  const invoices = useLiveQuery(() => (isNew ? [] : db.invoices.where('orderId').equals(id!).toArray()), [id]);
+  const [invoiceEdit, setInvoiceEdit] = useState<Invoice | 'new'>();
+  const [invoiceView, setInvoiceView] = useState<string>();
 
   useEffect(() => {
     if (!isNew && order && orderItems && !dirty) {
@@ -96,6 +103,8 @@ export function OrderEditorPage() {
     if (r) {
       setReceiving(false);
       notify(`Pedido recibido: ${r.lines.length} productos actualizados.`);
+      if (can('invoices') && !invoices?.length && (await confirm({ title: 'Factura del pedido', message: '¿Querés sacarle una foto a la factura ahora?', confirmLabel: 'Sacar foto' })))
+        setInvoiceEdit('new');
     }
   };
 
@@ -188,6 +197,18 @@ export function OrderEditorPage() {
         )}
         <p className="small muted">Los pedidos se gestionan en Stock Manager. No se envían a Maxirest: no hay una interfaz oficial documentada para órdenes de compra.</p>
       </div>
+
+      {!isNew && can('invoices') && (
+        <div className="card" style={{ marginTop: 16 }}>
+          <div className="row wrap card-pad" style={{ paddingBottom: invoices?.length ? 8 : undefined }}>
+            <h2 className="section-title grow" style={{ margin: 0 }}>Facturas de este pedido</h2>
+            <button type="button" className="btn btn-sm" onClick={() => setInvoiceEdit('new')}><Camera size={16} aria-hidden /> Agregar factura</button>
+          </div>
+          {invoices && invoices.length > 0 && <InvoiceList invoices={invoices} onOpen={(i) => setInvoiceView(i.id)} />}
+        </div>
+      )}
+      <InvoiceEditor open={!!invoiceEdit} invoice={invoiceEdit === 'new' ? undefined : invoiceEdit} defaults={{ orderId: id, supplierId: order?.supplierId }} onClose={() => setInvoiceEdit(undefined)} />
+      <InvoiceViewer invoiceId={invoiceView} onClose={() => setInvoiceView(undefined)} onEdit={(inv) => { setInvoiceView(undefined); setInvoiceEdit(inv); }} />
 
       <Modal open={receiving} wide title={`Recibir pedido #${order?.number ?? ''}`} onClose={() => setReceiving(false)}
         footer={<><button type="button" className="btn" onClick={() => setReceiving(false)}>Cancelar</button><button type="button" className="btn btn-primary" onClick={confirmReceive}>Confirmar recepción</button></>}>

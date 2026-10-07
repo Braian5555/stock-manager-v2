@@ -93,7 +93,8 @@ Se usa **Firebase** (Google): *Authentication* para el inicio de sesión y *Clou
 ## Detalles técnicos
 
 - Estructura: `workspaces/{id}` (nombre, `memberUids`, `roles`, `memberInfo`, `inviteEmails`) y `workspaces/{id}/{tabla}/{registro}`.
-- Tablas sincronizadas: configuración, familias, unidades, ubicaciones, proveedores, productos, pedidos y sus ítems, movimientos, conteos y sus ítems. La integración con Maxirest (cola, copias externas) queda por dispositivo.
+- Tablas sincronizadas: configuración, familias, unidades, ubicaciones, proveedores, productos, pedidos y sus ítems, movimientos, conteos y sus ítems, usuarios y facturas.
+- Fotos de facturas: `workspaces/{id}/invoiceImages/{foto}` (JPEG comprimido a menos de 650 KB, en base64). No se sincronizan en bloque: se suben al guardarlas y cada dispositivo baja una foto sólo cuando se abre, para no gastar la cuota gratuita. Con más de unos pocos miles de facturas conviene pasar a Cloud Storage (requiere el plan Blaze). La integración con Maxirest (cola, copias externas) queda por dispositivo.
 - Eliminaciones: se guardan como lápidas (`_deleted: true`) para que un dispositivo que estuvo desconectado no reviva lo borrado.
 - Stock: los movimientos son inmutables; el stock se recalcula con `foldStock()` (los ajustes y conteos fijan el valor, el resto suma o resta).
 - Código: `src/cloud/` (backend Firebase, motor de sincronización, servicio de cuenta) y `firestore.rules`.

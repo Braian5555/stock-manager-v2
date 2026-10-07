@@ -15,12 +15,12 @@ import {
   onAuthStateChanged, signInWithPopup, signInWithRedirect, signOut, type Auth, type User,
 } from 'firebase/auth';
 import {
-  arrayUnion, collection, doc, getDocs, initializeFirestore, onSnapshot, persistentLocalCache, persistentMultipleTabManager,
+  arrayUnion, collection, deleteDoc, doc, getDoc, getDocs, initializeFirestore, onSnapshot, persistentLocalCache, persistentMultipleTabManager,
   query, setDoc, updateDoc, where, type Firestore,
 } from 'firebase/firestore';
 import type { SyncTableName } from '../database/db';
 import { effectiveAuthDomain, sameOriginAuth, type FirebaseWebConfig } from './config';
-import type { CloudBackend, CloudUser, RemoteChange, RemoteDoc, Workspace } from './types';
+import type { CloudBackend, CloudImage, CloudUser, RemoteChange, RemoteDoc, Workspace } from './types';
 import { nowIso, uuid } from '../utils/id';
 
 const toUser = (u: User): CloudUser => ({ uid: u.uid, email: (u.email ?? '').toLowerCase(), name: u.displayName ?? undefined, photoURL: u.photoURL ?? undefined });
@@ -156,5 +156,24 @@ export class FirebaseBackend implements CloudBackend {
       },
       onError,
     );
+  }
+
+  private img(wsId: string, id: string) {
+    return doc(this.fs, 'workspaces', wsId, 'invoiceImages', id);
+  }
+
+  async putImage(wsId: string, img: CloudImage) {
+    await setDoc(this.img(wsId, img.id), { invoiceId: img.invoiceId, type: img.type, data: img.data, updatedAt: nowIso() });
+  }
+
+  async getImage(wsId: string, id: string): Promise<CloudImage | null> {
+    const s = await getDoc(this.img(wsId, id));
+    if (!s.exists()) return null;
+    const d = s.data();
+    return { id, invoiceId: String(d.invoiceId ?? ''), type: String(d.type ?? 'image/jpeg'), data: String(d.data ?? '') };
+  }
+
+  async deleteImage(wsId: string, id: string) {
+    await deleteDoc(this.img(wsId, id));
   }
 }

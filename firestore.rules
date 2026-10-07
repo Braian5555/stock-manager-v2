@@ -75,7 +75,8 @@ service cloud.firestore {
       match /{table}/{docId} {
         allow read, write: if isMember(wsId) && table in [
           'settings', 'categories', 'units', 'locations', 'suppliers', 'products',
-          'orders', 'orderItems', 'movements', 'counts', 'countItems', 'users'
+          'orders', 'orderItems', 'movements', 'counts', 'countItems', 'users',
+          'invoices', 'invoiceImages'
         ];
       }
     }

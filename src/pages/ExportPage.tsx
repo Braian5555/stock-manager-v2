@@ -102,7 +102,7 @@ export function ExportPage() {
 
       <section className="card card-pad stack" style={{ marginTop: 16 }} aria-labelledby="bk">
         <h2 id="bk" className="row"><DatabaseBackup size={18} aria-hidden /> Copia de seguridad</h2>
-        <p className="muted small">Incluye todos los datos ({DATA_TABLES.length} tablas), relaciones e identificadores externos. Nunca incluye contraseñas, tokens ni claves.</p>
+        <p className="muted small">Incluye todos los datos ({DATA_TABLES.length} tablas), relaciones e identificadores externos. Nunca incluye contraseñas, tokens ni claves. Las fotos de facturas no van en el backup (quedan en la nube y se descargan desde Facturas).</p>
         <div className="row wrap">
           <button type="button" className="btn btn-primary" onClick={backup}><DatabaseBackup size={18} aria-hidden /> Exportar backup</button>
           {can('admin') && <button type="button" className="btn" onClick={() => restoreRef.current?.click()}><Upload size={18} aria-hidden /> Restaurar backup</button>}

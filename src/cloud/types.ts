@@ -55,4 +55,18 @@ export interface CloudBackend {
   put(wsId: string, table: SyncTableName, doc: RemoteDoc): Promise<void>;
   /** Escucha una colección. El primer lote trae todos los documentos. */
   watch(wsId: string, table: SyncTableName, cb: (changes: RemoteChange[], initial: boolean) => void, onError: (e: unknown) => void): () => void;
+
+  /** Fotos de facturas: se suben/bajan de a una, fuera de la sincronización general. */
+  putImage(wsId: string, img: CloudImage): Promise<void>;
+  /** null si no existe. Lanza error si no hay conexión y no está en la copia local. */
+  getImage(wsId: string, id: string): Promise<CloudImage | null>;
+  deleteImage(wsId: string, id: string): Promise<void>;
+}
+
+export interface CloudImage {
+  id: string;
+  invoiceId: string;
+  type: string;
+  /** JPEG en base64 (sin prefijo data:). Máx. ~900 KB por el límite de Firestore. */
+  data: string;
 }

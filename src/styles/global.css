@@ -389,3 +389,23 @@ hr.sep { border: 0; border-top: 1px solid var(--border); margin: 16px 0; }
 .pin-keys .pin-ok { border-radius: 16px; font-size: 1rem; background: var(--primary); color: var(--primary-ink); border-color: var(--primary); }
 .user-chip { display: inline-flex; align-items: center; gap: 8px; padding: 4px 10px 4px 4px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); cursor: pointer; font-weight: 600; font-size: 0.85rem; color: var(--text); }
 .user-chip:hover { background: var(--surface-2); }
+
+/* ───────────────────────── Facturas ───────────────────────── */
+.invoice-item { width: 100%; background: none; border: 0; border-bottom: 1px solid var(--border); text-align: left; color: inherit; font: inherit; cursor: pointer; }
+.invoice-item:hover { background: var(--surface-2); }
+.invoice-thumb { width: 48px; height: 48px; border-radius: 8px; object-fit: cover; object-position: top; flex: none; border: 1px solid var(--border); background: var(--surface-2); }
+.invoice-total { font-weight: 600; white-space: nowrap; }
+.invoice-pages { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 10px; }
+.invoice-page-thumb { position: relative; margin: 0; border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; background: var(--surface-2); aspect-ratio: 3 / 4; display: flex; flex-direction: column; }
+.invoice-page-thumb img, .invoice-thumb-empty { flex: 1; width: 100%; min-height: 0; object-fit: cover; object-position: top; display: grid; place-items: center; }
+.invoice-page-thumb figcaption { font-size: 0.75rem; padding: 4px 8px; color: var(--text-3); }
+.invoice-page-thumb .icon-btn { position: absolute; top: 4px; right: 4px; width: 30px; height: 30px; min-height: 0; background: var(--surface); border-radius: 50%; box-shadow: var(--shadow); }
+.invoice-page-thumb.processing { align-items: center; justify-content: center; gap: 6px; font-size: 0.8rem; color: var(--text-3); text-align: center; padding: 8px; }
+.invoice-meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin: 0; }
+.invoice-meta dt { font-size: 0.75rem; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.04em; }
+.invoice-meta dd { margin: 2px 0 0; font-weight: 600; }
+.invoice-page { margin: 0; border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; background: var(--surface-2); }
+.invoice-page img { display: block; width: 100%; height: auto; }
+.invoice-page figcaption { padding: 8px 10px; background: var(--surface); border-top: 1px solid var(--border); justify-content: flex-end; }
+.invoice-page-msg { min-height: 160px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 16px; color: var(--text-3); text-align: center; }
+.invoice-page-msg img { width: 120px; opacity: 0.6; filter: blur(1px); }

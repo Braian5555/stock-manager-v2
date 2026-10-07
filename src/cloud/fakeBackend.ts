@@ -4,7 +4,7 @@
  * Expone `globalThis.__smFakeCloud` para que una prueba actúe como "otro dispositivo".
  */
 import type { SyncTableName } from '../database/db';
-import type { CloudBackend, CloudUser, RemoteChange, RemoteDoc, Workspace } from './types';
+import type { CloudBackend, CloudImage, CloudUser, RemoteChange, RemoteDoc, Workspace } from './types';
 import { nowIso, uuid } from '../utils/id';
 
 type Listener = (changes: RemoteChange[], initial: boolean) => void;
@@ -128,5 +128,17 @@ export class FakeBackend implements CloudBackend {
   }
   watch(wsId: string, table: SyncTableName, cb: Listener) {
     return this.store.listen(`${wsId}/${table}`, cb);
+  }
+  async putImage(wsId: string, img: CloudImage) {
+    if (!this.store.online) throw new Error('Sin conexión');
+    this.store.coll(`${wsId}/invoiceImages`).set(img.id, structuredClone(img) as unknown as RemoteDoc);
+  }
+  async getImage(wsId: string, id: string) {
+    if (!this.store.online) throw new Error('Sin conexión');
+    const d = this.store.coll(`${wsId}/invoiceImages`).get(id);
+    return d ? (structuredClone(d) as unknown as CloudImage) : null;
+  }
+  async deleteImage(wsId: string, id: string) {
+    this.store.coll(`${wsId}/invoiceImages`).delete(id);
   }
 }

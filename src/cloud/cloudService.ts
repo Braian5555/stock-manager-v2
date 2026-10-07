@@ -7,7 +7,7 @@ import { db, SYNC_TABLES } from '../database/db';
 import { createBackup } from '../services/backupService';
 import { loadCloudConfig, type CloudConfig } from './config';
 import { SyncEngine, type SyncStatus } from './syncEngine';
-import type { CloudBackend, CloudUser, Workspace, WorkspaceRole } from './types';
+import type { CloudBackend, CloudImage, CloudUser, Workspace, WorkspaceRole } from './types';
 
 const LINK_KEY = 'cloud.link';
 const PRE_JOIN_BACKUP_KEY = 'cloud.preJoinBackup';
@@ -32,6 +32,7 @@ let state: CloudState = { phase: 'loading', myWorkspaces: [], invites: [], statu
 const listeners = new Set<() => void>();
 let backend: CloudBackend | null = null;
 let engine: SyncEngine | null = null;
+let currentWsId = '';
 let stopWatchWs: (() => void) | null = null;
 let started = false;
 
@@ -111,6 +112,7 @@ async function startEngine(wsId: string, opts: { pushAll?: boolean } = {}) {
   if (!backend) return;
   stopEngine();
   engine = new SyncEngine(backend, wsId);
+  currentWsId = wsId;
   engine.onStatus((status) => set({ status }));
   stopWatchWs = backend.watchWorkspace(wsId, (ws) => {
     if (ws) set({ workspace: ws, phase: 'linked' });
@@ -118,7 +120,46 @@ async function startEngine(wsId: string, opts: { pushAll?: boolean } = {}) {
   });
   set({ phase: 'linked' });
   await engine.start(opts);
+  void uploadPendingImages();
 }
+
+// ───────────── Fotos de facturas ─────────────
+// Van aparte de la sincronización general: se suben al guardarlas y se bajan sólo al abrirlas.
+
+let uploading = false;
+const activeWs = () => (backend && state.phase === 'linked' && engine ? { backend, wsId: currentWsId } : null);
+
+/** Sube las fotos que quedaron pendientes (sin conexión, o creadas antes de vincular la nube). */
+export async function uploadPendingImages(): Promise<void> {
+  const c = activeWs();
+  if (!c || uploading) return;
+  uploading = true;
+  try {
+    for (const img of await db.invoiceImages.where('uploaded').equals(0).toArray()) {
+      await c.backend.putImage(c.wsId, { id: img.id, invoiceId: img.invoiceId, type: img.type, data: img.data });
+      await db.invoiceImages.update(img.id, { uploaded: 1 });
+    }
+  } catch {
+    // Sin conexión: se reintenta al volver la conexión o al abrir la app.
+  } finally {
+    uploading = false;
+  }
+}
+
+/** Trae una foto de la nube (null si no hay nube vinculada o la foto no existe). */
+export async function fetchCloudImage(id: string): Promise<CloudImage | null> {
+  const c = activeWs();
+  if (!c) return null;
+  return c.backend.getImage(c.wsId, id);
+}
+
+export async function deleteCloudImages(ids: string[]): Promise<void> {
+  const c = activeWs();
+  if (!c) return;
+  await Promise.all(ids.map((id) => c.backend.deleteImage(c.wsId, id).catch(() => undefined)));
+}
+
+if (typeof window !== 'undefined') window.addEventListener('online', () => void uploadPendingImages());
 
 function stopEngine() {
   engine?.stop();
@@ -165,8 +206,9 @@ export async function openWorkspace(ws: Workspace) {
   const user = requireUser();
   if (!ws.memberUids.includes(user.uid)) await backend!.joinWorkspace(user, ws);
   await db.meta.put({ key: PRE_JOIN_BACKUP_KEY, value: await createBackup() });
-  await db.transaction('rw', SYNC_TABLES.map((t) => db.table(t)), async () => {
+  await db.transaction('rw', [...SYNC_TABLES.map((t) => db.table(t)), db.invoiceImages], async () => {
     for (const t of SYNC_TABLES) await db.table(t).clear();
+    await db.invoiceImages.clear();
   });
   await db.meta.put({ key: LINK_KEY, value: { wsId: ws.id, uid: user.uid } satisfies Link });
   await startEngine(ws.id);

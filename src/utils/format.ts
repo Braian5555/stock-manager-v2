@@ -30,3 +30,8 @@ export function parseNumber(value: unknown, fallback = 0): number {
 }
 
 export const round3 = (n: number): number => Math.round(n * 1000) / 1000;
+
+const moneyFmt = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', minimumFractionDigits: 2, maximumFractionDigits: 2 });
+export const fmtMoney = (n: number | undefined | null): string => (n == null || Number.isNaN(n) ? '—' : moneyFmt.format(n));
+/** "2026-10-07" → "07/10/2026" sin problemas de zona horaria. */
+export const fmtDay = (ymd?: string): string => (ymd && /^\d{4}-\d{2}-\d{2}/.test(ymd) ? `${ymd.slice(8, 10)}/${ymd.slice(5, 7)}/${ymd.slice(0, 4)}` : '—');

@@ -139,7 +139,7 @@ export class SyncEngine {
     const affectedProducts = new Set<string>();
     const toPush: RemoteDoc[] = [];
 
-    await db.transaction('rw', [db.table(table), db.products, db.movements], async () => {
+    await db.transaction('rw', [db.table(table), db.products, db.movements, db.invoiceImages], async () => {
       const tx = Dexie.currentTransaction as unknown as { idbtrans: IDBTransaction };
       remoteTransactions.add(tx.idbtrans);
       const t = db.table(table);
@@ -153,6 +153,7 @@ export class SyncEngine {
         }
         if (d._deleted) {
           if (local) await t.delete(d.id);
+          if (table === 'invoices') await db.invoiceImages.where('invoiceId').equals(d.id).delete();
         } else {
           const clean = { ...d };
           delete clean._deleted;

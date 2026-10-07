@@ -10,6 +10,7 @@ export const MODULES: { key: ModuleKey; label: string; primary?: boolean; locked
   { key: 'stock', label: 'Stock', primary: true },
   { key: 'count', label: 'Conteo', primary: true },
   { key: 'orders', label: 'Pedidos', primary: true },
+  { key: 'invoices', label: 'Facturas' },
   { key: 'products', label: 'Productos' },
   { key: 'suppliers', label: 'Proveedores' },
   { key: 'locations', label: 'Ubicaciones' },
@@ -52,7 +53,14 @@ export function normalizeSettings(s: Partial<Settings> | undefined): Settings {
   const saved = new Map((s?.menu ?? []).map((m) => [m.key, m]));
   const known = new Set(MODULES.map((m) => m.key));
   const ordered = (s?.menu ?? []).filter((m) => known.has(m.key));
-  for (const m of base.menu) if (!saved.has(m.key)) ordered.push(m);
+  // Módulos nuevos (agregados por una versión posterior): se insertan después del módulo
+  // que los precede en el orden por defecto, no al final.
+  base.menu.forEach((m, i) => {
+    if (saved.has(m.key)) return;
+    const prevKey = base.menu[i - 1]?.key;
+    const at = ordered.findIndex((x) => x.key === prevKey);
+    ordered.splice(at >= 0 ? at + 1 : ordered.length, 0, m);
+  });
   merged.menu = ordered.map((m) => (MODULES.find((x) => x.key === m.key)?.locked ? { ...m, visible: true } : m));
   return merged;
 }

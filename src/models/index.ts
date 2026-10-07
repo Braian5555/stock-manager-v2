@@ -161,7 +161,7 @@ export type ThemeMode = 'light' | 'dark' | 'system';
 export type LogoKind = 'default' | 'emoji' | 'image';
 export type ModuleKey =
   | 'dashboard' | 'stock' | 'count' | 'orders' | 'products' | 'suppliers' | 'locations' | 'categories'
-  | 'units' | 'movements' | 'reconciliation' | 'export' | 'settings' | 'integrations' | 'cloud' | 'users';
+  | 'units' | 'movements' | 'reconciliation' | 'export' | 'settings' | 'integrations' | 'cloud' | 'users' | 'invoices';
 
 export interface MenuItemSetting {
   key: ModuleKey;
@@ -248,7 +248,7 @@ export type StockStatus = 'normal' | 'bajo' | 'critico' | 'sin_stock';
 
 export const PERMISSIONS = [
   'stock.view', 'stock.move', 'count.do', 'count.apply', 'orders.manage', 'orders.receive', 'catalog.manage',
-  'movements.view', 'export', 'admin',
+  'movements.view', 'export', 'admin', 'invoices',
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];
 
@@ -266,4 +266,42 @@ export interface AppUser extends BaseEntity {
   pinSalt: string;
   active: boolean;
   color?: string;
+}
+
+// ───────────────────────── Facturas recibidas ─────────────────────────
+
+/** Página (foto) de una factura. La imagen vive aparte, en InvoiceImage. */
+export interface InvoicePage {
+  id: ID;
+  width: number;
+  height: number;
+  bytes: number;
+  /** Miniatura JPEG chica (data URL) para listados. */
+  thumb?: string;
+}
+
+/** Factura de proveedor: datos para buscarla + fotos. Se sincroniza con la nube. */
+export interface Invoice extends BaseEntity {
+  /** Fecha de la factura (YYYY-MM-DD). */
+  date: string;
+  supplierId?: ID;
+  orderId?: ID;
+  number?: string;
+  total?: number;
+  notes?: string;
+  pages: InvoicePage[];
+  createdBy?: Actor;
+}
+
+/**
+ * Foto de una página de factura (JPEG en base64). Se guarda en el dispositivo y,
+ * con la nube activa, se sube aparte y se descarga sólo cuando se abre.
+ */
+export interface InvoiceImage {
+  id: ID;
+  invoiceId: ID;
+  type: string;
+  data: string;
+  /** 1 = ya está en la nube (o no hace falta subirla), 0 = pendiente. */
+  uploaded: 0 | 1;
 }
