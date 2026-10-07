@@ -32,7 +32,7 @@ export function AppLayout() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  useEffect(() => window.scrollTo(0, 0), [location.pathname]);
+ useEffect(() => { window.scrollTo(0, 0); }, [location.pathname]);
 
   const visible = settings.menu.filter((m) => m.visible);
   const bottom = visible.filter((m) => BOTTOM_KEYS.includes(m.key));
