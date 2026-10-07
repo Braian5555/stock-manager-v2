@@ -18,6 +18,7 @@ export const MODULES: { key: ModuleKey; label: string; primary?: boolean; locked
   { key: 'movements', label: 'Movimientos' },
   { key: 'reconciliation', label: 'Conciliación' },
   { key: 'export', label: 'Exportar y backup' },
+  { key: 'cloud', label: 'Cuenta y nube' },
   { key: 'integrations', label: 'Integraciones' },
   { key: 'settings', label: 'Configuración', locked: true },
 ];

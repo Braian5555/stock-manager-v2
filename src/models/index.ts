@@ -96,6 +96,13 @@ export interface StockMovement extends BaseEntity {
   syncId?: ID;
   /** Referencia al pedido / conteo que lo originó. */
   refId?: ID;
+  /**
+   * true: el movimiento FIJA la cantidad (ajuste a un valor, conteo).
+   * false/ausente: el movimiento SUMA o RESTA `delta`.
+   * Permite recalcular el stock de forma determinística cuando llegan movimientos
+   * de otros dispositivos (ver recomputeStock).
+   */
+  absolute?: boolean;
 }
 
 export const ORDER_STATUSES = ['borrador', 'pendiente', 'enviado', 'recibido', 'cancelado'] as const;
@@ -146,7 +153,7 @@ export type ThemeMode = 'light' | 'dark' | 'system';
 export type LogoKind = 'default' | 'emoji' | 'image';
 export type ModuleKey =
   | 'dashboard' | 'stock' | 'count' | 'orders' | 'products' | 'suppliers' | 'locations' | 'categories'
-  | 'units' | 'movements' | 'reconciliation' | 'export' | 'settings' | 'integrations';
+  | 'units' | 'movements' | 'reconciliation' | 'export' | 'settings' | 'integrations' | 'cloud';
 
 export interface MenuItemSetting {
   key: ModuleKey;

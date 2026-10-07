@@ -1,5 +1,5 @@
 import {
-  ArrowLeftRight, Boxes, ClipboardCheck, Download, Home, MapPin, Package, Plug, Ruler, Scale, Settings, ShoppingCart, Tags, Truck,
+  ArrowLeftRight, Boxes, Cloud, ClipboardCheck, Download, Home, MapPin, Package, Plug, Ruler, Scale, Settings, ShoppingCart, Tags, Truck,
   type LucideIcon,
 } from 'lucide-react';
 import type { ModuleKey } from '../models';
@@ -18,6 +18,7 @@ export const MODULE_PATH: Record<ModuleKey, string> = {
   reconciliation: '/conciliacion',
   export: '/exportar',
   integrations: '/integraciones',
+  cloud: '/nube',
   settings: '/configuracion',
 };
 
@@ -35,6 +36,7 @@ export const MODULE_ICON: Record<ModuleKey, LucideIcon> = {
   reconciliation: Scale,
   export: Download,
   integrations: Plug,
+  cloud: Cloud,
   settings: Settings,
 };
 

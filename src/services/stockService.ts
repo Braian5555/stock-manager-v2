@@ -67,6 +67,9 @@ export interface MovementResult {
  */
 export async function applyMovement(input: MovementInput): Promise<MovementResult> {
   const key = input.idempotencyKey ?? `local:${uuid()}`;
+  // Con clave determinística (pedido+ítem, conteo+producto…) el id también lo es:
+  // si dos dispositivos registran el mismo hecho, en la nube queda un solo movimiento.
+  const id = input.idempotencyKey ? movementIdForKey(input.idempotencyKey) : uuid();
   return db.transaction('rw', db.products, db.movements, async () => {
     const existing = await db.movements.where('idempotencyKey').equals(key).first();
     if (existing) return { movement: existing, duplicate: true };
@@ -84,7 +87,7 @@ export async function applyMovement(input: MovementInput): Promise<MovementResul
 
     const t = nowIso();
     const movement: StockMovement = {
-      id: uuid(),
+      id,
       createdAt: t,
       updatedAt: t,
       productId: product.id,
@@ -99,6 +102,7 @@ export async function applyMovement(input: MovementInput): Promise<MovementResul
       externalMovementId: input.externalMovementId,
       syncId: input.syncId,
       refId: input.refId,
+      absolute: input.newQuantity !== undefined && (input.type === 'ajuste' || input.type === 'conteo'),
     };
     await db.movements.add(movement);
     await db.products.update(product.id, { stock: after, updatedAt: t });
@@ -116,4 +120,42 @@ export async function revertMovement(movement: StockMovement): Promise<MovementR
     origin: 'deshacer',
     idempotencyKey: `undo:${movement.id}`,
   });
+}
+
+/** Id determinístico (FNV-1a de 64 bits en dos mitades) para una clave de idempotencia. */
+export function movementIdForKey(key: string): string {
+  let h1 = 0x811c9dc5;
+  let h2 = 0x01000193;
+  for (let i = 0; i < key.length; i++) {
+    const c = key.charCodeAt(i);
+    h1 = Math.imul(h1 ^ c, 0x01000193) >>> 0;
+    h2 = Math.imul(h2 ^ c, 0x5bd1e995) >>> 0;
+  }
+  return `m_${h1.toString(16).padStart(8, '0')}${h2.toString(16).padStart(8, '0')}_${key.length}`;
+}
+
+/** Orden total de movimientos: fecha y, ante empate, id. */
+export const movementOrder = (a: StockMovement, b: StockMovement) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id);
+
+/**
+ * Stock resultante de aplicar los movimientos en orden: los absolutos fijan la cantidad,
+ * el resto suma su diferencia. Si no hay movimientos devuelve undefined.
+ */
+export function foldStock(movements: StockMovement[]): number | undefined {
+  if (!movements.length) return undefined;
+  let stock = 0;
+  for (const m of [...movements].sort(movementOrder)) stock = m.absolute ? m.quantityAfter : round3(stock + m.delta);
+  return stock;
+}
+
+/**
+ * Recalcula el stock de un producto a partir de su historial (se usa al recibir
+ * movimientos de otros dispositivos). Debe llamarse dentro de una transacción rw
+ * sobre products y movements.
+ */
+export async function recomputeStock(productId: string): Promise<void> {
+  const product = await db.products.get(productId);
+  if (!product) return;
+  const stock = foldStock(await db.movements.where('productId').equals(productId).toArray());
+  if (stock !== undefined && stock !== product.stock) await db.products.update(productId, { stock });
 }

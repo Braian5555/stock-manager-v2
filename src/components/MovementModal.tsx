@@ -65,7 +65,15 @@ export function MovementModal({ product, onClose }: { product: Product | null; o
       }
       return;
     }
-    const r = await run(() => applyMovement({ productId: product.id, type, newQuantity: newQty, reason, origin: 'manual' }));
+    // Ajuste = fija la cantidad; el resto suma o resta (así se combinan bien los
+    // movimientos hechos en distintos dispositivos al mismo tiempo).
+    const r = await run(() =>
+      applyMovement(
+        isAdjust
+          ? { productId: product.id, type, newQuantity: newQty, reason, origin: 'manual' }
+          : { productId: product.id, type, delta: round3(newQty - product.stock), reason, origin: 'manual' },
+      ),
+    );
     if (r) {
       notify(`${MOVEMENT_LABEL[type]} registrado: ${fmtNumber(r.movement.quantityBefore)} → ${fmtNumber(r.movement.quantityAfter)}`, {
         undo: () => revertMovement(r.movement).then(() => undefined),

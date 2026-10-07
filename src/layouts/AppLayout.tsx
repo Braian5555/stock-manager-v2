@@ -10,6 +10,7 @@ import { useFeedback } from '../store/feedback';
 import { useSettings } from '../store/settings';
 import { BOTTOM_KEYS, MODULE_ICON, MODULE_PATH } from './modules';
 import { useAutoSync } from '../hooks/useAutoSync';
+import { SyncBadge } from '../components/SyncBadge';
 
 export function AppLayout() {
   const settings = useSettings();
@@ -32,7 +33,11 @@ export function AppLayout() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
- useEffect(() => { window.scrollTo(0, 0); }, [location.pathname]);
+  // Llaves obligatorias: en Chrome reciente scrollTo() devuelve una Promise y React
+  // la trataría como función de limpieza ("l is not a function" al navegar).
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [location.pathname]);
 
   const visible = settings.menu.filter((m) => m.visible);
   const bottom = visible.filter((m) => BOTTOM_KEYS.includes(m.key));
@@ -84,6 +89,7 @@ export function AppLayout() {
         <header className="topbar">
           {brand}
           <span className="grow" />
+          <SyncBadge compact />
           <button type="button" className="btn btn-ghost" onClick={() => setSearchOpen(true)} aria-label="Buscar (Ctrl+K)">
             <Search size={20} aria-hidden />
             <span className="small muted" style={{ display: 'none' }}>Buscar</span>

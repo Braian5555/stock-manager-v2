@@ -5,7 +5,9 @@ import { round3 } from '../utils/format';
 /** Control [-] [ n ] [+] grande, pensado para usar con el pulgar. */
 export function Stepper({ value, onChange, label, step = 1 }: { value: number | undefined; onChange: (v: number | undefined) => void; label: string; step?: number }) {
   const [text, setText] = useState(value === undefined ? '' : String(value));
-  useEffect(() => setText(value === undefined ? '' : String(value)), [value]);
+  useEffect(() => {
+    setText(value === undefined ? '' : String(value));
+  }, [value]);
   const commit = (t: string) => {
     const n = t.trim() === '' ? undefined : Number(t.replace(',', '.'));
     if (n === undefined || (Number.isFinite(n) && n >= 0)) onChange(n === undefined ? undefined : round3(n));

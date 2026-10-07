@@ -1,6 +1,7 @@
 import { lazy, useEffect, useState } from 'react';
 import { HashRouter, Route, Routes } from 'react-router';
 import { ensureBaseData } from './services/seedService';
+import { initCloud } from './cloud/cloudService';
 import { FeedbackProvider } from './store/feedback';
 import { SettingsProvider } from './store/settings';
 import { AppLayout } from './layouts/AppLayout';
@@ -11,6 +12,7 @@ import { CountsPage } from './pages/CountsPage';
 import { OrdersPage } from './pages/OrdersPage';
 import { MorePage } from './pages/MorePage';
 import { NotFoundPage } from './pages/NotFoundPage';
+const CloudPage = lazy(() => import('./pages/CloudPage').then((m) => ({ default: m.CloudPage })));
 const OrderEditorPage = lazy(() => import('./pages/OrderEditorPage').then((m) => ({ default: m.OrderEditorPage })));
 const CountDetailPage = lazy(() => import('./pages/CountDetailPage').then((m) => ({ default: m.CountDetailPage })));
 const ProductsPage = lazy(() => import('./pages/ProductsPage').then((m) => ({ default: m.ProductsPage })));
@@ -32,7 +34,11 @@ export function App() {
 
   useEffect(() => {
     ensureBaseData()
-      .then(() => setReady(true))
+      .then(() => {
+        setReady(true);
+        // La nube se inicia en segundo plano: la app nunca espera a Internet.
+        void initCloud();
+      })
       .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)));
     // Pide al navegador que no borre los datos locales bajo presión de espacio.
     void navigator.storage?.persist?.().catch(() => undefined);
@@ -73,6 +79,7 @@ export function App() {
                 <Route path="exportar" element={<ExportPage />} />
                 <Route path="configuracion" element={<SettingsPage />} />
                 <Route path="integraciones" element={<IntegrationsPage />} />
+                <Route path="nube" element={<CloudPage />} />
                 <Route path="mas" element={<MorePage />} />
                 <Route path="*" element={<NotFoundPage />} />
               </Route>

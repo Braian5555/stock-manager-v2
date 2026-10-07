@@ -363,3 +363,7 @@ hr.sep { border: 0; border-top: 1px solid var(--border); margin: 16px 0; }
 .count-item > .row:last-child { margin-left: auto; }
 .show-mobile { display: none; }
 @media (max-width: 719px) { .hide-mobile { display: none !important; } .show-mobile { display: block; } }
+.sync-synced { color: var(--ok); }
+.sync-offline { color: var(--low); }
+.sync-error { color: var(--out); }
+.sync-pending, .sync-connecting { color: var(--info); }
