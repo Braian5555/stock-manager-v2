@@ -1,4 +1,4 @@
-name: Deploy a GitHub Pages
+name: Deploy
 
 on:
   push:
@@ -7,18 +7,14 @@ on:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
-  group: pages
+  group: deploy
   cancel-in-progress: true
 
 jobs:
-  build:
+  firebase:
     runs-on: ubuntu-latest
-    env:
-      VITE_BASE_PATH: /${{ github.event.repository.name }}/
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -26,18 +22,15 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - run: npm run lint
+      - run: npm test
       - run: touch public/.nojekyll
       - run: npm run build
-      - uses: actions/upload-pages-artifact@v3
+        env:
+          VITE_BASE_PATH: /
+      - uses: FirebaseExtended/action-hosting-deploy@v0
         with:
-          path: dist
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - id: deployment
-        uses: actions/deploy-pages@v4
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          projectId: stock-manager-a7cf7
+          channelId: live
+  
