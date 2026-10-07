@@ -1,0 +1,83 @@
+rules_version = '2';
+
+// Reglas de seguridad de Stock Manager.
+// Pegar en Firebase Console → Firestore Database → Rules → Publish.
+//
+// Modelo:
+//   workspaces/{wsId}                 → nombre, ownerUid, memberUids[], roles{uid: owner|admin|member},
+//                                        memberInfo{uid: {email, name}}, inviteEmails[]
+//   workspaces/{wsId}/{tabla}/{docId} → datos del negocio (sólo miembros)
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+    function myEmail() {
+      return request.auth.token.email.lower();
+    }
+    function verified() {
+      return request.auth.token.email_verified == true;
+    }
+    function wsData(wsId) {
+      return get(/databases/$(database)/documents/workspaces/$(wsId)).data;
+    }
+    function isMember(wsId) {
+      return signedIn() && request.auth.uid in wsData(wsId).memberUids;
+    }
+
+    match /workspaces/{wsId} {
+      // Leer: miembros, o personas invitadas (para poder ver y aceptar la invitación).
+      allow read: if signedIn() && (
+        request.auth.uid in resource.data.memberUids ||
+        (verified() && myEmail() in resource.data.inviteEmails)
+      );
+
+      // Crear: sólo como dueño y único miembro.
+      allow create: if signedIn()
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.memberUids == [request.auth.uid]
+        && request.resource.data.roles.keys().hasOnly([request.auth.uid])
+        && request.resource.data.roles[request.auth.uid] == 'owner'
+        && request.resource.data.inviteEmails.size() == 0;
+
+      allow update: if signedIn() && (
+        // Dueño o administrador: puede editar nombre, invitaciones, miembros y roles,
+        // pero no cambiar de dueño ni quitarle el rol al dueño.
+        (
+          resource.data.roles[request.auth.uid] in ['owner', 'admin']
+          && request.resource.data.ownerUid == resource.data.ownerUid
+          && resource.data.ownerUid in request.resource.data.memberUids
+          && request.resource.data.roles[resource.data.ownerUid] == 'owner'
+          && request.resource.data.diff(resource.data).affectedKeys()
+               .hasOnly(['name', 'inviteEmails', 'memberUids', 'roles', 'memberInfo'])
+        )
+        ||
+        // Persona invitada aceptando: sólo se agrega a sí misma como "member"
+        // y quita su propio email de las invitaciones.
+        (
+          verified()
+          && myEmail() in resource.data.inviteEmails
+          && !(request.auth.uid in resource.data.memberUids)
+          && request.resource.data.diff(resource.data).affectedKeys()
+               .hasOnly(['memberUids', 'roles', 'memberInfo', 'inviteEmails'])
+          && request.resource.data.memberUids.toSet() == resource.data.memberUids.toSet().union([request.auth.uid].toSet())
+          && request.resource.data.roles.diff(resource.data.roles).affectedKeys().hasOnly([request.auth.uid])
+          && request.resource.data.roles[request.auth.uid] == 'member'
+          && request.resource.data.memberInfo.diff(resource.data.memberInfo).affectedKeys().hasOnly([request.auth.uid])
+          && request.resource.data.inviteEmails.toSet() == resource.data.inviteEmails.toSet().difference([myEmail()].toSet())
+        )
+      );
+
+      allow delete: if signedIn() && resource.data.ownerUid == request.auth.uid;
+
+      // Datos del negocio: sólo miembros, y sólo en las colecciones conocidas.
+      match /{table}/{docId} {
+        allow read, write: if isMember(wsId) && table in [
+          'settings', 'categories', 'units', 'locations', 'suppliers', 'products',
+          'orders', 'orderItems', 'movements', 'counts', 'countItems'
+        ];
+      }
+    }
+  }
+}

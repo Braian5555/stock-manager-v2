@@ -1,8 +1,8 @@
 {
   "name": "stock-manager",
   "private": true,
-  "version": "2.0.0",
-  "description": "Gestión de inventario, stock, conteos, proveedores y pedidos — PWA offline con capa de integraciones (Maxirest).",
+  "version": "2.1.0",
+  "description": "Gesti\u00f3n de inventario, stock, conteos, proveedores y pedidos \u2014 PWA offline con capa de integraciones (Maxirest).",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -21,6 +21,7 @@
     "dexie-react-hooks": "^4.4.0",
     "docx": "^9.8.1",
     "exceljs": "^4.4.0",
+    "firebase": "^12.19.0",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.8",
     "lucide-react": "^1.52.0",
@@ -38,6 +39,7 @@
     "eslint": "^10.12.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "fake-indexeddb": "^6.2.5",
+    "firebase-tools": "^15.32.1",
     "globals": "^17.13.0",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.71.1",

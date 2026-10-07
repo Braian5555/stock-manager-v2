@@ -1,0 +1,7 @@
+{
+  "_ayuda": "Pegá acá la configuración web de tu proyecto de Firebase (ver docs/firebase.md). Mientras esté vacío, la app funciona sólo en este dispositivo.",
+  "apiKey": "",
+  "authDomain": "",
+  "projectId": "",
+  "appId": ""
+}

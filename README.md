@@ -87,12 +87,14 @@ Ver [.env.example](.env.example). Todo lo que empieza con `VITE_` es **público*
 
 | Variable | Default | Uso |
 |---|---|---|
-| `VITE_BASE_PATH` | `/stock-manager/` | Base de publicación. `/` para dominio propio. |
+| `VITE_BASE_PATH` | `/stock-manager/` (en CI: nombre del repo) | Base de publicación. `/` para dominio propio. |
 | `VITE_DEFAULT_GATEWAY_URL` | vacío | URL pública del gateway de integración (opcional). |
 
 ---
 
 ## Deploy en GitHub Pages
+
+El base path se toma automáticamente del **nombre del repositorio** (`/${{ github.event.repository.name }}/` en el workflow), así que la app funciona en `https://<usuario>.github.io/<nombre-del-repo>/` con cualquier nombre.
 
 1. En el repositorio: **Settings → Pages → Source: GitHub Actions**.
 2. Hacer push a `main`. El workflow `.github/workflows/deploy.yml` corre lint, tests unitarios, build verificado, E2E y la prueba de actualización del SW, y publica `dist/`.
@@ -124,6 +126,10 @@ El problema anterior: un `<script>` escrito dentro de un template string en un s
 - Se pide almacenamiento persistente (`navigator.storage.persist()`); el estado se ve en Configuración.
 - **Exportar backup**: JSON completo con relaciones e IDs externos, **sin** secretos (se eliminan recursivamente campos como `password`, `token`, `apiKey`…).
 - **Restaurar backup**: valida formato, versión y registros; muestra advertencia *“Esta acción reemplazará los datos actuales.”*; restaura en una transacción y permite **Deshacer**.
+
+## Sincronización con Google (opcional)
+
+Inicio de sesión con Google y datos compartidos entre dispositivos y empleados mediante Firebase (Authentication + Firestore), con funcionamiento sin conexión. Se activa completando `public/firebase-config.json`. Guía paso a paso: [docs/firebase.md](docs/firebase.md). Reglas de seguridad: [firestore.rules](firestore.rules).
 
 ## Maxirest
 

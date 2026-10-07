@@ -38,17 +38,22 @@ describe('backup', () => {
 });
 
 describe('migraciones', () => {
-  it('v1 → v2 conserva productos y completa campos nuevos', async () => {
+  it('v1 → v3 conserva productos y completa campos nuevos', async () => {
     db.close();
     await Dexie.delete('migration-test');
     const v1 = new Dexie('migration-test');
     v1.version(1).stores(SCHEMA_V1);
     await v1.open();
     await v1.table('products').add({ id: 'p1', name: 'Viejo', stock: 4, minStock: 1, maxStock: 9, createdAt: 'x', updatedAt: 'x' });
+    await v1.table('orders').add({ id: 'o1', number: 1, status: 'pendiente', date: 'x', createdAt: 'x', updatedAt: 'x' });
     v1.close();
     const v2 = new StockDatabase('migration-test');
     await v2.open();
-    expect(v2.verno).toBe(2);
+    expect(v2.verno).toBe(3);
+    // v3: el número de pedido ya no es único (dos dispositivos pueden numerar a la vez)
+    await v2.orders.add({ id: 'o2', number: 1, status: 'borrador', date: 'x', createdAt: 'x', updatedAt: 'x' });
+    expect(await v2.orders.where('number').equals(1).count()).toBe(2);
+    expect(await v2.orders.get('o1')).toBeDefined();
     expect(await v2.products.get('p1')).toMatchObject({ name: 'Viejo', stock: 4, purchaseFactor: 1, alternativeSupplierIds: [], active: true });
     expect(await v2.syncJobs.count()).toBe(0);
     v2.close();

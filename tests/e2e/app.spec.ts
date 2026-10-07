@@ -4,6 +4,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { dialog, go, loadDemo, open } from './helpers';
 
+const BASE = process.env.VITE_BASE_PATH ?? '/stock-manager/';
+
 test('1 · abre la app sin mostrar código fuente ni errores', async ({ page }) => {
   const errors = await open(page);
   await expect(page.getByRole('heading', { name: 'Inicio', level: 1 })).toBeVisible();
@@ -143,10 +145,10 @@ test('15-17 · exporta Excel, PDF y Word válidos', async ({ page }, info) => {
 test('18-19 · PWA instalable y funciona offline', async ({ page, context }) => {
   await open(page);
   const manifest = await (await page.request.get('manifest.webmanifest')).json();
-  expect(manifest).toMatchObject({ start_url: '/stock-manager/', scope: '/stock-manager/', display: 'standalone' });
-  await expect(page.locator('link[rel="manifest"]')).toHaveAttribute('href', '/stock-manager/manifest.webmanifest');
+  expect(manifest).toMatchObject({ start_url: BASE, scope: BASE, display: 'standalone' });
+  await expect(page.locator('link[rel="manifest"]')).toHaveAttribute('href', `${BASE}manifest.webmanifest`);
   const scope = await page.evaluate(async () => (await navigator.serviceWorker.ready).scope);
-  expect(scope).toMatch(/\/stock-manager\/$/);
+  expect(new URL(scope).pathname).toBe(BASE);
   await page.reload();
   await expect.poll(() => page.evaluate(() => !!navigator.serviceWorker.controller)).toBe(true);
   await page.getByRole('button', { name: 'Cargar datos de ejemplo' }).click();
@@ -214,4 +216,21 @@ test('búsqueda global encuentra productos por código', async ({ page }) => {
   await dialog(page).getByLabel('Búsqueda global').fill('HIE-005');
   await dialog(page).getByRole('option', { name: /Hielo 5 kg/ }).click();
   await expect(dialog(page).getByLabel('Nombre')).toHaveValue('Hielo 5 kg');
+});
+
+test('navegar no falla aunque scrollTo devuelva una Promise (Chrome reciente)', async ({ page }) => {
+  await page.addInitScript(() => {
+    const original = window.scrollTo.bind(window);
+    (window as unknown as { scrollTo: (...a: unknown[]) => unknown }).scrollTo = (...a: unknown[]) => {
+      original(...(a as [number, number]));
+      return Promise.resolve();
+    };
+  });
+  await open(page);
+  // Navegación del lado del cliente con los links del menú (la que fallaba).
+  for (const hash of ['/stock', '/conteo', '/pedidos', '/']) {
+    await page.locator(`a[href="#${hash}"]`).filter({ visible: true }).last().click();
+    await expect(page.locator('main h1').first()).toBeVisible();
+    await expect(page.getByText('Algo salió mal')).toHaveCount(0);
+  }
 });
