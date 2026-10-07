@@ -1,3 +1,4 @@
+import { useSession } from '../store/session';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { ArrowLeftRight, Undo2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
@@ -20,6 +21,7 @@ export function MovementsPage() {
   const settings = useSettings();
   const products = useProducts();
   const { run, confirm } = useFeedback();
+  const { can } = useSession();
   const [q, setQ] = useState('');
   const [type, setType] = useState<MovementType | ''>('');
   const [from, setFrom] = useState('');
@@ -64,10 +66,10 @@ export function MovementsPage() {
                 <div className="grow">
                   <div className="list-title truncate">{name.get(m.productId) ?? '(producto eliminado)'}</div>
                   <div className="list-sub">{MOVEMENT_LABEL[m.type]} · {fmtDate(m.createdAt)} {fmtTime(m.createdAt)} · {ORIGIN_LABEL[m.origin]}{m.sourceSystem === 'maxirest' ? ' · Maxirest' : ''}</div>
-                  <div className="list-sub num">{fmtNumber(m.quantityBefore)} → {fmtNumber(m.quantityAfter)}{m.reason ? ` · ${m.reason}` : ''}</div>
+                  <div className="list-sub num">{fmtNumber(m.quantityBefore)} → {fmtNumber(m.quantityAfter)}{m.reason ? ` · ${m.reason}` : ''}{m.performedBy ? ` · ${m.performedBy.name}` : ''}</div>
                 </div>
                 <strong className={`num ${m.delta >= 0 ? 'pos' : 'neg'}`}>{fmtSigned(m.delta)}</strong>
-                {m.origin !== 'deshacer' && name.has(m.productId) && !reverted.has(m.id) && (
+                {can('stock.move') && m.origin !== 'deshacer' && name.has(m.productId) && !reverted.has(m.id) && (
                   <button type="button" className="btn btn-sm btn-ghost icon-btn" aria-label="Revertir movimiento" onClick={() => revert(m)}><Undo2 size={16} /></button>
                 )}
               </div>
@@ -76,7 +78,7 @@ export function MovementsPage() {
           <div className="table-wrap hide-mobile">
             <table className="table">
               <thead>
-                <tr><th>Producto</th><th>Fecha</th><th>Hora</th><th>Tipo</th><th className="num">Anterior</th><th className="num">Nuevo</th><th className="num">Diferencia</th><th>Motivo</th><th>Origen</th><th><span className="sr-only">Acciones</span></th></tr>
+                <tr><th>Producto</th><th>Fecha</th><th>Hora</th><th>Tipo</th><th className="num">Anterior</th><th className="num">Nuevo</th><th className="num">Diferencia</th><th>Motivo</th><th>Usuario</th><th>Origen</th><th><span className="sr-only">Acciones</span></th></tr>
               </thead>
               <tbody>
                 {list.slice(0, limit).map((m) => (
@@ -89,13 +91,14 @@ export function MovementsPage() {
                     <td data-label="Nuevo" className="num">{fmtNumber(m.quantityAfter)}</td>
                     <td data-label="Diferencia" className={`num ${m.delta >= 0 ? 'pos' : 'neg'}`}><b>{fmtSigned(m.delta)}</b></td>
                     <td data-label="Motivo">{m.reason ?? '—'}</td>
+                    <td data-label="Usuario">{m.performedBy?.name ?? '—'}</td>
                     <td data-label="Origen">
                       {ORIGIN_LABEL[m.origin]}
                       {m.sourceSystem === 'maxirest' && <> <Badge tone="info">Maxirest</Badge></>}
                       {m.syncId && m.sourceSystem === 'local' && <> <Badge tone="primary">Sync</Badge></>}
                     </td>
                     <td data-label="Acciones">
-                      {m.origin !== 'deshacer' && name.has(m.productId) && !reverted.has(m.id) && (
+                      {can('stock.move') && m.origin !== 'deshacer' && name.has(m.productId) && !reverted.has(m.id) && (
                         <button type="button" className="btn btn-sm btn-ghost icon-btn" aria-label="Revertir movimiento" title="Revertir" onClick={() => revert(m)}><Undo2 size={16} /></button>
                       )}
                     </td>

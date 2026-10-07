@@ -57,8 +57,9 @@ const workbox = readdirSync(DIST).find((f) => /^workbox-.*\.js$/.test(f));
 if (!workbox) fail('Falta runtime de Workbox');
 ok('service worker con precache versionado y limpieza de caches');
 
-// 6. Archivos de GitHub Pages.
-if (!existsSync(join(DIST, '.nojekyll'))) fail('Falta .nojekyll');
+// 6. Archivos de GitHub Pages. (.nojekyll sólo hace falta si se publica la rama sin Actions;
+//    los archivos que empiezan con punto a veces no se suben desde la web de GitHub.)
+if (!existsSync(join(DIST, '.nojekyll'))) console.warn('  ! Falta .nojekyll (no es necesario si se publica con GitHub Actions)');
 const size = assets.reduce((a, f) => a + statSync(join(DIST, 'assets', f)).size, 0);
 ok(`assets: ${(size / 1024).toFixed(0)} KB en total`);
 

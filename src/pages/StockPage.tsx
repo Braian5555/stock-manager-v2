@@ -1,3 +1,4 @@
+import { useSession } from '../store/session';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Boxes, MapPin, Plus, SlidersHorizontal, Tags, Truck } from 'lucide-react';
 import { useMemo, useState } from 'react';
@@ -16,6 +17,7 @@ type SortKey = 'name' | 'qty' | 'category' | 'location';
 
 export function StockPage() {
   const settings = useSettings();
+  const { can } = useSession();
   const products = useProducts();
   const lk = useLookups();
   const [params, setParams] = useSearchParams();
@@ -62,7 +64,7 @@ export function StockPage() {
       <PageHeader
         title={menuLabel(settings, 'stock')}
         subtitle={`${rows.length} productos`}
-        actions={<Link to="/productos?nuevo=1" className="btn btn-primary"><Plus size={18} aria-hidden /> Producto</Link>}
+        actions={can('catalog.manage') ? <Link to="/productos?nuevo=1" className="btn btn-primary"><Plus size={18} aria-hidden /> Producto</Link> : undefined}
       />
       <div className="toolbar">
         <SearchInput value={q} onChange={setQ} placeholder="Buscar por nombre o código" label="Buscar productos" />
@@ -98,7 +100,7 @@ export function StockPage() {
       {rows.length === 0 ? (
         <div className="card">
           <EmptyState icon={<Boxes size={40} />} title={products.length ? 'Sin resultados' : 'Todavía no hay productos'}
-            action={!products.length && <Link to="/productos?nuevo=1" className="btn btn-primary">Crear producto</Link>}>
+            action={!products.length && can('catalog.manage') && <Link to="/productos?nuevo=1" className="btn btn-primary">Crear producto</Link>}>
             {products.length ? 'Probá con otra búsqueda o quitá filtros.' : 'Creá tu primer producto para empezar a controlar el stock.'}
           </EmptyState>
         </div>
@@ -131,8 +133,8 @@ export function StockPage() {
                   <div className="small muted">Stock Maxirest: <strong className="num">{fmtNumber(ext)}</strong> · diferencia <strong className="num">{fmtNumber(p.stock - ext)}</strong></div>
                 )}
                 <div className="row">
-                  <button type="button" className="btn btn-sm grow" onClick={() => setMoving(p)}>Registrar movimiento</button>
-                  <Link className="btn btn-sm btn-ghost" to={`/productos?editar=${p.id}`}>Editar</Link>
+                  {can('stock.move') && <button type="button" className="btn btn-sm grow" onClick={() => setMoving(p)}>Registrar movimiento</button>}
+                  {can('catalog.manage') && <Link className="btn btn-sm btn-ghost" to={`/productos?editar=${p.id}`}>Editar</Link>}
                 </div>
               </article>
             );

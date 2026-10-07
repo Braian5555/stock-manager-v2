@@ -103,6 +103,14 @@ export interface StockMovement extends BaseEntity {
    * de otros dispositivos (ver recomputeStock).
    */
   absolute?: boolean;
+  /** Usuario que registró el movimiento (copia del nombre para el historial). */
+  performedBy?: Actor;
+}
+
+/** Quién hizo algo: id del usuario y su nombre en ese momento. */
+export interface Actor {
+  id: ID;
+  name: string;
 }
 
 export const ORDER_STATUSES = ['borrador', 'pendiente', 'enviado', 'recibido', 'cancelado'] as const;
@@ -153,7 +161,7 @@ export type ThemeMode = 'light' | 'dark' | 'system';
 export type LogoKind = 'default' | 'emoji' | 'image';
 export type ModuleKey =
   | 'dashboard' | 'stock' | 'count' | 'orders' | 'products' | 'suppliers' | 'locations' | 'categories'
-  | 'units' | 'movements' | 'reconciliation' | 'export' | 'settings' | 'integrations' | 'cloud';
+  | 'units' | 'movements' | 'reconciliation' | 'export' | 'settings' | 'integrations' | 'cloud' | 'users';
 
 export interface MenuItemSetting {
   key: ModuleKey;
@@ -174,6 +182,8 @@ export interface Settings extends BaseEntity {
   /** Por debajo de min * criticalRatio el estado es "Crítico". */
   criticalRatio: number;
   suggestionMode: SuggestionMode;
+  /** Minutos sin uso tras los que se pide el PIN otra vez (0 = nunca). */
+  autoLockMinutes: number;
 }
 
 export type IntegrationMode = 'disabled' | 'mock' | 'gateway' | 'excel';
@@ -233,3 +243,27 @@ export interface ExternalReference extends BaseEntity {
 }
 
 export type StockStatus = 'normal' | 'bajo' | 'critico' | 'sin_stock';
+
+// ───────────────────────── Usuarios de la app ─────────────────────────
+
+export const PERMISSIONS = [
+  'stock.view', 'stock.move', 'count.do', 'count.apply', 'orders.manage', 'orders.receive', 'catalog.manage',
+  'movements.view', 'export', 'admin',
+] as const;
+export type Permission = (typeof PERMISSIONS)[number];
+
+export type UserRole = 'admin' | 'manager' | 'staff' | 'custom';
+
+/**
+ * Usuario interno de la app (nombre + PIN), creado por un administrador.
+ * El PIN nunca se guarda: sólo su hash PBKDF2 con sal.
+ */
+export interface AppUser extends BaseEntity {
+  name: string;
+  role: UserRole;
+  permissions: Permission[];
+  pinHash: string;
+  pinSalt: string;
+  active: boolean;
+  color?: string;
+}

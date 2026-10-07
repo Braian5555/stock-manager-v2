@@ -84,8 +84,8 @@ export async function buildDatasets(scope: ExportScope): Promise<{ title: string
     const movs = await db.movements.orderBy('createdAt').reverse().toArray();
     out.push({
       title: 'Movimientos',
-      columns: ['Fecha y hora', 'Producto', 'Tipo', 'Anterior', 'Nuevo', 'Diferencia', 'Motivo', 'Origen', 'Sistema'],
-      rows: movs.map((m) => [fmtDateTime(m.createdAt), prod(m.productId) || '(eliminado)', MOVEMENT_LABEL[m.type], m.quantityBefore, m.quantityAfter, m.delta, m.reason ?? '', m.origin, m.sourceSystem]),
+      columns: ['Fecha y hora', 'Producto', 'Tipo', 'Anterior', 'Nuevo', 'Diferencia', 'Motivo', 'Usuario', 'Origen', 'Sistema'],
+      rows: movs.map((m) => [fmtDateTime(m.createdAt), prod(m.productId) || '(eliminado)', MOVEMENT_LABEL[m.type], m.quantityBefore, m.quantityAfter, m.delta, m.reason ?? '', m.performedBy?.name ?? '', m.origin, m.sourceSystem]),
     });
   }
   if (want('settings'))

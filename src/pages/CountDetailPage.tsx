@@ -1,3 +1,4 @@
+import { useSession } from '../store/session';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { ArrowLeft, CheckCircle2, FileSpreadsheet, Send } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
@@ -22,6 +23,7 @@ export function CountDetailPage() {
   const products = useProducts();
   const lk = useLookups();
   const { run, confirm, notify } = useFeedback();
+  const { can } = useSession();
   const [q, setQ] = useState('');
   const [show, setShow] = useState<Show>('all');
   const [cat, setCat] = useState('');
@@ -123,11 +125,11 @@ export function CountDetailPage() {
             </div>
           )}
           <div className="row wrap">
-            {count.status === 'finalizado' && <button type="button" className="btn btn-primary" onClick={apply}>Aplicar al stock</button>}
+            {count.status === 'finalizado' && can('count.apply') && <button type="button" className="btn btn-primary" onClick={apply}>Aplicar al stock</button>}
             {count.status === 'finalizado' && <button type="button" className="btn" onClick={() => run(() => reopenCount(id))}>Seguir contando</button>}
-            {canSync && linkedDiffs.length > 0 && count.status !== 'descartado' && <button type="button" className="btn" onClick={send}><Send size={16} aria-hidden /> Enviar a Maxirest</button>}
-            <button type="button" className="btn" onClick={() => run(() => exportBridgeWorkbook(id, count.name), 'Excel generado')}><FileSpreadsheet size={16} aria-hidden /> Excel para Maxirest</button>
-            {count.status === 'finalizado' && (
+            {canSync && can('admin') && linkedDiffs.length > 0 && count.status !== 'descartado' && <button type="button" className="btn" onClick={send}><Send size={16} aria-hidden /> Enviar a Maxirest</button>}
+            {can('export') && <button type="button" className="btn" onClick={() => run(() => exportBridgeWorkbook(id, count.name), 'Excel generado')}><FileSpreadsheet size={16} aria-hidden /> Excel para Maxirest</button>}
+            {count.status === 'finalizado' && can('count.apply') && (
               <button type="button" className="btn btn-danger" onClick={async () => (await confirm({ title: 'Descartar conteo', message: 'El conteo quedará guardado como descartado y no modificará el stock.', danger: true, confirmLabel: 'Descartar' })) && run(() => discardCount(id))}>Descartar</button>
             )}
           </div>

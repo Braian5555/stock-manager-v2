@@ -1,12 +1,14 @@
 import { ChevronRight } from 'lucide-react';
 import { Link } from 'react-router';
-import { BOTTOM_KEYS, MODULE_ICON, MODULE_PATH } from '../layouts/modules';
+import { BOTTOM_KEYS, MODULE_ICON, MODULE_PATH, MODULE_PERMISSIONS } from '../layouts/modules';
+import { useSession } from '../store/session';
 import { useSettings } from '../store/settings';
 import { PageHeader } from '../components/ui';
 
 export function MorePage() {
   const settings = useSettings();
-  const items = settings.menu.filter((m) => m.visible && !BOTTOM_KEYS.includes(m.key));
+  const { canAny, lock } = useSession();
+  const items = settings.menu.filter((m) => m.visible && !BOTTOM_KEYS.includes(m.key) && canAny(MODULE_PERMISSIONS[m.key]));
   return (
     <>
       <PageHeader title="Más" />
@@ -22,6 +24,7 @@ export function MorePage() {
           );
         })}
       </nav>
+      <button type="button" className="btn btn-block" style={{ marginTop: 16 }} onClick={() => void lock()}>Bloquear / cambiar usuario</button>
       <p className="small muted" style={{ marginTop: 16, textAlign: 'center' }}>Stock Manager v{__APP_VERSION__}</p>
     </>
   );

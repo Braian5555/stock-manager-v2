@@ -1,3 +1,4 @@
+import { useSession } from '../store/session';
 import { DatabaseBackup, FileDown, FileJson, FileSpreadsheet, FileText, FileType2, Upload } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { db, DATA_TABLES } from '../database/db';
@@ -20,6 +21,7 @@ const SCOPE_TABLES: Partial<Record<ExportScope, string[]>> = {
 export function ExportPage() {
   const settings = useSettings();
   const { run, confirm, notify } = useFeedback();
+  const { can } = useSession();
   const [scope, setScope] = useState<ExportScope>('all');
   const [busy, setBusy] = useState(false);
   const restoreRef = useRef<HTMLInputElement>(null);
@@ -103,7 +105,7 @@ export function ExportPage() {
         <p className="muted small">Incluye todos los datos ({DATA_TABLES.length} tablas), relaciones e identificadores externos. Nunca incluye contraseñas, tokens ni claves.</p>
         <div className="row wrap">
           <button type="button" className="btn btn-primary" onClick={backup}><DatabaseBackup size={18} aria-hidden /> Exportar backup</button>
-          <button type="button" className="btn" onClick={() => restoreRef.current?.click()}><Upload size={18} aria-hidden /> Restaurar backup</button>
+          {can('admin') && <button type="button" className="btn" onClick={() => restoreRef.current?.click()}><Upload size={18} aria-hidden /> Restaurar backup</button>}
           <input ref={restoreRef} type="file" accept="application/json,.json" hidden aria-label="Archivo de backup" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void onRestoreFile(f); }} />
         </div>
       </section>
@@ -112,7 +114,7 @@ export function ExportPage() {
         <h2 id="imp" className="row"><Upload size={18} aria-hidden /> Importar productos</h2>
         <p className="muted small">Desde Excel (.xlsx) o CSV. Columnas reconocidas: Nombre, Código, Familia, Unidad, Ubicación, Proveedor, Mínimo, Máximo, Stock, Observaciones. Si el producto ya existe (mismo código o nombre) se actualiza sin cambiar su stock.</p>
         <div className="row wrap">
-          <button type="button" className="btn" onClick={() => importRef.current?.click()}><FileSpreadsheet size={18} aria-hidden /> Elegir archivo</button>
+          {can('catalog.manage') ? <button type="button" className="btn" onClick={() => importRef.current?.click()}><FileSpreadsheet size={18} aria-hidden /> Elegir archivo</button> : <span className="small muted">Necesitás permiso para administrar productos.</span>}
           <input ref={importRef} type="file" accept=".xlsx,.csv,text/csv" hidden aria-label="Archivo de productos" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void onImportFile(f); }} />
           {plan && <button type="button" className="btn btn-primary" onClick={confirmImport}>Importar {plan.create + plan.update} productos</button>}
         </div>

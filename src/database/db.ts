@@ -1,7 +1,7 @@
 import Dexie, { type Table } from 'dexie';
 import type {
   Business, Category, ExternalReference, InventoryCount, InventoryCountItem, Integration, Location, Order,
-  OrderItem, Product, Settings, StockMovement, Supplier, SyncJob, Unit,
+  OrderItem, Product, Settings, StockMovement, Supplier, SyncJob, Unit, AppUser,
 } from '../models';
 
 export const DB_NAME = 'stock-manager';
@@ -43,11 +43,17 @@ export const SCHEMA_V3 = {
   meta: 'key',
 };
 
-export const CURRENT_DB_VERSION = 3;
+/** v4: usuarios internos de la app (nombre + PIN). Se sincronizan con la nube. */
+export const SCHEMA_V4 = {
+  ...SCHEMA_V3,
+  users: 'id, name',
+};
+
+export const CURRENT_DB_VERSION = 4;
 
 /** Tablas de negocio que se sincronizan con la nube. */
 export const SYNC_TABLES = [
-  'settings', 'categories', 'units', 'locations', 'suppliers', 'products', 'orders', 'orderItems', 'movements', 'counts', 'countItems',
+  'settings', 'categories', 'units', 'locations', 'suppliers', 'products', 'orders', 'orderItems', 'movements', 'counts', 'countItems', 'users',
 ] as const;
 export type SyncTableName = (typeof SYNC_TABLES)[number];
 const SYNC_SET = new Set<string>(SYNC_TABLES);
@@ -85,6 +91,7 @@ export class StockDatabase extends Dexie {
   syncJobs!: Table<SyncJob, string>;
   externalReferences!: Table<ExternalReference, string>;
   meta!: Table<MetaRecord, string>;
+  users!: Table<AppUser, string>;
 
   constructor(name = DB_NAME) {
     super(name);
@@ -102,6 +109,8 @@ export class StockDatabase extends Dexie {
       });
     // v3: sincronización en la nube (sin cambios de datos: sólo índices y tabla meta).
     this.version(3).stores(SCHEMA_V3);
+    // v4: usuarios con PIN.
+    this.version(4).stores(SCHEMA_V4);
 
     // Middleware: informa qué registros cambiaron en las tablas sincronizadas.
     this.use({
@@ -137,6 +146,6 @@ export const db = new StockDatabase();
 /** Tablas incluidas en backups y exportaciones completas. */
 export const DATA_TABLES = [
   'businesses', 'settings', 'categories', 'units', 'locations', 'suppliers', 'products', 'orders', 'orderItems',
-  'movements', 'counts', 'countItems', 'integrations', 'syncJobs', 'externalReferences',
+  'movements', 'counts', 'countItems', 'integrations', 'syncJobs', 'externalReferences', 'users',
 ] as const;
 export type DataTableName = (typeof DATA_TABLES)[number];

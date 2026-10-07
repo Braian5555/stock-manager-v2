@@ -8,9 +8,11 @@ import { syncPending } from '../integrations/integrationService';
 import { UpdatePrompt } from '../pwa/UpdatePrompt';
 import { useFeedback } from '../store/feedback';
 import { useSettings } from '../store/settings';
-import { BOTTOM_KEYS, MODULE_ICON, MODULE_PATH } from './modules';
+import { BOTTOM_KEYS, MODULE_ICON, MODULE_PATH, MODULE_PERMISSIONS } from './modules';
 import { useAutoSync } from '../hooks/useAutoSync';
 import { SyncBadge } from '../components/SyncBadge';
+import { UserMenu } from '../components/auth/UserMenu';
+import { useSession } from '../store/session';
 
 export function AppLayout() {
   const settings = useSettings();
@@ -39,7 +41,8 @@ export function AppLayout() {
     window.scrollTo(0, 0);
   }, [location.pathname]);
 
-  const visible = settings.menu.filter((m) => m.visible);
+  const { canAny } = useSession();
+  const visible = settings.menu.filter((m) => m.visible && canAny(MODULE_PERMISSIONS[m.key]));
   const bottom = visible.filter((m) => BOTTOM_KEYS.includes(m.key));
   const connected = integration && integration.mode !== 'disabled' && integration.mode !== 'excel' && integration.status !== 'desconectado';
 
@@ -90,6 +93,7 @@ export function AppLayout() {
           {brand}
           <span className="grow" />
           <SyncBadge compact />
+          <UserMenu />
           <button type="button" className="btn btn-ghost" onClick={() => setSearchOpen(true)} aria-label="Buscar (Ctrl+K)">
             <Search size={20} aria-hidden />
             <span className="small muted" style={{ display: 'none' }}>Buscar</span>

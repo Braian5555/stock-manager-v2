@@ -1,3 +1,4 @@
+import { useSession } from '../store/session';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { ArrowLeft, ClipboardCopy, Copy, PackageCheck, Plus, Trash2, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
@@ -32,6 +33,7 @@ export function OrderEditorPage() {
   const products = useProducts();
   const lk = useLookups();
   const { run, confirm, notify } = useFeedback();
+  const { can } = useSession();
   const order = useLiveQuery(() => (isNew ? undefined : db.orders.get(id!)), [id]);
   const orderItems = useLiveQuery(() => (isNew ? [] : db.orderItems.where('orderId').equals(id!).toArray()), [id]);
   const [d, setD] = useState<Draft>({ status: 'borrador', date: today(), notes: '', items: [] });
@@ -55,7 +57,7 @@ export function OrderEditorPage() {
   if (!isNew && order === undefined) return <p className="muted">Cargando…</p>;
   if (!isNew && !order) return <p>El pedido no existe. <Link to="/pedidos">Volver</Link></p>;
 
-  const locked = order?.status === 'recibido';
+  const locked = order?.status === 'recibido' || !can('orders.manage');
   const update = (patch: Partial<Draft>) => {
     setDirty(true);
     setD((x) => ({ ...x, ...patch }));
@@ -116,9 +118,9 @@ export function OrderEditorPage() {
           !isNew && (
             <>
               <button type="button" className="btn" onClick={copyText}><ClipboardCopy size={16} aria-hidden /> Copiar texto</button>
-              <button type="button" className="btn" onClick={async () => { const c = await run(() => duplicateOrder(id!), 'Pedido duplicado'); if (c) navigate(`/pedidos/${c.id}`); }}><Copy size={16} aria-hidden /> Duplicar</button>
-              {!locked && order!.status !== 'cancelado' && <button type="button" className="btn btn-primary" onClick={openReceive}><PackageCheck size={16} aria-hidden /> Recibir</button>}
-              <button type="button" className="btn btn-danger" onClick={remove}><Trash2 size={16} aria-hidden /> Eliminar</button>
+              {can('orders.manage') && <button type="button" className="btn" onClick={async () => { const c = await run(() => duplicateOrder(id!), 'Pedido duplicado'); if (c) navigate(`/pedidos/${c.id}`); }}><Copy size={16} aria-hidden /> Duplicar</button>}
+              {order!.status !== 'recibido' && order!.status !== 'cancelado' && can('orders.receive') && <button type="button" className="btn btn-primary" onClick={openReceive}><PackageCheck size={16} aria-hidden /> Recibir</button>}
+              {can('orders.manage') && <button type="button" className="btn btn-danger" onClick={remove}><Trash2 size={16} aria-hidden /> Eliminar</button>}
             </>
           )
         }

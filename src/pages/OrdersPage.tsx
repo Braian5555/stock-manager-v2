@@ -1,3 +1,4 @@
+import { useSession } from '../store/session';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Lightbulb, Plus, ShoppingCart } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router';
@@ -15,6 +16,7 @@ export const ORDER_TONE: Record<OrderStatus, string> = { borrador: '', pendiente
 
 export function OrdersPage() {
   const settings = useSettings();
+  const { can } = useSession();
   const lk = useLookups();
   const [params, setParams] = useSearchParams();
   const filter = params.get('estado') ?? '';
@@ -35,7 +37,7 @@ export function OrdersPage() {
       <PageHeader
         title={menuLabel(settings, 'orders')}
         actions={
-          <>
+          can('orders.manage') && <>
             <button type="button" className="btn" onClick={() => setParam('sugerido', '1')}><Lightbulb size={18} aria-hidden /> Pedido sugerido</button>
             <Link to="/pedidos/nuevo" className="btn btn-primary"><Plus size={18} aria-hidden /> Nuevo pedido</Link>
           </>

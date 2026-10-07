@@ -11,7 +11,7 @@ import { existsSync, rmSync } from 'node:fs';
 import { extname, join } from 'node:path';
 import { chromium } from '@playwright/test';
 
-const BASE = '/stock-manager/';
+const BASE = process.env.VITE_BASE_PATH ?? '/stock-manager/';
 const TMP = '.sw-test';
 rmSync(TMP, { recursive: true, force: true });
 for (const v of ['A', 'B']) {
@@ -37,6 +37,13 @@ let failed = false;
 const check = (cond, msg) => { console.log(`${cond ? '✓' : '✗'} ${msg}`); if (!cond) failed = true; };
 try {
   await page.goto(url);
+  // Primer uso: crear el usuario administrador para poder ver la app.
+  await page.getByRole('heading', { name: 'Crear usuario administrador' }).waitFor();
+  await page.getByLabel('Tu nombre').fill('Admin');
+  await page.getByLabel(/^PIN( ·|$)/).fill('1234');
+  await page.getByLabel('Repetí el PIN').fill('1234');
+  await page.getByRole('button', { name: 'Crear y entrar' }).click();
+  await page.locator('main#contenido').waitFor();
   await page.evaluate(() => navigator.serviceWorker.ready);
   await page.reload();
   await page.waitForFunction(() => !!navigator.serviceWorker.controller);

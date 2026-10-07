@@ -4,6 +4,9 @@ import { ensureBaseData } from './services/seedService';
 import { initCloud } from './cloud/cloudService';
 import { FeedbackProvider } from './store/feedback';
 import { SettingsProvider } from './store/settings';
+import { SessionProvider, useSession } from './store/session';
+import { LockScreen, SetupScreen } from './components/auth/AuthScreens';
+import { Guard } from './components/auth/Guard';
 import { AppLayout } from './layouts/AppLayout';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { DashboardPage } from './pages/DashboardPage';
@@ -12,6 +15,7 @@ import { CountsPage } from './pages/CountsPage';
 import { OrdersPage } from './pages/OrdersPage';
 import { MorePage } from './pages/MorePage';
 import { NotFoundPage } from './pages/NotFoundPage';
+const UsersPage = lazy(() => import('./pages/UsersPage').then((m) => ({ default: m.UsersPage })));
 const CloudPage = lazy(() => import('./pages/CloudPage').then((m) => ({ default: m.CloudPage })));
 const OrderEditorPage = lazy(() => import('./pages/OrderEditorPage').then((m) => ({ default: m.OrderEditorPage })));
 const CountDetailPage = lazy(() => import('./pages/CountDetailPage').then((m) => ({ default: m.CountDetailPage })));
@@ -60,33 +64,47 @@ export function App() {
     <ErrorBoundary>
       <SettingsProvider>
         <FeedbackProvider>
+          <SessionProvider>
           <HashRouter>
+            <SessionGate>
             <Routes>
               <Route element={<AppLayout />}>
-                <Route index element={<DashboardPage />} />
-                <Route path="stock" element={<StockPage />} />
-                <Route path="productos" element={<ProductsPage />} />
-                <Route path="familias" element={<CatalogPage key="category" kind="category" />} />
-                <Route path="unidades" element={<CatalogPage key="unit" kind="unit" />} />
-                <Route path="ubicaciones" element={<CatalogPage key="location" kind="location" />} />
-                <Route path="proveedores" element={<CatalogPage key="supplier" kind="supplier" />} />
-                <Route path="conteo" element={<CountsPage />} />
-                <Route path="conteo/:id" element={<CountDetailPage />} />
-                <Route path="pedidos" element={<OrdersPage />} />
-                <Route path="pedidos/:id" element={<OrderEditorPage />} />
-                <Route path="movimientos" element={<MovementsPage />} />
-                <Route path="conciliacion" element={<ReconciliationPage />} />
-                <Route path="exportar" element={<ExportPage />} />
-                <Route path="configuracion" element={<SettingsPage />} />
-                <Route path="integraciones" element={<IntegrationsPage />} />
-                <Route path="nube" element={<CloudPage />} />
+                <Route index element={<Guard module="dashboard"><DashboardPage /></Guard>} />
+                <Route path="stock" element={<Guard module="stock"><StockPage /></Guard>} />
+                <Route path="productos" element={<Guard module="products"><ProductsPage /></Guard>} />
+                <Route path="familias" element={<Guard module="categories"><CatalogPage key="category" kind="category" /></Guard>} />
+                <Route path="unidades" element={<Guard module="units"><CatalogPage key="unit" kind="unit" /></Guard>} />
+                <Route path="ubicaciones" element={<Guard module="locations"><CatalogPage key="location" kind="location" /></Guard>} />
+                <Route path="proveedores" element={<Guard module="suppliers"><CatalogPage key="supplier" kind="supplier" /></Guard>} />
+                <Route path="conteo" element={<Guard module="count"><CountsPage /></Guard>} />
+                <Route path="conteo/:id" element={<Guard module="count"><CountDetailPage /></Guard>} />
+                <Route path="pedidos" element={<Guard module="orders"><OrdersPage /></Guard>} />
+                <Route path="pedidos/:id" element={<Guard module="orders"><OrderEditorPage /></Guard>} />
+                <Route path="movimientos" element={<Guard module="movements"><MovementsPage /></Guard>} />
+                <Route path="conciliacion" element={<Guard module="reconciliation"><ReconciliationPage /></Guard>} />
+                <Route path="exportar" element={<Guard module="export"><ExportPage /></Guard>} />
+                <Route path="configuracion" element={<Guard module="settings"><SettingsPage /></Guard>} />
+                <Route path="integraciones" element={<Guard module="integrations"><IntegrationsPage /></Guard>} />
+                <Route path="usuarios" element={<Guard module="users"><UsersPage /></Guard>} />
+                <Route path="nube" element={<Guard module="cloud"><CloudPage /></Guard>} />
                 <Route path="mas" element={<MorePage />} />
                 <Route path="*" element={<NotFoundPage />} />
               </Route>
             </Routes>
+            </SessionGate>
           </HashRouter>
+          </SessionProvider>
         </FeedbackProvider>
       </SettingsProvider>
     </ErrorBoundary>
   );
+}
+
+/** Muestra crear administrador / bloqueo con PIN hasta que haya un usuario con sesión. */
+function SessionGate({ children }: { children: React.ReactNode }) {
+  const { status } = useSession();
+  if (status === 'loading') return <div className="splash" aria-busy="true">Cargando…</div>;
+  if (status === 'setup') return <SetupScreen />;
+  if (status === 'locked') return <LockScreen />;
+  return <>{children}</>;
 }

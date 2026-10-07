@@ -1,3 +1,4 @@
+import { useSession } from '../store/session';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { AlertTriangle, ArrowLeftRight, Boxes, Package, PackageX, ShoppingCart, Truck, TrendingDown } from 'lucide-react';
 import { Link } from 'react-router';
@@ -13,6 +14,7 @@ import { WelcomeCard } from '../components/WelcomeCard';
 
 export function DashboardPage() {
   const settings = useSettings();
+  const { can } = useSession();
   const products = useProducts();
   const lk = useLookups();
   const pendingOrders = useLiveQuery(() => db.orders.where('status').anyOf(OPEN_ORDER_STATUSES).count(), []) ?? 0;
@@ -39,7 +41,7 @@ export function DashboardPage() {
   return (
     <>
       <PageHeader title={menuLabel(settings, 'dashboard')} subtitle={new Date().toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })} />
-      {products.length === 0 && <WelcomeCard />}
+      {products.length === 0 && can('catalog.manage') && <WelcomeCard />}
       <div className="grid grid-stats" style={{ marginBottom: 16 }}>
         {stats.map(({ label, value, icon: Icon, to }) => (
           <Link key={label} to={to} className="card stat">
@@ -74,14 +76,14 @@ export function DashboardPage() {
         <section className="card" aria-labelledby="alertas">
           <div className="card-head">
             <h2 id="alertas" className="row"><AlertTriangle size={18} aria-hidden /> Alertas de stock</h2>
-            {alerts.length > 0 && <Link to="/pedidos?sugerido=1" className="btn btn-sm">Crear pedido sugerido</Link>}
+            {alerts.length > 0 && can('orders.manage') && <Link to="/pedidos?sugerido=1" className="btn btn-sm">Crear pedido sugerido</Link>}
           </div>
           {alerts.length === 0 ? (
             <EmptyState title="Todo en orden">No hay productos por debajo del mínimo.</EmptyState>
           ) : (
             <div className="list">
               {alerts.map(({ p, s }) => (
-                <Link key={p.id} to={`/productos?editar=${p.id}`} className="list-item">
+                <Link key={p.id} to={can('catalog.manage') ? `/productos?editar=${p.id}` : `/stock?estado=${s}`} className="list-item">
                   <div className="grow">
                     <div className="list-title truncate">{p.name}</div>
                     <div className="list-sub">Stock {fmtNumber(p.stock)} {lk.unit(p.unitId)} · mín. {fmtNumber(p.minStock)}</div>

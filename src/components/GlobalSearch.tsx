@@ -1,6 +1,7 @@
 import { MapPin, Package, Ruler, Tags, Truck } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
+import { useSession } from '../store/session';
 import { globalSearch, type SearchHit, type SearchKind } from '../services/searchService';
 import { Modal } from './ui/Modal';
 import { SearchInput } from './ui';
@@ -12,6 +13,7 @@ export function GlobalSearch({ open, onClose }: { open: boolean; onClose: () => 
   const [q, setQ] = useState('');
   const [hits, setHits] = useState<SearchHit[]>([]);
   const navigate = useNavigate();
+  const { can } = useSession();
 
   useEffect(() => {
     let alive = true;
@@ -25,7 +27,7 @@ export function GlobalSearch({ open, onClose }: { open: boolean; onClose: () => 
   const go = (h: SearchHit) => {
     onClose();
     setQ('');
-    navigate(h.to);
+    navigate(h.kind === 'product' && !can('catalog.manage') ? `/stock` : h.to);
   };
 
   return (
