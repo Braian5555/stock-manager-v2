@@ -19,7 +19,7 @@ import {
   query, setDoc, updateDoc, where, type Firestore,
 } from 'firebase/firestore';
 import type { SyncTableName } from '../database/db';
-import type { FirebaseWebConfig } from './config';
+import { effectiveAuthDomain, sameOriginAuth, type FirebaseWebConfig } from './config';
 import type { CloudBackend, CloudUser, RemoteChange, RemoteDoc, Workspace } from './types';
 import { nowIso, uuid } from '../utils/id';
 
@@ -31,8 +31,15 @@ export class FirebaseBackend implements CloudBackend {
   private auth: Auth;
   private fs: Firestore;
 
+  private preferRedirect: boolean;
+
   constructor(config: FirebaseWebConfig) {
-    this.app = initializeApp(config);
+    this.app = initializeApp({ ...config, authDomain: effectiveAuthDomain(config) });
+    // En iPhone/iPad (sobre todo con la app instalada) la ventana emergente no puede
+    // devolver la sesión. Si el inicio de sesión está en el mismo dominio, se usa redirección.
+    const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    const standalone = matchMedia('(display-mode: standalone)').matches || (navigator as unknown as { standalone?: boolean }).standalone === true;
+    this.preferRedirect = sameOriginAuth(config) && (ios || standalone);
     this.auth = initializeAuth(this.app, {
       persistence: [indexedDBLocalPersistence, browserLocalPersistence],
       popupRedirectResolver: browserPopupRedirectResolver,
@@ -50,6 +57,10 @@ export class FirebaseBackend implements CloudBackend {
   async signIn(): Promise<CloudUser> {
     const provider = new GoogleAuthProvider();
     provider.setCustomParameters({ prompt: 'select_account' });
+    if (this.preferRedirect) {
+      await signInWithRedirect(this.auth, provider);
+      return new Promise(() => undefined); // la página se redirige y vuelve con la sesión iniciada
+    }
     try {
       return toUser((await signInWithPopup(this.auth, provider)).user);
     } catch (e) {

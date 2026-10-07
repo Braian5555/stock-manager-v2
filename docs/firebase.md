@@ -98,3 +98,14 @@ Se usa **Firebase** (Google): *Authentication* para el inicio de sesión y *Clou
 - Stock: los movimientos son inmutables; el stock se recalcula con `foldStock()` (los ajustes y conteos fijan el valor, el resto suma o resta).
 - Código: `src/cloud/` (backend Firebase, motor de sincronización, servicio de cuenta) y `firestore.rules`.
 - Pruebas: `tests/unit/cloud-sync.test.ts` y `tests/e2e/cloud.spec.ts` usan un backend en memoria. Las reglas de seguridad no se pudieron probar con el emulador de Firebase en el entorno de desarrollo; conviene probarlas con dos cuentas reales antes de invitar empleados.
+
+---
+
+## Publicar en Firebase Hosting (dirección sin nombre de usuario)
+
+La app puede publicarse en `https://<projectId>.web.app`. Ventajas: la dirección no muestra el usuario de GitHub, el repositorio puede ser privado y el inicio de sesión ocurre en el mismo dominio que la app (necesario para la app instalada en iPhone).
+
+1. Firebase → ⚙ Configuración del proyecto → **Cuentas de servicio** → **Generar nueva clave privada**. Se descarga un archivo `.json`. **Es secreto**: no se comparte ni se sube al repositorio.
+2. GitHub → repositorio → **Settings → Secrets and variables → Actions → New repository secret**. Nombre: `FIREBASE_SERVICE_ACCOUNT`. Valor: el contenido completo del `.json`.
+3. El workflow (`.github/workflows/deploy.yml`) construye con `VITE_BASE_PATH=/` y publica con `FirebaseExtended/action-hosting-deploy` usando `firebase.json`.
+4. Abrir la app en la nueva dirección, iniciar sesión y elegir **Usar en este dispositivo** (cada dirección tiene su propio almacenamiento local; los datos vienen de la nube).

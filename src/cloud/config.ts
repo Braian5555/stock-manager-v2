@@ -32,6 +32,19 @@ function parse(raw: unknown): CloudConfig {
   return { provider: 'none' };
 }
 
+/**
+ * Si la app se sirve desde Firebase Hosting (*.web.app / *.firebaseapp.com del mismo
+ * proyecto), el inicio de sesión usa el MISMO dominio que la app. Así funciona también
+ * en la app instalada en iPhone, que bloquea el inicio de sesión entre dominios distintos.
+ */
+export function effectiveAuthDomain(cfg: FirebaseWebConfig, hostname = globalThis.location?.hostname ?? ''): string {
+  const own = [`${cfg.projectId}.web.app`, `${cfg.projectId}.firebaseapp.com`];
+  return own.includes(hostname) ? hostname : cfg.authDomain;
+}
+
+/** true cuando el inicio de sesión ocurre en el mismo dominio que la app. */
+export const sameOriginAuth = (cfg: FirebaseWebConfig) => effectiveAuthDomain(cfg) === globalThis.location?.hostname;
+
 /** Lee la configuración publicada; sin conexión usa la última conocida. */
 export async function loadCloudConfig(): Promise<CloudConfig> {
   try {
