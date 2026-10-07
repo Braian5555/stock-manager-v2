@@ -1,7 +1,8 @@
 {
-  "_ayuda": "Pegá acá la configuración web de tu proyecto de Firebase (ver docs/firebase.md). Mientras esté vacío, la app funciona sólo en este dispositivo.",
-  "apiKey": "",
-  "authDomain": "",
-  "projectId": "",
-  "appId": ""
+  "apiKey": "AIzaSyDpFDL6ebQiboG4VDfli3nW3c_fxLf3LpM",
+  "authDomain": "stock-manager-a7cf7.firebaseapp.com",
+  "projectId": "stock-manager-a7cf7",
+  "storageBucket": "stock-manager-a7cf7.firebasestorage.app",
+  "messagingSenderId": "866542479051",
+  "appId": "1:866542479051:web:a35bbe6d571325837a1d4e"
 }
