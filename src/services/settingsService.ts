@@ -19,6 +19,7 @@ export const MODULES: { key: ModuleKey; label: string; primary?: boolean; locked
   { key: 'reconciliation', label: 'Conciliación' },
   { key: 'export', label: 'Exportar y backup' },
   { key: 'cloud', label: 'Cuenta y nube' },
+  { key: 'users', label: 'Usuarios', locked: true },
   { key: 'integrations', label: 'Integraciones' },
   { key: 'settings', label: 'Configuración', locked: true },
 ];
@@ -40,6 +41,7 @@ export function defaultSettings(): Settings {
     menu: defaultMenu(),
     criticalRatio: 0.5,
     suggestionMode: 'toMax',
+    autoLockMinutes: 15,
   };
 }
 

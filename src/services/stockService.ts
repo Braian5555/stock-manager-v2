@@ -2,6 +2,7 @@ import { db } from '../database/db';
 import type { MovementOrigin, MovementType, Product, Settings, SourceSystem, StockMovement, StockStatus } from '../models';
 import { nowIso, uuid } from '../utils/id';
 import { round3 } from '../utils/format';
+import { getCurrentActor } from './userService';
 
 export const STATUS_LABEL: Record<StockStatus, string> = {
   normal: 'Normal',
@@ -103,6 +104,7 @@ export async function applyMovement(input: MovementInput): Promise<MovementResul
       syncId: input.syncId,
       refId: input.refId,
       absolute: input.newQuantity !== undefined && (input.type === 'ajuste' || input.type === 'conteo'),
+      performedBy: getCurrentActor(),
     };
     await db.movements.add(movement);
     await db.products.update(product.id, { stock: after, updatedAt: t });
