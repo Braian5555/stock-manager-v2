@@ -48,13 +48,14 @@ interface Action {
 }
 
 const ACTIONS: Action[] = [
-  { label: 'Contar', to: '/conteo', icon: ClipboardCheck, perms: ['count.do'], tone: 'tone-a' },
-  { label: 'Recibir pedido', to: '/pedidos?estado=abiertos', icon: PackageCheck, perms: ['orders.receive', 'orders.manage'], tone: 'tone-b' },
+  { label: 'Contar stock', to: '/conteo', icon: ClipboardCheck, perms: ['count.do'], tone: 'tone-a' },
   { label: 'Registrar movimiento', to: '/stock', icon: ArrowLeftRight, perms: ['stock.move'], tone: 'tone-c' },
-  { label: 'Foto de factura', to: '/facturas?nueva=1', icon: Camera, perms: ['invoices'], tone: 'tone-d' },
-  { label: 'Nuevo remito', to: '/remitos/nuevo', icon: Forklift, perms: ['transfers'], tone: 'tone-e' },
+  { label: 'Recibir pedido', to: '/pedidos?estado=abiertos', icon: PackageCheck, perms: ['orders.receive', 'orders.manage'], tone: 'tone-b' },
   { label: 'Nuevo pedido', to: '/pedidos/nuevo', icon: ShoppingCart, perms: ['orders.manage'], tone: 'tone-f' },
-  { label: 'Ver stock', to: '/stock', icon: Boxes, perms: ['stock.view'], tone: 'tone-g' },
+  { label: 'Nuevo remito', to: '/remitos/nuevo', icon: Forklift, perms: ['transfers'], tone: 'tone-e' },
+  { label: 'Foto de factura', to: '/facturas?nueva=1', icon: Camera, perms: ['invoices'], tone: 'tone-d' },
+  { label: 'Buscar producto', to: '', icon: Search, perms: ['stock.view'], tone: 'tone-g' },
+  { label: 'Ver stock', to: '/stock', icon: Boxes, perms: ['stock.view'], tone: 'tone-a' },
 ];
 
 function MobileHome() {
@@ -80,7 +81,7 @@ function MobileHome() {
       {products.length === 0 && can('catalog.manage') && <WelcomeCard />}
 
       <button type="button" className="home-search" onClick={openGlobalSearch}>
-        <Search size={20} aria-hidden /> Buscar producto, proveedor…
+        <Search size={20} aria-hidden /> Buscar producto, proveedor, pedido…
       </button>
 
       {chips.length > 0 ? (
@@ -92,11 +93,16 @@ function MobileHome() {
       )}
 
       <nav className="home-actions" aria-label="Acciones rápidas">
-        {actions.map(({ label, to, icon: Icon, tone }) => (
+        {actions.map(({ label, to, icon: Icon, tone }) => to ? (
           <Link key={label} to={to} className={`home-action ${tone}`}>
             <span className="home-action-icon"><Icon size={26} aria-hidden /></span>
             <span>{label}</span>
           </Link>
+        ) : (
+          <button key={label} type="button" className={`home-action ${tone}`} onClick={openGlobalSearch}>
+            <span className="home-action-icon"><Icon size={26} aria-hidden /></span>
+            <span>{label}</span>
+          </button>
         ))}
       </nav>
 

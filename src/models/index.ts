@@ -168,7 +168,8 @@ export type ThemeMode = 'light' | 'dark' | 'system';
 export type LogoKind = 'default' | 'emoji' | 'image';
 export type ModuleKey =
   | 'dashboard' | 'stock' | 'count' | 'orders' | 'products' | 'suppliers' | 'locations' | 'categories'
-  | 'units' | 'movements' | 'reconciliation' | 'export' | 'settings' | 'integrations' | 'cloud' | 'users' | 'invoices' | 'transfers';
+  | 'units' | 'movements' | 'reconciliation' | 'export' | 'settings' | 'integrations' | 'cloud' | 'users' | 'invoices' | 'transfers'
+  | 'reports';
 
 export interface MenuItemSetting {
   key: ModuleKey;
@@ -191,6 +192,10 @@ export interface Settings extends BaseEntity {
   suggestionMode: SuggestionMode;
   /** Minutos sin uso tras los que se pide el PIN otra vez (0 = nunca). */
   autoLockMinutes: number;
+  /** Módulos fijos en la barra superior de la computadora (el resto va en "Más"). */
+  navTop?: ModuleKey[];
+  /** Módulos de la barra inferior del celular (hasta 4; "Más" siempre está). */
+  navBottom?: ModuleKey[];
 }
 
 export type IntegrationMode = 'disabled' | 'mock' | 'gateway' | 'excel';

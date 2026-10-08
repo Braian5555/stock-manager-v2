@@ -67,7 +67,7 @@ export function StockPage() {
         actions={can('catalog.manage') ? <Link to="/productos?nuevo=1" className="btn btn-primary"><Plus size={18} aria-hidden /> Producto</Link> : undefined}
       />
       <div className="toolbar">
-        <SearchInput value={q} onChange={setQ} placeholder="Buscar por nombre o código" label="Buscar productos" />
+        <SearchInput value={q} onChange={setQ} placeholder="Buscar producto o código" label="Buscar productos" />
         <button type="button" className="btn filters-toggle" aria-expanded={showFilters} aria-controls="stock-filters" onClick={() => setShowFilters((v) => !v)}>
           <SlidersHorizontal size={18} aria-hidden /> Filtros{activeFilters ? ` (${activeFilters})` : ''}
         </button>

@@ -8,16 +8,17 @@ export const SETTINGS_ID = 'app';
 export const MODULES: { key: ModuleKey; label: string; primary?: boolean; locked?: boolean }[] = [
   { key: 'dashboard', label: 'Inicio', primary: true, locked: true },
   { key: 'stock', label: 'Stock', primary: true },
+  { key: 'products', label: 'Productos' },
   { key: 'count', label: 'Conteo', primary: true },
   { key: 'orders', label: 'Pedidos', primary: true },
-  { key: 'invoices', label: 'Facturas' },
+  { key: 'movements', label: 'Movimientos' },
   { key: 'transfers', label: 'Remitos internos' },
-  { key: 'products', label: 'Productos' },
   { key: 'suppliers', label: 'Proveedores' },
-  { key: 'locations', label: 'Ubicaciones' },
+  { key: 'invoices', label: 'Facturas' },
+  { key: 'reports', label: 'Reportes' },
   { key: 'categories', label: 'Familias' },
   { key: 'units', label: 'Unidades' },
-  { key: 'movements', label: 'Movimientos' },
+  { key: 'locations', label: 'Ubicaciones' },
   { key: 'reconciliation', label: 'Conciliación' },
   { key: 'export', label: 'Exportar y backup' },
   { key: 'cloud', label: 'Cuenta y nube' },
@@ -25,6 +26,17 @@ export const MODULES: { key: ModuleKey; label: string; primary?: boolean; locked
   { key: 'integrations', label: 'Integraciones' },
   { key: 'settings', label: 'Configuración', locked: true },
 ];
+
+/** Orden por defecto de versiones anteriores: si el menú guardado nunca se reordenó, se pasa al orden nuevo. */
+const LEGACY_DEFAULT_ORDERS: ModuleKey[][] = [
+  ['dashboard', 'stock', 'count', 'orders', 'invoices', 'transfers', 'products', 'suppliers', 'locations', 'categories', 'units', 'movements', 'reconciliation', 'export', 'cloud', 'users', 'integrations', 'settings'],
+];
+
+/** Barra superior por defecto (computadora). */
+export const DEFAULT_NAV_TOP: ModuleKey[] = ['dashboard', 'stock', 'products', 'count', 'orders', 'movements', 'transfers', 'suppliers', 'invoices', 'reports'];
+/** Barra inferior por defecto (celular). */
+export const DEFAULT_NAV_BOTTOM: ModuleKey[] = ['dashboard', 'stock', 'orders', 'movements'];
+export const MAX_NAV_BOTTOM = 4;
 
 export const defaultMenu = (): MenuItemSetting[] => MODULES.map((m) => ({ key: m.key, label: m.label, visible: true }));
 
@@ -44,6 +56,8 @@ export function defaultSettings(): Settings {
     criticalRatio: 0.5,
     suggestionMode: 'toMax',
     autoLockMinutes: 15,
+    navTop: [...DEFAULT_NAV_TOP],
+    navBottom: [...DEFAULT_NAV_BOTTOM],
   };
 }
 
@@ -53,7 +67,12 @@ export function normalizeSettings(s: Partial<Settings> | undefined): Settings {
   const merged: Settings = { ...base, ...s, logo: { ...base.logo, ...s?.logo } } as Settings;
   const saved = new Map((s?.menu ?? []).map((m) => [m.key, m]));
   const known = new Set(MODULES.map((m) => m.key));
-  const ordered = (s?.menu ?? []).filter((m) => known.has(m.key));
+  let ordered = (s?.menu ?? []).filter((m) => known.has(m.key));
+  const savedOrder = ordered.map((m) => m.key).join(',');
+  if (LEGACY_DEFAULT_ORDERS.some((o) => o.join(',') === savedOrder)) {
+    // Nunca se reordenó: se adopta el orden nuevo, conservando nombres y visibilidad.
+    ordered = MODULES.map((m) => saved.get(m.key)).filter((m): m is MenuItemSetting => !!m);
+  }
   // Módulos nuevos (agregados por una versión posterior): se insertan después del módulo
   // que los precede en el orden por defecto, no al final.
   base.menu.forEach((m, i) => {
@@ -63,6 +82,8 @@ export function normalizeSettings(s: Partial<Settings> | undefined): Settings {
     ordered.splice(at >= 0 ? at + 1 : ordered.length, 0, m);
   });
   merged.menu = ordered.map((m) => (MODULES.find((x) => x.key === m.key)?.locked ? { ...m, visible: true } : m));
+  merged.navTop = (Array.isArray(s?.navTop) ? s.navTop : DEFAULT_NAV_TOP).filter((k) => known.has(k));
+  merged.navBottom = (Array.isArray(s?.navBottom) ? s.navBottom : DEFAULT_NAV_BOTTOM).filter((k) => known.has(k)).slice(0, MAX_NAV_BOTTOM);
   return merged;
 }
 

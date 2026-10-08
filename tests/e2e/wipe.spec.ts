@@ -3,7 +3,7 @@ import { ADMIN, dialog, go, loadDemo } from './helpers';
 
 test('configuración: eliminar todos los datos pide el PIN y deja el negocio en cero', async ({ page }) => {
   await loadDemo(page);
-  await go(page, '/configuracion');
+  await go(page, '/configuracion/aplicacion');
   await page.getByRole('button', { name: 'Eliminar todos los datos' }).click();
   const d = dialog(page);
   await expect(d.getByText('No se puede deshacer.')).toBeVisible();

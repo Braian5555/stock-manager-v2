@@ -157,7 +157,8 @@ test('18-19 · PWA instalable y funciona offline', async ({ page, context }) => 
   await context.setOffline(true);
   await page.reload();
   await expect(page.getByRole('heading', { name: /^(Inicio|Hola)/, level: 1 })).toBeVisible();
-  await expect(page.getByText(/Sin conexión/)).toBeVisible();
+  await expect(page.getByText(/Sin conexión/).first()).toBeVisible();
+  await expect(page.getByRole('link', { name: /Estado: Sin conexión/ }).or(page.getByRole('status', { name: /Estado: Sin conexión/ })).first()).toBeVisible();
   await page.goto('./#/stock');
   await expect(page.getByRole('article', { name: 'Harina 000' })).toBeVisible();
   // Una pantalla con carga diferida (lazy) también funciona offline
@@ -182,14 +183,24 @@ test('20-21 · alertas de stock bajo y pedido sugerido agrupado por proveedor', 
 test('22-23 · navegación adaptada al dispositivo', async ({ page, isMobile }) => {
   await open(page);
   if (isMobile) {
-    await expect(page.getByRole('navigation', { name: 'Navegación inferior' })).toBeVisible();
-    await expect(page.getByRole('complementary', { name: 'Menú principal' })).toBeHidden();
-    await page.getByRole('navigation', { name: 'Navegación inferior' }).getByRole('link', { name: 'Más' }).click();
+    const bottom = page.getByRole('navigation', { name: 'Navegación inferior' });
+    await expect(bottom).toBeVisible();
+    await expect(page.getByRole('navigation', { name: 'Navegación principal' })).toBeHidden();
+    for (const l of ['Inicio', 'Stock', 'Pedidos', 'Movimientos', 'Más']) await expect(bottom.getByRole('link', { name: l })).toBeVisible();
+    await bottom.getByRole('link', { name: 'Más' }).click();
+    await expect(page.getByRole('heading', { name: 'Operación diaria' })).toBeVisible();
     await page.getByRole('link', { name: 'Configuración' }).click();
   } else {
-    await expect(page.getByRole('complementary', { name: 'Menú principal' })).toBeVisible();
+    const top = page.getByRole('navigation', { name: 'Navegación principal' });
+    await expect(top).toBeVisible();
     await expect(page.getByRole('navigation', { name: 'Navegación inferior' })).toBeHidden();
-    await page.getByRole('complementary').getByRole('link', { name: 'Configuración' }).click();
+    for (const l of ['Inicio', 'Stock', 'Productos', 'Conteo', 'Pedidos', 'Movimientos', 'Remitos', 'Proveedores', 'Facturas', 'Reportes']) await expect(top.getByRole('link', { name: l })).toBeVisible();
+    await expect(top.getByRole('link', { name: 'Inicio' })).toHaveClass(/active/);
+    // "Más" abre el resto agrupado
+    await top.getByRole('button', { name: /Más/ }).click();
+    await expect(page.getByRole('region', { name: 'Más secciones' }).getByRole('link', { name: 'Familias' })).toBeVisible();
+    await page.keyboard.press('Escape');
+    await page.getByRole('link', { name: 'Configuración' }).first().click();
   }
   await expect(page.getByRole('heading', { name: 'Configuración', level: 1 })).toBeVisible();
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
@@ -198,11 +209,13 @@ test('22-23 · navegación adaptada al dispositivo', async ({ page, isMobile }) 
 
 test('personalización: nombre, menú renombrado y tema oscuro', async ({ page }) => {
   await open(page);
-  await go(page, '/configuracion');
+  await go(page, '/configuracion/empresa');
   await page.getByLabel('Nombre del negocio').fill('Mi Negocio');
+  await page.getByLabel('Nombre del negocio').blur();
+  await page.getByRole('button', { name: 'Oscuro' }).click();
+  await go(page, '/configuracion/navegacion');
   await page.getByLabel('Nombre del menú stock').fill('Inventario');
   await page.getByLabel('Nombre del menú stock').blur();
-  await page.getByRole('button', { name: 'Oscuro' }).click();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   await page.reload();
   await expect(page.getByText('Mi Negocio').filter({ visible: true }).first()).toBeVisible();
@@ -228,7 +241,7 @@ test('navegar no falla aunque scrollTo devuelva una Promise (Chrome reciente)', 
   });
   await open(page);
   // Navegación del lado del cliente con los links del menú (la que fallaba).
-  for (const hash of ['/stock', '/conteo', '/pedidos', '/']) {
+  for (const hash of ['/stock', '/movimientos', '/pedidos', '/']) {
     await page.locator(`a[href="#${hash}"]`).filter({ visible: true }).last().click();
     await expect(page.locator('main h1').first()).toBeVisible();
     await expect(page.getByText('Algo salió mal')).toHaveCount(0);

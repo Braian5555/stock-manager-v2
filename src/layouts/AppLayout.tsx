@@ -1,5 +1,5 @@
-import { CloudOff, Lock, LogOut, Menu as MenuIcon, Search, UploadCloud } from 'lucide-react';
-import { Suspense, useEffect, useState } from 'react';
+import { ChevronDown, CloudOff, LayoutGrid, Search, Settings as SettingsIcon, UploadCloud } from 'lucide-react';
+import { Suspense, useEffect, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router';
 import { GlobalSearch } from '../components/GlobalSearch';
 import { Logo } from '../components/Logo';
@@ -8,12 +8,19 @@ import { syncPending } from '../integrations/integrationService';
 import { UpdatePrompt } from '../pwa/UpdatePrompt';
 import { useFeedback } from '../store/feedback';
 import { useSettings } from '../store/settings';
-import { BOTTOM_KEYS, MODULE_ICON, MODULE_PATH, MODULE_PERMISSIONS } from './modules';
+import { MODULE_GROUPS, MODULE_ICON, MODULE_PATH, bottomNavModules, navLabel, topNavModules, visibleModules } from './modules';
 import { useAutoSync } from '../hooks/useAutoSync';
 import { SyncBadge } from '../components/SyncBadge';
 import { UserMenu } from '../components/auth/UserMenu';
 import { useSession } from '../store/session';
+import type { ModuleKey } from '../models';
 
+/**
+ * Estructura de la app:
+ * - Computadora (≥ 1024 px): barra superior con los módulos principales, "Más", buscador,
+ *   estado de sincronización, configuración y usuario.
+ * - Celular/tablet: encabezado compacto + barra inferior fija (4 módulos + "Más").
+ */
 export function AppLayout() {
   const settings = useSettings();
   const online = useOnline();
@@ -46,89 +53,146 @@ export function AppLayout() {
     window.scrollTo(0, 0);
   }, [location.pathname]);
 
-  const { canAny, lock, cloudMode } = useSession();
-  const visible = settings.menu.filter((m) => m.visible && canAny(MODULE_PERMISSIONS[m.key]));
-  const bottom = visible.filter((m) => BOTTOM_KEYS.includes(m.key));
+  const { canAny, can } = useSession();
+  const visible = visibleModules(settings, canAny);
+  const { top, more } = topNavModules(settings, visible);
+  const bottom = bottomNavModules(settings, visible);
   const connected = integration && integration.mode !== 'disabled' && integration.mode !== 'excel' && integration.status !== 'desconectado';
-
-  const brand = (
-    <Link to="/" className="brand" aria-label={`${settings.businessName} — Inicio`}>
-      <Logo />
-      <span className="grow" style={{ minWidth: 0 }}>
-        <span className="brand-name truncate" style={{ display: 'block' }}>{settings.businessName}</span>
-        {settings.subtitle && <span className="brand-sub truncate" style={{ display: 'block' }}>{settings.subtitle}</span>}
-      </span>
-    </Link>
-  );
+  const moreActive = more.some((k) => k !== 'dashboard' && location.pathname.startsWith(MODULE_PATH[k]));
 
   return (
     <div className="app">
       <a href="#contenido" className="skip-link" onClick={(e) => { e.preventDefault(); document.getElementById('contenido')?.focus(); }}>Saltar al contenido</a>
-      <aside className="sidebar" aria-label="Menú principal">
-        {brand}
-        <nav>
-          {visible.map((m) => {
-            const Icon = MODULE_ICON[m.key];
-            return (
-              <NavLink key={m.key} to={MODULE_PATH[m.key]} end={m.key === 'dashboard'}>
-                <Icon size={19} aria-hidden />
-                {m.label}
-              </NavLink>
-            );
-          })}
+      <header className="topbar">
+        <Link to="/" className="brand" aria-label={`${settings.businessName} — Inicio`}>
+          <Logo size={34} />
+          <span className="brand-text">
+            <span className="brand-name truncate">{settings.businessName}</span>
+            {settings.subtitle && <span className="brand-sub truncate">{settings.subtitle}</span>}
+          </span>
+        </Link>
+
+        <nav className="topnav" aria-label="Navegación principal">
+          {top.map((k) => <TopLink key={k} k={k} label={navLabel(settings, k)} />)}
+          {more.length > 0 && <MoreMenu keys={more} active={moreActive} />}
         </nav>
-        <button type="button" className="btn btn-ghost sidebar-logout" onClick={() => void lock()}>
-          {cloudMode ? <><LogOut size={19} aria-hidden /> Cerrar sesión</> : <><Lock size={19} aria-hidden /> Bloquear</>}
+
+        <span className="grow topbar-spacer" />
+        <button type="button" className="search-trigger" onClick={() => setSearchOpen(true)} aria-label="Buscar (Ctrl+K)">
+          <Search size={18} aria-hidden />
+          <span className="search-trigger-text">Buscar…</span>
+          <kbd className="search-trigger-kbd">Ctrl K</kbd>
         </button>
-      </aside>
-      <div style={{ minWidth: 0 }}>
-        <UpdatePrompt />
-        {!online && (
-          <div className="banner banner-offline" role="status">
-            <CloudOff size={16} aria-hidden /> Sin conexión. Podés seguir trabajando: todo se guarda en este dispositivo.
-          </div>
+        <SyncBadge compact />
+        {can('admin') && (
+          <NavLink to="/configuracion" className="btn btn-ghost icon-btn topbar-settings" aria-label="Configuración" title="Configuración">
+            <SettingsIcon size={20} aria-hidden />
+          </NavLink>
         )}
-        {online && connected && pending > 0 && (
-          <div className="banner banner-offline" role="status">
-            <UploadCloud size={16} aria-hidden />
-            <span className="grow">Movimientos pendientes de sincronizar: {pending}</span>
-            <button type="button" className="btn btn-sm" onClick={() => run(syncPending, 'Sincronización de pendientes finalizada')}>
-              Sincronizar pendientes
-            </button>
-          </div>
-        )}
-        <header className="topbar">
-          {brand}
-          <span className="grow" />
-          <SyncBadge compact />
-          <UserMenu />
-          <button type="button" className="btn btn-ghost" onClick={() => setSearchOpen(true)} aria-label="Buscar (Ctrl+K)">
-            <Search size={20} aria-hidden />
-            <span className="small muted" style={{ display: 'none' }}>Buscar</span>
+        <UserMenu />
+      </header>
+
+      <UpdatePrompt />
+      {!online && (
+        <div className="banner banner-offline" role="status">
+          <CloudOff size={16} aria-hidden /> Sin conexión. Podés seguir trabajando: todo se guarda en este dispositivo.
+        </div>
+      )}
+      {online && connected && pending > 0 && (
+        <div className="banner banner-offline" role="status">
+          <UploadCloud size={16} aria-hidden />
+          <span className="grow">Movimientos pendientes de sincronizar: {pending}</span>
+          <button type="button" className="btn btn-sm" onClick={() => run(syncPending, 'Sincronización de pendientes finalizada')}>
+            Sincronizar pendientes
           </button>
-        </header>
-        <main id="contenido" className="main" tabIndex={-1}>
-          <Suspense fallback={<p className="muted" aria-busy="true">Cargando…</p>}>
-            <Outlet />
-          </Suspense>
-        </main>
-      </div>
+        </div>
+      )}
+
+      <main id="contenido" className="main" tabIndex={-1}>
+        <Suspense fallback={<p className="muted" aria-busy="true">Cargando…</p>}>
+          <Outlet />
+        </Suspense>
+      </main>
+
       <nav className="bottom-nav" aria-label="Navegación inferior">
-        {bottom.map((m) => {
-          const Icon = MODULE_ICON[m.key];
+        {bottom.map((k) => {
+          const Icon = MODULE_ICON[k];
           return (
-            <NavLink key={m.key} to={MODULE_PATH[m.key]} end={m.key === 'dashboard'}>
-              <Icon size={22} aria-hidden />
-              <span>{m.label}</span>
+            <NavLink key={k} to={MODULE_PATH[k]} end={k === 'dashboard'}>
+              <Icon size={23} aria-hidden />
+              <span>{navLabel(settings, k)}</span>
             </NavLink>
           );
         })}
         <NavLink to="/mas">
-          <MenuIcon size={22} aria-hidden />
+          <LayoutGrid size={23} aria-hidden />
           <span>Más</span>
         </NavLink>
       </nav>
       <GlobalSearch open={searchOpen} onClose={() => setSearchOpen(false)} />
+    </div>
+  );
+}
+
+function TopLink({ k, label }: { k: ModuleKey; label: string }) {
+  const Icon = MODULE_ICON[k];
+  return (
+    <NavLink to={MODULE_PATH[k]} end={k === 'dashboard'} className="topnav-item" title={label}>
+      <Icon size={19} aria-hidden />
+      <span className="topnav-label">{label}</span>
+    </NavLink>
+  );
+}
+
+/** "Más" de la barra superior: el resto de los módulos, agrupados. */
+function MoreMenu({ keys, active }: { keys: ModuleKey[]; active: boolean }) {
+  const settings = useSettings();
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const { pathname } = useLocation();
+  // Al cambiar de página (atrás/adelante, un link, el buscador) el panel se cierra.
+  useEffect(() => setOpen(false), [pathname]);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && setOpen(false);
+    const esc = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false);
+    document.addEventListener('mousedown', close);
+    document.addEventListener('keydown', esc);
+    return () => {
+      document.removeEventListener('mousedown', close);
+      document.removeEventListener('keydown', esc);
+    };
+  }, [open]);
+  const set = new Set(keys);
+  const groups = MODULE_GROUPS.map((g) => ({ ...g, keys: g.keys.filter((k) => set.has(k)) })).filter((g) => g.keys.length);
+  return (
+    <div ref={ref} className="topnav-more">
+      <button type="button" className={`topnav-item ${active ? 'active' : ''}`} aria-haspopup="true" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+        <LayoutGrid size={19} aria-hidden />
+        <span className="topnav-label">Más <ChevronDown size={13} aria-hidden /></span>
+      </button>
+      {open && (
+        <div className="more-panel card" role="region" aria-label="Más secciones">
+          {groups.map((g) => (
+            <div key={g.title} className="more-group">
+              <div className="more-group-title">{g.title}</div>
+              {g.keys.map((k) => {
+                const Icon = MODULE_ICON[k];
+                return (
+                  <NavLink key={k} to={MODULE_PATH[k]} className="more-link" onClick={() => setOpen(false)}>
+                    <Icon size={18} aria-hidden /> {navLabel(settings, k)}
+                  </NavLink>
+                );
+              })}
+            </div>
+          ))}
+          <div className="more-group">
+            <div className="more-group-title">Ayuda</div>
+            <NavLink to="/ayuda" className="more-link" onClick={() => setOpen(false)}>Ayuda y guía rápida</NavLink>
+            <NavLink to="/acerca" className="more-link" onClick={() => setOpen(false)}>Información de la aplicación</NavLink>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

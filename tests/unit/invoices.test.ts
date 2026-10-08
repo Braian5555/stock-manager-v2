@@ -90,8 +90,32 @@ describe('permisos y menú en versiones nuevas', () => {
   });
 
   it('un módulo nuevo aparece en su lugar del menú, no al final', () => {
-    const old = defaultMenu().filter((m) => m.key !== 'invoices');
+    const full = defaultMenu();
+    const prev = full[full.findIndex((m) => m.key === 'invoices') - 1].key;
+    const old = full.filter((m) => m.key !== 'invoices');
     const keys = normalizeSettings({ menu: old }).menu.map((m) => m.key);
-    expect(keys.indexOf('invoices')).toBe(keys.indexOf('orders') + 1);
+    expect(keys.indexOf('invoices')).toBe(keys.indexOf(prev) + 1);
+  });
+});
+
+describe('navegación nueva', () => {
+  it('un menú con el orden por defecto anterior pasa al orden nuevo y conserva nombres y visibilidad', () => {
+    const legacy = ['dashboard', 'stock', 'count', 'orders', 'invoices', 'transfers', 'products', 'suppliers', 'locations', 'categories', 'units', 'movements', 'reconciliation', 'export', 'cloud', 'users', 'integrations', 'settings'] as const;
+    const menu = legacy.map((key) => ({ key, label: key === 'stock' ? 'Inventario' : key, visible: key !== 'reconciliation' }));
+    const out = normalizeSettings({ menu }).menu;
+    expect(out.map((m) => m.key)).toEqual(defaultMenu().map((m) => m.key));
+    expect(out.find((m) => m.key === 'stock')?.label).toBe('Inventario');
+    expect(out.find((m) => m.key === 'reconciliation')?.visible).toBe(false);
+  });
+
+  it('un menú reordenado por la persona se respeta', () => {
+    const menu = defaultMenu().reverse();
+    expect(normalizeSettings({ menu }).menu.map((m) => m.key)).toEqual(menu.map((m) => m.key));
+  });
+
+  it('barras de navegación por defecto y límite de 4 en el celular', () => {
+    const s = normalizeSettings({ navBottom: ['dashboard', 'stock', 'orders', 'movements', 'products'] });
+    expect(s.navBottom).toEqual(['dashboard', 'stock', 'orders', 'movements']);
+    expect(normalizeSettings({}).navTop).toContain('reports');
   });
 });

@@ -42,7 +42,7 @@ export function ProductsPage() {
         subtitle={`${products.length} productos`}
         actions={<button type="button" className="btn btn-primary" onClick={() => setParams({ nuevo: '1' })}><Plus size={18} aria-hidden /> Nuevo producto</button>}
       />
-      <div className="toolbar"><SearchInput value={q} onChange={setQ} placeholder="Buscar por nombre, código, familia o proveedor" /></div>
+      <div className="toolbar"><SearchInput value={q} onChange={setQ} placeholder="Buscar producto, código o familia" /></div>
       <div className="card">
         {list.length === 0 ? (
           <EmptyState icon={<Package size={40} />} title={products.length ? 'Sin resultados' : 'Sin productos'}>
@@ -57,11 +57,14 @@ export function ProductsPage() {
               <tbody>
                 {list.map((p) => (
                   <tr key={p.id}>
-                    <td className="cell-title">{p.name} {!p.active && <Badge>Inactivo</Badge>} {p.externalSystems?.maxirest && <Badge tone="info">Maxirest</Badge>}</td>
-                    <td data-label="Código">{p.sku || '—'}</td>
-                    <td data-label="Familia">{lk.category(p.categoryId) || '—'}</td>
-                    <td data-label="Ubicación">{lk.location(p.locationId) || '—'}</td>
-                    <td data-label="Proveedor">{lk.supplier(p.supplierId) || '—'}</td>
+                    <td className="cell-title">
+                      {p.name} {!p.active && <Badge>Inactivo</Badge>} {p.externalSystems?.maxirest && <Badge tone="info">Maxirest</Badge>}
+                      <span className="cell-sub only-mobile">{[p.sku, lk.category(p.categoryId), lk.location(p.locationId), lk.supplier(p.supplierId)].filter(Boolean).join(' · ')}</span>
+                    </td>
+                    <td data-label="Código" className="hide-mobile">{p.sku || '—'}</td>
+                    <td data-label="Familia" className="hide-mobile">{lk.category(p.categoryId) || '—'}</td>
+                    <td data-label="Ubicación" className="hide-mobile">{lk.location(p.locationId) || '—'}</td>
+                    <td data-label="Proveedor" className="hide-mobile">{lk.supplier(p.supplierId) || '—'}</td>
                     <td data-label="Stock" className="num">{fmtNumber(p.stock)} {lk.unit(p.unitId)}</td>
                     <td data-label="Estado"><StatusBadge status={statusOf(p, settings)} /></td>
                     <td data-label="Acciones">

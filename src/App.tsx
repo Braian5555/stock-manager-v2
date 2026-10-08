@@ -28,6 +28,9 @@ const ReconciliationPage = lazy(() => import('./pages/ReconciliationPage').then(
 const IntegrationsPage = lazy(() => import('./pages/IntegrationsPage').then((m) => ({ default: m.IntegrationsPage })));
 const SettingsPage = lazy(() => import('./pages/SettingsPage').then((m) => ({ default: m.SettingsPage })));
 const ExportPage = lazy(() => import('./pages/ExportPage').then((m) => ({ default: m.ExportPage })));
+const ReportsPage = lazy(() => import('./pages/ReportsPage').then((m) => ({ default: m.ReportsPage })));
+const HelpPage = lazy(() => import('./pages/HelpPages').then((m) => ({ default: m.HelpPage })));
+const AboutPage = lazy(() => import('./pages/HelpPages').then((m) => ({ default: m.AboutPage })));
 const MovementsPage = lazy(() => import('./pages/MovementsPage').then((m) => ({ default: m.MovementsPage })));
 
 /**
@@ -90,6 +93,10 @@ export function App() {
                 <Route path="conciliacion" element={<Guard module="reconciliation"><ReconciliationPage /></Guard>} />
                 <Route path="exportar" element={<Guard module="export"><ExportPage /></Guard>} />
                 <Route path="configuracion" element={<Guard module="settings"><SettingsPage /></Guard>} />
+                <Route path="configuracion/:section" element={<Guard module="settings"><SettingsPage /></Guard>} />
+                <Route path="reportes" element={<Guard module="reports"><ReportsPage /></Guard>} />
+                <Route path="ayuda" element={<HelpPage />} />
+                <Route path="acerca" element={<AboutPage />} />
                 <Route path="integraciones" element={<Guard module="integrations"><IntegrationsPage /></Guard>} />
                 <Route path="usuarios" element={<Guard module="users"><UsersPage /></Guard>} />
                 <Route path="nube" element={<Guard module="cloud"><CloudPage /></Guard>} />

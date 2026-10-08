@@ -1,8 +1,10 @@
 import {
-  ArrowLeftRight, Boxes, Cloud, UserCog, ClipboardCheck, Download, Home, MapPin, Package, Plug, Receipt, Ruler, Forklift, Scale, Settings, ShoppingCart, Tags, Truck,
+  ArrowLeftRight, BarChart3, Boxes, ClipboardCheck, Cloud, Download, Forklift, Home, MapPin, Package, Plug, Receipt, Ruler, Scale, Settings as SettingsIcon,
+  ShoppingCart, Tags, Truck, UserCog,
   type LucideIcon,
 } from 'lucide-react';
-import type { ModuleKey, Permission } from '../models';
+import type { ModuleKey, Permission, Settings } from '../models';
+import { MODULES } from '../services/settingsService';
 
 export const MODULE_PATH: Record<ModuleKey, string> = {
   dashboard: '/',
@@ -18,6 +20,7 @@ export const MODULE_PATH: Record<ModuleKey, string> = {
   units: '/unidades',
   movements: '/movimientos',
   reconciliation: '/conciliacion',
+  reports: '/reportes',
   export: '/exportar',
   integrations: '/integraciones',
   cloud: '/nube',
@@ -39,15 +42,29 @@ export const MODULE_ICON: Record<ModuleKey, LucideIcon> = {
   units: Ruler,
   movements: ArrowLeftRight,
   reconciliation: Scale,
+  reports: BarChart3,
   export: Download,
   integrations: Plug,
   cloud: Cloud,
   users: UserCog,
-  settings: Settings,
+  settings: SettingsIcon,
 };
 
-/** Módulos de la barra inferior en móvil (el resto va en "Más"). */
-export const BOTTOM_KEYS: ModuleKey[] = ['dashboard', 'stock', 'count', 'orders'];
+/** Nombre corto para las barras de navegación (el menú completo usa el nombre largo). */
+const SHORT_LABEL: Partial<Record<ModuleKey, string>> = {
+  transfers: 'Remitos',
+  export: 'Exportar',
+  cloud: 'Cuenta',
+  reconciliation: 'Conciliación',
+};
+
+/** Grupos para "Más" (celular y computadora). */
+export const MODULE_GROUPS: { title: string; keys: ModuleKey[] }[] = [
+  { title: 'Operación diaria', keys: ['dashboard', 'stock', 'count', 'orders', 'movements', 'transfers', 'invoices'] },
+  { title: 'Catálogo', keys: ['products', 'suppliers', 'categories', 'units', 'locations'] },
+  { title: 'Reportes y control', keys: ['reports', 'reconciliation', 'export'] },
+  { title: 'Administración', keys: ['cloud', 'users', 'integrations', 'settings'] },
+];
 
 /** Permisos que habilitan cada módulo (alcanza con tener uno). */
 export const MODULE_PERMISSIONS: Record<ModuleKey, Permission[]> = {
@@ -64,9 +81,39 @@ export const MODULE_PERMISSIONS: Record<ModuleKey, Permission[]> = {
   units: ['catalog.manage'],
   movements: ['movements.view'],
   reconciliation: ['admin'],
+  reports: ['movements.view', 'export'],
   export: ['export'],
   integrations: ['admin'],
   cloud: ['admin'],
   users: ['admin'],
   settings: ['admin'],
 };
+
+/**
+ * Etiqueta para las barras: si la persona renombró el módulo en Configuración se respeta su
+ * nombre; si no, se usa la versión corta ("Remitos" en vez de "Remitos internos").
+ */
+export function navLabel(settings: Settings, key: ModuleKey): string {
+  const custom = settings.menu.find((m) => m.key === key)?.label;
+  const def = MODULES.find((m) => m.key === key)?.label;
+  if (custom && custom !== def) return custom;
+  return SHORT_LABEL[key] ?? def ?? key;
+}
+
+/** Módulos visibles para esta persona, en el orden del menú configurado. */
+export function visibleModules(settings: Settings, canAny: (p: Permission[]) => boolean): ModuleKey[] {
+  return settings.menu.filter((m) => m.visible && canAny(MODULE_PERMISSIONS[m.key])).map((m) => m.key);
+}
+
+/** Barra superior (computadora): los fijados, en el orden del menú; el resto queda en "Más". */
+export function topNavModules(settings: Settings, visible: ModuleKey[]) {
+  const pinned = new Set(settings.navTop ?? []);
+  const top = visible.filter((k) => pinned.has(k));
+  return { top, more: visible.filter((k) => !pinned.has(k) && k !== 'settings') };
+}
+
+/** Barra inferior (celular): hasta 4 módulos + "Más". */
+export function bottomNavModules(settings: Settings, visible: ModuleKey[]): ModuleKey[] {
+  const allowed = new Set(visible);
+  return (settings.navBottom ?? []).filter((k) => allowed.has(k)).slice(0, 4);
+}

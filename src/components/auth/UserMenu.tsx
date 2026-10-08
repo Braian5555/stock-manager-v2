@@ -1,4 +1,4 @@
-import { Lock, LogOut, UserCog } from 'lucide-react';
+import { Cloud, HelpCircle, Lock, LogOut, Settings, UserCog } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router';
 import { useSession } from '../../store/session';
@@ -26,16 +26,27 @@ export function UserMenu() {
     <div ref={ref} style={{ position: 'relative' }}>
       <button type="button" className="user-chip" aria-haspopup="menu" aria-expanded={open} aria-label={`Usuario: ${user.name}`} onClick={() => setOpen((o) => !o)}>
         <UserAvatar user={user} size={28} />
-        <span className="truncate" style={{ maxWidth: 110 }}>{user.name}</span>
+        <span className="truncate user-chip-name">{user.name}</span>
       </button>
       {open && (
         <div role="menu" className="card" style={{ position: 'absolute', right: 0, top: 'calc(100% + 6px)', zIndex: 40, minWidth: 220, padding: 6 }}>
           <div className="small muted" style={{ padding: '6px 10px' }}>{ROLE_LABEL[user.role]}</div>
           {can('admin') && (
-            <Link role="menuitem" to="/usuarios" className="btn btn-ghost btn-block" style={{ justifyContent: 'flex-start' }} onClick={() => setOpen(false)}>
-              <UserCog size={18} aria-hidden /> Usuarios
-            </Link>
+            <>
+              <Link role="menuitem" to="/nube" className="btn btn-ghost btn-block" style={{ justifyContent: 'flex-start' }} onClick={() => setOpen(false)}>
+                <Cloud size={18} aria-hidden /> Cuenta y nube
+              </Link>
+              <Link role="menuitem" to="/usuarios" className="btn btn-ghost btn-block" style={{ justifyContent: 'flex-start' }} onClick={() => setOpen(false)}>
+                <UserCog size={18} aria-hidden /> Usuarios
+              </Link>
+              <Link role="menuitem" to="/configuracion" className="btn btn-ghost btn-block" style={{ justifyContent: 'flex-start' }} onClick={() => setOpen(false)}>
+                <Settings size={18} aria-hidden /> Configuración
+              </Link>
+            </>
           )}
+          <Link role="menuitem" to="/ayuda" className="btn btn-ghost btn-block" style={{ justifyContent: 'flex-start' }} onClick={() => setOpen(false)}>
+            <HelpCircle size={18} aria-hidden /> Ayuda
+          </Link>
           <button role="menuitem" type="button" className="btn btn-ghost btn-block" style={{ justifyContent: 'flex-start' }} onClick={() => void lock()}>
             {cloudMode ? <><LogOut size={18} aria-hidden /> Cerrar sesión</> : <><Lock size={18} aria-hidden /> Bloquear / cambiar usuario</>}
           </button>
