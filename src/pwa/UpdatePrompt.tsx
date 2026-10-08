@@ -8,14 +8,17 @@ import { useRegisterSW } from 'virtual:pwa-register/react';
  * 3. Al tocar "Actualizar" se activa (skipWaiting) y la página se recarga una sola vez.
  * 4. Se buscan actualizaciones al abrir y cada 60 minutos mientras la app está abierta.
  */
+let updateTimer: ReturnType<typeof setInterval> | undefined;
+
 export function UpdatePrompt() {
   const {
     needRefresh: [needRefresh, setNeedRefresh],
     updateServiceWorker,
   } = useRegisterSW({
     onRegisteredSW(_url, registration) {
-      if (!registration) return;
-      setInterval(() => {
+      // El aviso se monta cada vez que se desbloquea la app: un solo temporizador para toda la sesión.
+      if (!registration || updateTimer) return;
+      updateTimer = setInterval(() => {
         if (navigator.onLine) registration.update().catch(() => undefined);
       }, 60 * 60 * 1000);
     },

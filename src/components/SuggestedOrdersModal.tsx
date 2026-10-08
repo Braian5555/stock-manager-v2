@@ -20,10 +20,18 @@ export function SuggestedOrdersModal({ open, onClose }: { open: boolean; onClose
   const [qty, setQty] = useState<Record<string, number | undefined>>({});
   const [excluded, setExcluded] = useState<Set<string>>(new Set());
 
+  // Las cantidades sugeridas se completan sólo para productos que todavía no tienen valor:
+  // si cambia el stock mientras el diálogo está abierto, no se pisan las cantidades editadas.
   useEffect(() => {
-    if (!open) return;
-    setQty(Object.fromEntries(base.flatMap((g) => g.lines.map((l) => [l.product.id, l.quantity]))));
-    setExcluded(new Set());
+    if (!open) {
+      setQty({});
+      setExcluded(new Set());
+      return;
+    }
+    setQty((cur) => {
+      const missing = base.flatMap((g) => g.lines).filter((l) => !(l.product.id in cur));
+      return missing.length ? { ...cur, ...Object.fromEntries(missing.map((l) => [l.product.id, l.quantity])) } : cur;
+    });
   }, [open, base]);
 
   const create = async () => {

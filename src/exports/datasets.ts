@@ -36,6 +36,8 @@ export async function buildDatasets(scope: ExportScope): Promise<{ title: string
   const cat = nameOf(categories), loc = nameOf(locations), sup = nameOf(suppliers), prod = nameOf(products);
   const unitAbbr = new Map(units.map((u) => [u.id, u.abbreviation]));
   const un = (id?: string) => (id ? (unitAbbr.get(id) ?? '') : '');
+  const outletName = new Map((await db.outlets.toArray()).map((o) => [o.id, o.name]));
+  const place = (outletId?: string) => (outletId ? (outletName.get(outletId) ?? 'Punto eliminado') : 'Depósito Central');
   const want = (s: ExportScope) => scope === 'all' || scope === s;
   const sorted = [...products].sort((a, b) => a.name.localeCompare(b.name, 'es'));
   const out: Dataset[] = [];
@@ -74,9 +76,9 @@ export async function buildDatasets(scope: ExportScope): Promise<{ title: string
     const [counts, items] = await Promise.all([db.counts.orderBy('createdAt').reverse().toArray(), db.countItems.toArray()]);
     out.push({
       title: 'Conteos',
-      columns: ['Conteo', 'Fecha', 'Estado', 'Producto', 'Esperado', 'Contado', 'Diferencia'],
+      columns: ['Conteo', 'Fecha', 'Lugar', 'Estado', 'Producto', 'Esperado', 'Contado', 'Diferencia'],
       rows: counts.flatMap((c) =>
-        items.filter((i) => i.countId === c.id && i.counted !== undefined).map((i) => [c.name, fmtDateTime(c.createdAt), c.status, prod(i.productId), i.expected, i.counted!, i.counted! - i.expected]),
+        items.filter((i) => i.countId === c.id && i.counted !== undefined).map((i) => [c.name, fmtDateTime(c.createdAt), place(c.outletId), c.status, prod(i.productId), i.expected, i.counted!, i.counted! - i.expected]),
       ),
     });
   }
@@ -84,8 +86,8 @@ export async function buildDatasets(scope: ExportScope): Promise<{ title: string
     const movs = await db.movements.orderBy('createdAt').reverse().toArray();
     out.push({
       title: 'Movimientos',
-      columns: ['Fecha y hora', 'Producto', 'Tipo', 'Anterior', 'Nuevo', 'Diferencia', 'Motivo', 'Usuario', 'Origen', 'Sistema'],
-      rows: movs.map((m) => [fmtDateTime(m.createdAt), prod(m.productId) || '(eliminado)', MOVEMENT_LABEL[m.type], m.quantityBefore, m.quantityAfter, m.delta, m.reason ?? '', m.performedBy?.name ?? '', m.origin, m.sourceSystem]),
+      columns: ['Fecha y hora', 'Producto', 'Lugar', 'Tipo', 'Anterior', 'Nuevo', 'Diferencia', 'Motivo', 'Usuario', 'Origen', 'Sistema'],
+      rows: movs.map((m) => [fmtDateTime(m.createdAt), prod(m.productId) || '(eliminado)', place(m.outletId), MOVEMENT_LABEL[m.type], m.quantityBefore, m.quantityAfter, m.delta, m.reason ?? '', m.performedBy?.name ?? '', m.origin, m.sourceSystem]),
     });
   }
   if (want('settings'))

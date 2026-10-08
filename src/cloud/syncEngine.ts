@@ -11,10 +11,10 @@
  *   (recomputeStock), por lo que dos dispositivos pueden mover stock a la vez sin perder datos.
  */
 import Dexie from 'dexie';
-import { db, setMutationListener, SYNC_TABLES, type SyncTableName } from '../database/db';
+import { db, remoteTransactions, setMutationListener, SYNC_TABLES, type SyncTableName } from '../database/db';
 import { recomputeStock } from '../services/stockService';
 import { nowIso } from '../utils/id';
-import type { CloudBackend, RemoteChange, RemoteDoc } from './types';
+import type { CloudBackend, RemoteChange, RemoteDoc, WatchInfo } from './types';
 
 export type SyncState = 'idle' | 'connecting' | 'synced' | 'pending' | 'offline' | 'error';
 export interface SyncStatus {
@@ -26,8 +26,6 @@ export interface SyncStatus {
 
 type Listener = (s: SyncStatus) => void;
 
-/** Transacciones abiertas por el propio motor al aplicar datos remotos: no se re-suben. */
-const remoteTransactions = new WeakSet<IDBTransaction>();
 
 export class SyncEngine {
   private unsubs: (() => void)[] = [];
@@ -68,6 +66,8 @@ export class SyncEngine {
     this.setStatus({ state: 'connecting', error: undefined });
     setMutationListener((table, ids, trans) => this.track(table, ids, trans));
     if (opts.pushAll) for (const t of SYNC_TABLES) for (const r of await db.table(t).toArray()) this.send(t, r as RemoteDoc);
+    // Eliminaciones hechas sin conexión o con la nube apagada.
+    for (const tb of await db.tombstones.where('pushed').equals(0).toArray()) this.send(tb.table, { id: tb.id, _deleted: true, updatedAt: tb.updatedAt });
 
     this.initialLeft = SYNC_TABLES.length;
     for (const t of SYNC_TABLES) {
@@ -75,7 +75,10 @@ export class SyncEngine {
         this.backend.watch(
           this.wsId,
           t,
-          (changes, initial) => void this.applyRemote(t, changes, initial),
+          (changes, info) =>
+            void this.applyRemote(t, changes, info).catch((e) =>
+              this.setStatus({ state: 'error', error: `No se pudieron aplicar cambios de la nube (${t}): ${e instanceof Error ? e.message : String(e)}` }),
+            ),
           (e) => this.setStatus({ state: 'error', error: e instanceof Error ? e.message : String(e) }),
         ),
       );
@@ -115,7 +118,8 @@ export class SyncEngine {
     if (this.stopped) return;
     for (const { table, id } of pending.values()) {
       const rec = (await db.table(table).get(id)) as RemoteDoc | undefined;
-      this.send(table, rec ?? { id, _deleted: true, updatedAt: nowIso() });
+      const tomb = rec ? undefined : await db.tombstones.get(`${table}:${id}`);
+      this.send(table, rec ?? { id, _deleted: true, updatedAt: tomb?.updatedAt ?? nowIso() });
     }
   }
 
@@ -124,7 +128,10 @@ export class SyncEngine {
     this.setStatus({});
     this.backend
       .put(this.wsId, table, d)
-      .then(() => this.setStatus({ state: this.status.state === 'connecting' ? 'connecting' : 'synced', error: undefined, lastSyncAt: nowIso() }))
+      .then(() => {
+        if (d._deleted) void db.tombstones.update(`${table}:${d.id}`, { pushed: 1 }).catch(() => undefined);
+        this.setStatus({ state: this.status.state === 'connecting' ? 'connecting' : 'synced', error: undefined, lastSyncAt: nowIso() });
+      })
       .catch((e) => this.setStatus({ state: 'error', error: e instanceof Error ? e.message : String(e) }))
       .finally(() => {
         this.inFlight--;
@@ -133,13 +140,12 @@ export class SyncEngine {
   }
 
   // ───────────── bajada ─────────────
-  private async applyRemote(table: SyncTableName, changes: RemoteChange[], initial: boolean) {
+  private async applyRemote(table: SyncTableName, changes: RemoteChange[], info: WatchInfo) {
     const docs = changes.filter((c) => !c.pending).map((c) => c.doc);
-    const remoteIds = new Set(docs.map((d) => d.id));
     const affectedProducts = new Set<string>();
     const toPush: RemoteDoc[] = [];
 
-    await db.transaction('rw', [db.table(table), db.products, db.movements, db.invoiceImages], async () => {
+    await db.transaction('rw', [db.table(table), db.products, db.movements, db.invoiceImages, db.tombstones], async () => {
       const tx = Dexie.currentTransaction as unknown as { idbtrans: IDBTransaction };
       remoteTransactions.add(tx.idbtrans);
       const t = db.table(table);
@@ -151,10 +157,21 @@ export class SyncEngine {
           if ((local.updatedAt ?? '') > remoteAt) toPush.push(local);
           continue;
         }
+        const tombKey = `${table}:${d.id}`;
         if (d._deleted) {
           if (local) await t.delete(d.id);
           if (table === 'invoices') await db.invoiceImages.where('invoiceId').equals(d.id).delete();
+          await db.tombstones.put({ key: tombKey, table, id: d.id, updatedAt: remoteAt || nowIso(), pushed: 1 });
         } else {
+          if (!local) {
+            // Se borró acá después de esa versión: la eliminación gana y se vuelve a enviar.
+            const tomb = await db.tombstones.get(tombKey);
+            if (tomb && tomb.updatedAt >= remoteAt) {
+              toPush.push({ id: d.id, _deleted: true, updatedAt: tomb.updatedAt });
+              continue;
+            }
+            if (tomb) await db.tombstones.delete(tombKey);
+          }
           const clean = { ...d };
           delete clean._deleted;
           if (table === 'movements') {
@@ -169,15 +186,16 @@ export class SyncEngine {
       }
       for (const pid of affectedProducts) await recomputeStock(pid);
 
-      // Primera carga: lo que existe sólo en este dispositivo se sube (p. ej. creado sin sesión).
-      if (initial) {
-        const all = (await t.toArray()) as RemoteDoc[];
-        for (const r of all) if (!remoteIds.has(r.id)) toPush.push(r);
+      // Con la lista confirmada por el servidor: lo que existe sólo en este dispositivo se sube
+      // (p. ej. creado sin sesión). Con una copia parcial de caché no se puede saber, así que se espera.
+      if (info.serverIds) {
+        const remoteIds = new Set(info.serverIds);
+        for (const r of (await t.toArray()) as RemoteDoc[]) if (!remoteIds.has(r.id)) toPush.push(r);
       }
     });
 
     for (const d of toPush) this.send(table, d);
-    if (initial && --this.initialLeft === 0) this.setStatus({ state: 'synced', lastSyncAt: nowIso() });
-    else if (!initial) this.setStatus({ lastSyncAt: nowIso() });
+    if (info.initial && --this.initialLeft === 0) this.setStatus({ state: 'synced', lastSyncAt: nowIso() });
+    else if (!info.initial) this.setStatus({ lastSyncAt: nowIso() });
   }
 }

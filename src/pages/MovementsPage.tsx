@@ -10,7 +10,7 @@ import { useOutlets, useProducts, EMPTY } from '../hooks/useData';
 import { useFeedback } from '../store/feedback';
 import { useSettings } from '../store/settings';
 import { Badge, EmptyState, Field, Input, PageHeader, SearchInput, Select } from '../components/ui';
-import { fmtDate, fmtNumber, fmtSigned, fmtTime, matches } from '../utils/format';
+import { fmtDate, fmtNumber, fmtSigned, fmtTime, localYmd, matches } from '../utils/format';
 
 const ORIGIN_LABEL: Record<StockMovement['origin'], string> = {
   manual: 'Manual', conteo: 'Conteo', pedido: 'Pedido', importacion: 'Importación', sincronizacion: 'Sincronización', deshacer: 'Deshacer', alta: 'Alta de producto', remito: 'Remito interno',
@@ -38,8 +38,8 @@ export function MovementsPage() {
   const list = all.filter((m) =>
     (!type || m.type === type) &&
     (!place || (place === 'central' ? !m.outletId : m.outletId === place)) &&
-    (!from || m.createdAt.slice(0, 10) >= from) &&
-    (!to || m.createdAt.slice(0, 10) <= to) &&
+    (!from || localYmd(m.createdAt) >= from) &&
+    (!to || localYmd(m.createdAt) <= to) &&
     matches(q, name.get(m.productId), m.reason),
   );
 

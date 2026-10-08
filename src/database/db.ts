@@ -5,6 +5,8 @@ import type {
 } from '../models';
 
 export const DB_NAME = 'stock-manager';
+/** Clave en `meta` del vínculo de este dispositivo con un espacio en la nube. */
+export const CLOUD_LINK_KEY = 'cloud.link';
 
 /**
  * Historial de esquemas. NUNCA editar una versión publicada: agregar una nueva
@@ -66,7 +68,17 @@ export const SCHEMA_V6 = {
   transfers: 'id, number, date, outletId, status, maxirest, updatedAt',
 };
 
-export const CURRENT_DB_VERSION = 6;
+/**
+ * v7: lápidas locales de lo que se eliminó en tablas sincronizadas. Sirven para que la
+ * eliminación llegue a la nube aunque se haya hecho sin conexión o con la nube apagada,
+ * y para que un dispositivo desactualizado no "reviva" lo borrado. Nunca se sincroniza.
+ */
+export const SCHEMA_V7 = {
+  ...SCHEMA_V6,
+  tombstones: 'key, pushed',
+};
+
+export const CURRENT_DB_VERSION = 7;
 
 /** Tablas de negocio que se sincronizan con la nube. */
 export const SYNC_TABLES = [
@@ -74,6 +86,19 @@ export const SYNC_TABLES = [
 ] as const;
 export type SyncTableName = (typeof SYNC_TABLES)[number];
 const SYNC_SET = new Set<string>(SYNC_TABLES);
+
+export interface Tombstone {
+  /** `${tabla}:${id}` */
+  key: string;
+  table: SyncTableName;
+  id: string;
+  updatedAt: string;
+  /** 1 = la nube ya la tiene. */
+  pushed: 0 | 1;
+}
+
+/** Transacciones abiertas al aplicar datos de la nube: no se vuelven a subir ni generan lápidas. */
+export const remoteTransactions = new WeakSet<IDBTransaction>();
 
 export interface MetaRecord {
   key: string;
@@ -113,6 +138,7 @@ export class StockDatabase extends Dexie {
   invoiceImages!: Table<InvoiceImage, string>;
   outlets!: Table<Outlet, string>;
   transfers!: Table<Transfer, string>;
+  tombstones!: Table<Tombstone, string>;
 
   constructor(name = DB_NAME) {
     super(name);
@@ -136,6 +162,8 @@ export class StockDatabase extends Dexie {
     this.version(5).stores(SCHEMA_V5);
     // v6: remitos internos a los puntos.
     this.version(6).stores(SCHEMA_V6);
+    // v7: lápidas locales para la sincronización.
+    this.version(7).stores(SCHEMA_V7);
 
     // Middleware: informa qué registros cambiaron en las tablas sincronizadas.
     this.use({
@@ -150,11 +178,19 @@ export class StockDatabase extends Dexie {
             return {
               ...table,
               mutate(req) {
-                if (mutationListener) {
-                  let ids: string[] = [];
-                  if (req.type === 'add' || req.type === 'put') ids = req.values.map((v) => String((v as { id: string }).id));
-                  else if (req.type === 'delete') ids = req.keys.map(String);
-                  if (ids.length) mutationListener(name as SyncTableName, ids, req.trans as unknown as IDBTransaction);
+                const trans = req.trans as unknown as IDBTransaction;
+                let ids: string[] = [];
+                if (req.type === 'add' || req.type === 'put') ids = req.values.map((v) => String((v as { id: string }).id));
+                else if (req.type === 'delete') ids = req.keys.map(String);
+                if (ids.length && mutationListener) mutationListener(name as SyncTableName, ids, trans);
+                // Eliminación local: se guarda una lápida cuando la transacción se confirma.
+                if (req.type === 'delete' && ids.length && !remoteTransactions.has(trans)) {
+                  const at = new Date().toISOString();
+                  trans.addEventListener('complete', () => {
+                    void db.tombstones
+                      .bulkPut(ids.map((id) => ({ key: `${name}:${id}`, table: name as SyncTableName, id, updatedAt: at, pushed: 0 as const })))
+                      .catch(() => undefined);
+                  });
                 }
                 return table.mutate(req);
               },

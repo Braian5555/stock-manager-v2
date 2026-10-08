@@ -12,7 +12,7 @@ describe('pedidos', () => {
     expect(order.number).toBe(1);
     const s = await receiveOrder(order.id);
     expect(s.lines[0]).toMatchObject({ before: 5, added: 24, after: 29 });
-    await receiveOrder(order.id);
+    await expect(receiveOrder(order.id)).rejects.toThrow(/ya fue recibido/);
     expect((await db.products.get(p.id))!.stock).toBe(29);
     expect((await db.orders.get(order.id))!.status).toBe('recibido');
     const movs = await db.movements.where('refId').equals(order.id).toArray();

@@ -111,7 +111,9 @@ export async function applyMovement(input: MovementInput): Promise<MovementResul
       outletId: input.outletId || undefined,
     };
     await db.movements.add(movement);
-    if (!movement.outletId) await db.products.update(product.id, { stock: after, updatedAt: t });
+    // El stock es derivado de los movimientos: no se toca updatedAt (así no pisa ediciones del
+    // producto hechas en otro dispositivo).
+    if (!movement.outletId) await db.products.update(product.id, { stock: after });
     return { movement, duplicate: false };
   });
 }

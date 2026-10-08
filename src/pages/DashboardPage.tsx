@@ -1,4 +1,6 @@
 import { useSession } from '../store/session';
+import type { ModuleKey } from '../models';
+import { MODULE_PERMISSIONS } from '../layouts/modules';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { AlertTriangle, ArrowLeftRight, Boxes, Package, PackageX, ShoppingCart, Truck, TrendingDown } from 'lucide-react';
 import { Link } from 'react-router';
@@ -14,7 +16,8 @@ import { WelcomeCard } from '../components/WelcomeCard';
 
 export function DashboardPage() {
   const settings = useSettings();
-  const { can } = useSession();
+  const { can, canAny } = useSession();
+  const allowed = (m: ModuleKey) => canAny(MODULE_PERMISSIONS[m]);
   const products = useProducts();
   const lk = useLookups();
   const pendingOrders = useLiveQuery(() => db.orders.where('status').anyOf(OPEN_ORDER_STATUSES).count(), []) ?? 0;
@@ -29,13 +32,13 @@ export function DashboardPage() {
   const totalUnits = active.reduce((a, p) => a + Math.max(0, p.stock), 0);
 
   const stats = [
-    { label: 'Productos', value: active.length, icon: Package, to: '/productos' },
-    { label: 'Stock total (unid.)', value: fmtNumber(totalUnits), icon: Boxes, to: '/stock' },
-    { label: 'Stock bajo', value: low.length, icon: TrendingDown, to: '/stock?estado=bajo' },
-    { label: 'Sin stock', value: out.length, icon: PackageX, to: '/stock?estado=sin_stock' },
-    { label: 'Pedidos pendientes', value: pendingOrders, icon: ShoppingCart, to: '/pedidos?estado=abiertos' },
-    { label: 'Proveedores', value: lk.suppliers.length, icon: Truck, to: '/proveedores' },
-  ];
+    { label: 'Productos', value: active.length, icon: Package, to: '/productos', m: 'products' as ModuleKey },
+    { label: 'Stock total (unid.)', value: fmtNumber(totalUnits), icon: Boxes, to: '/stock', m: 'stock' as ModuleKey },
+    { label: 'Stock bajo', value: low.length, icon: TrendingDown, to: '/stock?estado=bajo', m: 'stock' as ModuleKey },
+    { label: 'Sin stock', value: out.length, icon: PackageX, to: '/stock?estado=sin_stock', m: 'stock' as ModuleKey },
+    { label: 'Pedidos pendientes', value: pendingOrders, icon: ShoppingCart, to: '/pedidos?estado=abiertos', m: 'orders' as ModuleKey },
+    { label: 'Proveedores', value: lk.suppliers.length, icon: Truck, to: '/proveedores', m: 'suppliers' as ModuleKey },
+  ].filter((x) => allowed(x.m));
   const alerts = [...out, ...critical, ...low.filter((x) => x.s === 'bajo')].slice(0, 8);
 
   return (
@@ -97,7 +100,7 @@ export function DashboardPage() {
         <section className="card" aria-labelledby="ultimos">
           <div className="card-head">
             <h2 id="ultimos" className="row"><ArrowLeftRight size={18} aria-hidden /> Últimos movimientos</h2>
-            <Link to="/movimientos" className="btn btn-sm btn-ghost">Ver todos</Link>
+            {allowed('movements') && <Link to="/movimientos" className="btn btn-sm btn-ghost">Ver todos</Link>}
           </div>
           {lastMovements.length === 0 ? (
             <EmptyState title="Sin movimientos">Los ingresos, salidas, ajustes y conteos aparecerán aquí.</EmptyState>

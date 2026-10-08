@@ -124,7 +124,7 @@ export async function syncedAdjustment(productId: string, newQuantity: number, r
     { productExternalId: link.id, newQuantity, delta: newQuantity - (ref?.stock ?? movement.quantityBefore), reason, localMovementId: movement.id },
     `adj:${movement.id}`,
   );
-  await db.movements.update(movement.id, { syncId: job.id });
+  await db.movements.update(movement.id, { syncId: job.id, updatedAt: nowIso() });
   const adapter = getAdapter(await getIntegration());
   const result = adapter ? await processJob(adapter, job) : job;
   if (result.status === 'sincronizado' && ref) await db.externalReferences.update(ref.id, { stock: newQuantity, updatedAt: nowIso() });
@@ -164,6 +164,7 @@ export async function sendCountToExternal(countId: string) {
   const caps = await adapter.capabilities();
   if (caps.createStockAdjustment !== 'supported') throw new Error('La integración actual no permite enviar ajustes a Maxirest.');
   const count = await db.counts.get(countId);
+  if (count?.outletId) throw new Error('Los conteos de un punto no se envían a Maxirest como ajuste del producto.');
   const items = await db.countItems.where('countId').equals(countId).toArray();
   const refs = new Map((await db.externalReferences.where({ system: 'maxirest', entityType: 'product' }).toArray()).map((r) => [r.externalId, r]));
   let ok = 0;

@@ -15,4 +15,8 @@ export function safeFilename(s: string): string {
   return (s.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-zA-Z0-9-_]+/g, '_').replace(/^_+|_+$/g, '') || 'stock').slice(0, 60);
 }
 
-export const stamp = (): string => new Date().toISOString().slice(0, 16).replace(/[T:]/g, '-');
+export const stamp = (): string => {
+  const d = new Date();
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}-${p(d.getHours())}-${p(d.getMinutes())}`;
+};

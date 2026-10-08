@@ -60,7 +60,7 @@ export async function deleteCatalogItem(kind: CatalogKind, id: string): Promise<
       (p) => PRODUCT_FIELDS[kind].some((f) => p[f] === id) || (kind === 'supplier' && p.alternativeSupplierIds.includes(id)),
     );
     for (const p of affected) {
-      const patch: Partial<Product> = {};
+      const patch: Partial<Product> = { updatedAt: nowIso() };
       for (const f of PRODUCT_FIELDS[kind]) if (p[f] === id) (patch as Record<string, unknown>)[f] = undefined;
       if (kind === 'supplier') patch.alternativeSupplierIds = p.alternativeSupplierIds.filter((x) => x !== id);
       await db.products.update(p.id, patch);
@@ -69,8 +69,12 @@ export async function deleteCatalogItem(kind: CatalogKind, id: string): Promise<
     return {
       restore: async () => {
         await db.transaction('rw', [table, db.products], async () => {
-          await table.put(item);
-          await db.products.bulkPut(affected);
+          await table.put({ ...item, updatedAt: nowIso() });
+          // Restaura los vínculos sin pisar el stock actual (pudo cambiar mientras tanto).
+          for (const p of affected) {
+            const cur = await db.products.get(p.id);
+            if (cur) await db.products.put({ ...p, stock: cur.stock, updatedAt: nowIso() });
+          }
         });
       },
     };

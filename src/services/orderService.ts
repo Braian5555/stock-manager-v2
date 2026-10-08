@@ -137,6 +137,7 @@ export async function receiveOrder(orderId: string, lines?: ReceiveLine[]): Prom
     const order = await db.orders.get(orderId);
     if (!order) throw new Error('El pedido no existe.');
     if (order.status === 'cancelado') throw new Error('No se puede recibir un pedido cancelado.');
+    if (order.status === 'recibido') throw new Error('Este pedido ya fue recibido.');
     const items = await db.orderItems.where('orderId').equals(orderId).toArray();
     const summary: ReceiveSummary = { lines: [] };
     for (const item of items) {

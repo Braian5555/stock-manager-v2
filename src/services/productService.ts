@@ -2,7 +2,7 @@ import { db } from '../database/db';
 import type { Product } from '../models';
 import { nowIso, uuid } from '../utils/id';
 import { saveEntity, type Draft, type UndoSnapshot } from './entityService';
-import { applyMovement } from './stockService';
+import { applyMovement, recomputeStock, stockByOutlet } from './stockService';
 
 export function emptyProduct(): Draft<Product> {
   return {
@@ -23,6 +23,7 @@ export function emptyProduct(): Draft<Product> {
  * (los cambios de stock siempre generan un movimiento explícito).
  */
 export async function saveProduct(draft: Draft<Product>, initialStock = 0): Promise<Product> {
+  if (!Number.isFinite(initialStock) || initialStock < 0) throw new Error('El stock inicial no puede ser negativo.');
   const clean: Draft<Product> = {
     ...draft,
     name: draft.name.trim(),
@@ -70,10 +71,25 @@ export async function duplicateProduct(id: string): Promise<Product> {
   return copy;
 }
 
-/** Elimina el producto. Su historial de movimientos se conserva. */
+/**
+ * Elimina el producto. Su historial de movimientos se conserva.
+ * No se puede eliminar si tiene stock en algún punto o está en un remito vigente
+ * (al anular ese remito no habría a qué producto devolverle la mercadería).
+ */
 export async function deleteProduct(id: string): Promise<UndoSnapshot> {
   const p = await db.products.get(id);
   if (!p) throw new Error('El producto no existe.');
+  const atOutlets = [...stockByOutlet((await db.movements.where('productId').equals(id).toArray())).values()].some((m) => (m.get(id) ?? 0) !== 0);
+  const inTransfers = (await db.transfers.where('status').equals('enviado').toArray()).some((t) => t.items.some((i) => i.productId === id));
+  if (atOutlets || inTransfers)
+    throw new Error('Este producto tiene stock en algún punto o está en un remito. Desactivalo en lugar de eliminarlo.');
   await db.products.delete(id);
-  return { restore: async () => void (await db.products.put(p)) };
+  return {
+    restore: async () => {
+      await db.transaction('rw', db.products, db.movements, async () => {
+        await db.products.put({ ...p, updatedAt: nowIso() });
+        await recomputeStock(id); // pudieron llegar movimientos mientras estaba eliminado
+      });
+    },
+  };
 }

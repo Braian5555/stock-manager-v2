@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import type { Product } from '../models';
 import { emptyProduct, saveProduct } from '../services/productService';
 import type { Draft } from '../services/entityService';
@@ -15,12 +15,16 @@ export function ProductForm({ product, open, onClose }: { product?: Product; ope
   const [initial, setInitial] = useState<number | undefined>();
   const isNew = !product;
 
+  // Se inicializa al abrir (o al cambiar de producto), no cada vez que cambia algún dato:
+  // si no, un movimiento sincronizado desde otro dispositivo borraría lo que se está escribiendo.
+  const productRef = useRef(product);
+  productRef.current = product;
   useEffect(() => {
     if (open) {
-      setD(product ? { ...product } : emptyProduct());
+      setD(productRef.current ? { ...productRef.current } : emptyProduct());
       setInitial(undefined);
     }
-  }, [open, product]);
+  }, [open, product?.id]);
 
   const set = <K extends keyof Draft<Product>>(k: K, v: Draft<Product>[K]) => setD((x) => ({ ...x, [k]: v }));
 

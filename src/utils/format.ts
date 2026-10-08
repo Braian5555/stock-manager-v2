@@ -18,14 +18,26 @@ export const matches = (query: string, ...fields: (string | undefined)[]): boole
   return fields.some((f) => normalize(f).includes(q));
 };
 
-/** Convierte strings con coma decimal ("1,5") o vacíos a número. */
+/**
+ * Convierte texto a número aceptando formato argentino y anglosajón:
+ * "1,5" → 1.5 · "1.234,5" → 1234.5 · "1.500" → 1500 · "1,234.5" → 1234.5 · "2.5" → 2.5
+ */
 export function parseNumber(value: unknown, fallback = 0): number {
   if (typeof value === 'number') return Number.isFinite(value) ? value : fallback;
   if (typeof value !== 'string') return fallback;
-  const s = value.trim();
+  let s = value.trim().replace(/\s|\$/g, '');
   if (!s) return fallback;
-  const cleaned = s.includes(',') && !s.includes('.') ? s.replace(',', '.') : s.replace(/,/g, '');
-  const n = Number(cleaned);
+  const lastComma = s.lastIndexOf(',');
+  const lastDot = s.lastIndexOf('.');
+  if (lastComma >= 0 && lastDot >= 0) {
+    // Ambos separadores: el último es el decimal.
+    s = lastComma > lastDot ? s.replace(/\./g, '').replace(',', '.') : s.replace(/,/g, '');
+  } else if (lastComma >= 0) {
+    s = /^-?[1-9]\d{0,2}(,\d{3}){2,}$/.test(s) ? s.replace(/,/g, '') : s.replace(',', '.');
+  } else if (/^-?[1-9]\d{0,2}(\.\d{3})+$/.test(s)) {
+    s = s.replace(/\./g, ''); // "1.500" o "12.345.678": puntos de miles
+  }
+  const n = Number(s);
   return Number.isFinite(n) ? n : fallback;
 }
 
@@ -35,3 +47,9 @@ const moneyFmt = new Intl.NumberFormat('es-AR', { style: 'currency', currency: '
 export const fmtMoney = (n: number | undefined | null): string => (n == null || Number.isNaN(n) ? '—' : moneyFmt.format(n));
 /** "2026-10-07" → "07/10/2026" sin problemas de zona horaria. */
 export const fmtDay = (ymd?: string): string => (ymd && /^\d{4}-\d{2}-\d{2}/.test(ymd) ? `${ymd.slice(8, 10)}/${ymd.slice(5, 7)}/${ymd.slice(0, 4)}` : '—');
+
+/** Fecha local (no UTC) en formato YYYY-MM-DD. En Argentina, después de las 21 h el UTC ya es "mañana". */
+export function localYmd(d: Date | string = new Date()): string {
+  const x = typeof d === 'string' ? new Date(d) : d;
+  return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`;
+}

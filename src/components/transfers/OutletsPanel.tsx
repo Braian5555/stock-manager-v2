@@ -4,6 +4,7 @@ import type { Outlet } from '../../models';
 import { deleteOutlet, saveOutlet } from '../../services/transferService';
 import { useOutlets } from '../../hooks/useData';
 import { useFeedback } from '../../store/feedback';
+import { useSession } from '../../store/session';
 import { Modal } from '../ui/Modal';
 import { Badge, EmptyState, Field, Input } from '../ui';
 
@@ -13,6 +14,9 @@ export function OutletsPanel() {
   const outlets = useOutlets();
   const { run, confirm } = useFeedback();
   const [form, setForm] = useState<Form>();
+  const { can } = useSession();
+  // Crear, editar y borrar puntos es configuración: administradores o quien administra catálogos.
+  const canEdit = can('admin') || can('catalog.manage');
 
   const save = async () => {
     if (!form) return;
@@ -29,7 +33,7 @@ export function OutletsPanel() {
     <>
       <div className="row wrap" style={{ marginBottom: 12 }}>
         <p className="small muted grow" style={{ margin: 0 }}>Los lugares que reciben mercadería del Depósito Central.</p>
-        <button type="button" className="btn btn-primary" onClick={() => setForm({ name: '', maxirestName: '', active: true })}><Plus size={18} aria-hidden /> Nuevo punto</button>
+        {canEdit && <button type="button" className="btn btn-primary" onClick={() => setForm({ name: '', maxirestName: '', active: true })}><Plus size={18} aria-hidden /> Nuevo punto</button>}
       </div>
       <div className="card">
         {outlets.length === 0 ? (
@@ -37,14 +41,14 @@ export function OutletsPanel() {
         ) : (
           <div className="list">
             {outlets.map((o) => (
-              <button key={o.id} type="button" className="list-item invoice-item" onClick={() => edit(o)} aria-label={`Editar ${o.name}`}>
+              <button key={o.id} type="button" className="list-item invoice-item" disabled={!canEdit} onClick={() => edit(o)} aria-label={canEdit ? `Editar ${o.name}` : o.name}>
                 <span className="stat-icon" aria-hidden><Store size={16} /></span>
                 <div className="grow">
                   <div className="list-title truncate">{o.name}</div>
                   <div className="list-sub">{o.maxirestName ? `En Maxirest: ${o.maxirestName}` : 'Sin nombre de Maxirest'}</div>
                 </div>
                 {!o.active && <Badge>Desactivado</Badge>}
-                <Pencil size={16} className="muted" aria-hidden />
+                {canEdit && <Pencil size={16} className="muted" aria-hidden />}
               </button>
             ))}
           </div>

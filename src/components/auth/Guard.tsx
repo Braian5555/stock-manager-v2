@@ -1,6 +1,6 @@
 import { ShieldOff } from 'lucide-react';
 import type { ReactNode } from 'react';
-import { Link } from 'react-router';
+import { Link, Navigate } from 'react-router';
 import type { ModuleKey } from '../../models';
 import { MODULE_PATH, MODULE_PERMISSIONS } from '../../layouts/modules';
 import { useSession } from '../../store/session';
@@ -20,6 +20,8 @@ export function Guard({ module, children }: { module: ModuleKey; children: React
   const { canAny } = useSession();
   const first = useFirstAllowedPath();
   if (canAny(MODULE_PERMISSIONS[module])) return <>{children}</>;
+  // Inicio sin permiso de stock (p. ej. un usuario que sólo hace remitos): ir a su primera sección.
+  if (module === 'dashboard' && first !== MODULE_PATH.dashboard) return <Navigate to={first} replace />;
   return (
     <EmptyState icon={<ShieldOff size={40} />} title="No tenés permiso para esta sección" action={first !== MODULE_PATH[module] ? <Link to={first} className="btn btn-primary">Ir a mi inicio</Link> : undefined}>
       Pedile a un administrador que te habilite el acceso desde Usuarios.

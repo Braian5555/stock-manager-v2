@@ -58,7 +58,7 @@ export function AppLayout() {
 
   return (
     <div className="app">
-      <a href="#contenido" className="skip-link">Saltar al contenido</a>
+      <a href="#contenido" className="skip-link" onClick={(e) => { e.preventDefault(); document.getElementById('contenido')?.focus(); }}>Saltar al contenido</a>
       <aside className="sidebar" aria-label="Menú principal">
         {brand}
         <nav>

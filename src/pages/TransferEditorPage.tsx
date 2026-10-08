@@ -7,12 +7,9 @@ import { createTransfer, normalizeItems, transferCode } from '../services/transf
 import { useLookups, useOutlets, useProducts } from '../hooks/useData';
 import { useFeedback } from '../store/feedback';
 import { EmptyState, Field, Input, NumberInput, PageHeader, Select, Textarea } from '../components/ui';
-import { fmtNumber, matches } from '../utils/format';
+import { fmtNumber, localYmd, matches } from '../utils/format';
 
-const today = () => {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-};
+const today = () => localYmd();
 
 type Line = { productId: string; quantity: number | undefined };
 
@@ -36,9 +33,10 @@ export function TransferEditorPage() {
   useEffect(() => {
     const copy = params.get('copiar');
     if (!copy) return;
-    void db.transfers.get(copy).then((t) => {
+    void db.transfers.get(copy).then(async (t) => {
       if (!t) return;
-      setOutletId(t.outletId);
+      // Si el punto se desactivó, hay que elegir otro.
+      if ((await db.outlets.get(t.outletId))?.active) setOutletId(t.outletId);
       setLines(t.items.map((i) => ({ productId: i.productId, quantity: i.quantity })));
     });
   }, [params]);

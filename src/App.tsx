@@ -5,7 +5,7 @@ import { initCloud } from './cloud/cloudService';
 import { FeedbackProvider } from './store/feedback';
 import { SettingsProvider } from './store/settings';
 import { SessionProvider, useSession } from './store/session';
-import { LockScreen, SetupScreen } from './components/auth/AuthScreens';
+import { LockScreen, SetupScreen, WaitingCloudScreen } from './components/auth/AuthScreens';
 import { Guard } from './components/auth/Guard';
 import { AppLayout } from './layouts/AppLayout';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -110,6 +110,7 @@ export function App() {
 function SessionGate({ children }: { children: React.ReactNode }) {
   const { status } = useSession();
   if (status === 'loading') return <div className="splash" aria-busy="true">Cargando…</div>;
+  if (status === 'waiting') return <WaitingCloudScreen />;
   if (status === 'setup') return <SetupScreen />;
   if (status === 'locked') return <LockScreen />;
   return <>{children}</>;

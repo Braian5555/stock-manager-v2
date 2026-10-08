@@ -12,7 +12,7 @@ import { useLookups, useProducts } from '../hooks/useData';
 import { useFeedback } from '../store/feedback';
 import { Modal } from '../components/ui/Modal';
 import { Badge, Field, Input, NumberInput, PageHeader, Select, Textarea } from '../components/ui';
-import { fmtNumber } from '../utils/format';
+import { fmtNumber, localYmd } from '../utils/format';
 import { ORDER_TONE } from './OrdersPage';
 import { InvoiceEditor } from '../components/invoices/InvoiceEditor';
 import { InvoiceViewer } from '../components/invoices/InvoiceViewer';
@@ -27,7 +27,7 @@ interface Draft {
   items: OrderLineDraft[];
 }
 
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => localYmd();
 const EDITABLE_STATUSES: OrderStatus[] = ['borrador', 'pendiente', 'enviado', 'cancelado'];
 
 export function OrderEditorPage() {
@@ -38,7 +38,7 @@ export function OrderEditorPage() {
   const lk = useLookups();
   const { run, confirm, notify } = useFeedback();
   const { can } = useSession();
-  const order = useLiveQuery(() => (isNew ? undefined : db.orders.get(id!)), [id]);
+  const order = useLiveQuery(async () => (isNew ? undefined : ((await db.orders.get(id!)) ?? null)), [id]);
   const orderItems = useLiveQuery(() => (isNew ? [] : db.orderItems.where('orderId').equals(id!).toArray()), [id]);
   const [d, setD] = useState<Draft>({ status: 'borrador', date: today(), notes: '', items: [] });
   const [dirty, setDirty] = useState(false);
@@ -54,7 +54,7 @@ export function OrderEditorPage() {
       setD({
         supplierId: order.supplierId,
         status: order.status,
-        date: order.date.slice(0, 10),
+        date: localYmd(order.date),
         notes: order.notes ?? '',
         items: orderItems.map((i) => ({ id: i.id, productId: i.productId, quantity: i.quantity, factor: i.factor })),
       });
@@ -144,7 +144,7 @@ export function OrderEditorPage() {
           </Field>
           <Field label="Fecha"><Input type="date" value={d.date} disabled={locked} onChange={(e) => update({ date: e.target.value })} /></Field>
           <Field label="Estado">
-            {locked ? <Input value="Recibido" disabled /> : (
+            {locked ? <Input value={ORDER_STATUS_LABEL[d.status]} disabled /> : (
               <Select value={d.status} onChange={(e) => update({ status: e.target.value as OrderStatus })}>
                 {EDITABLE_STATUSES.map((s) => <option key={s} value={s}>{ORDER_STATUS_LABEL[s]}</option>)}
               </Select>

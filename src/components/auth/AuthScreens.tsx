@@ -1,3 +1,4 @@
+import { useCloud } from '../../cloud/cloudService';
 import { ArrowLeft, Cloud, Lock } from 'lucide-react';
 import { useState } from 'react';
 import { useSession } from '../../store/session';
@@ -122,6 +123,27 @@ export function LockScreen() {
         <button type="button" className="btn btn-ghost btn-sm" onClick={() => setHelp((h) => !h)} aria-expanded={help}>¿Olvidaste tu PIN?</button>
         {help && <p className="small muted">Pedile a un administrador que te asigne un PIN nuevo desde <b>Usuarios</b>. Si sos el único administrador y olvidaste tu PIN, restaurá una copia de seguridad o pedí ayuda a quien administra la cuenta de Google del negocio.</p>}
       </div>
+    </Shell>
+  );
+}
+
+/** Dispositivo vinculado a la nube, todavía sin usuarios: se espera la primera sincronización. */
+export function WaitingCloudScreen() {
+  const { skipCloudWait } = useSession();
+  const cloud = useCloud();
+  const offline = cloud.status.state === 'offline' || cloud.phase === 'signed_out' || cloud.status.state === 'error';
+  return (
+    <Shell>
+      <h1 style={{ textAlign: 'center' }}>Trayendo los datos de la nube…</h1>
+      <p className="muted small" style={{ textAlign: 'center' }} role="status">
+        {offline
+          ? cloud.phase === 'signed_out'
+            ? 'La sesión de Google se cerró. Volvé a iniciarla para traer los usuarios.'
+            : 'No hay conexión. Conectate a Internet para traer los usuarios de tu negocio.'
+          : 'En unos segundos vas a poder elegir tu usuario y entrar con tu PIN.'}
+      </p>
+      {!offline && <div className="row" style={{ justifyContent: 'center' }}><span className="spin" aria-hidden>⏳</span></div>}
+      <button type="button" className="btn btn-ghost btn-sm" onClick={skipCloudWait}>Es un negocio nuevo: crear el administrador acá</button>
     </Shell>
   );
 }

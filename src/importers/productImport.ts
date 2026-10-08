@@ -67,10 +67,22 @@ export async function planProductImport(tab: Tabular): Promise<ProductImportPlan
   }));
   const valid = rows.filter((r): r is typeof r & { name: string } => !!r.name);
   const matchOf = (r: { sku?: string; name: string }) => index.get(key(r)) ?? index.get(`name:${normalize(r.name)}`);
-  const update = valid.filter((r) => matchOf(r)).length;
+  // Filas repetidas (mismo código o nombre) en el archivo: cuentan como un solo producto.
+  const seen = new Set<string>();
+  let create = 0;
+  let update = 0;
+  for (const r of valid) {
+    const k = matchOf(r) ? `id:${matchOf(r)!.id}` : key(r);
+    const kn = `name:${normalize(r.name)}`;
+    if (seen.has(k) || seen.has(kn)) { update++; continue; }
+    seen.add(k);
+    seen.add(kn);
+    if (matchOf(r)) update++;
+    else create++;
+  }
 
   return {
-    create: valid.length - update,
+    create,
     update,
     skipped: rows.length - valid.length,
     run: async () => {
@@ -101,7 +113,10 @@ export async function planProductImport(tab: Tabular): Promise<ProductImportPlan
           maxStock: r.max !== undefined ? parseNumber(r.max) : (prev?.maxStock ?? 0),
           notes: r.notes ?? prev?.notes,
         };
-        await saveProduct(draft, prev ? 0 : parseNumber(r.stock));
+        const saved = await saveProduct(draft, prev ? 0 : parseNumber(r.stock));
+        // Así una fila repetida más abajo actualiza este producto en vez de crear otro.
+        index.set(`name:${normalize(saved.name)}`, saved);
+        if (saved.sku) index.set(`sku:${normalize(saved.sku)}`, saved);
         if (prev) updated++;
         else created++;
       }

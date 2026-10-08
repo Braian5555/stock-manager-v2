@@ -1,4 +1,4 @@
-import { CURRENT_DB_VERSION, DATA_TABLES, db, type DataTableName } from '../database/db';
+import { CLOUD_LINK_KEY, CURRENT_DB_VERSION, DATA_TABLES, db, type DataTableName } from '../database/db';
 import type { Integration } from '../models';
 import { nowIso } from '../utils/id';
 import { normalizeSettings } from './settingsService';
@@ -28,9 +28,16 @@ export function stripSecrets<T>(value: T): T {
   return value;
 }
 
-export async function createBackup(): Promise<BackupFile> {
+/**
+ * Copia completa. Los usuarios (con el hash del PIN) sólo se incluyen si quien exporta es
+ * administrador: un hash de un PIN de 4–6 números se puede adivinar por fuerza bruta.
+ */
+export async function createBackup(opts: { includeUsers?: boolean } = {}): Promise<BackupFile> {
   const tables: BackupFile['tables'] = {};
-  for (const name of DATA_TABLES) tables[name] = stripSecrets(await db.table(name).toArray());
+  for (const name of DATA_TABLES) {
+    if (name === 'users' && !opts.includeUsers) continue;
+    tables[name] = stripSecrets(await db.table(name).toArray());
+  }
   return {
     format: BACKUP_FORMAT,
     formatVersion: BACKUP_FORMAT_VERSION,
@@ -58,7 +65,13 @@ const REQUIRED_FIELDS: Partial<Record<DataTableName, string[]>> = {
   movements: ['id', 'productId', 'idempotencyKey'],
   counts: ['id', 'status'],
   countItems: ['id', 'countId', 'productId'],
+  outlets: ['id', 'name'],
+  transfers: ['id', 'number', 'date', 'outletId', 'items', 'status'],
+  invoices: ['id', 'date', 'pages'],
+  users: ['id', 'name', 'role', 'pinHash', 'pinSalt'],
 };
+/** Campos que tienen que ser listas. */
+const ARRAY_FIELDS: Partial<Record<DataTableName, string[]>> = { transfers: ['items'], invoices: ['pages'], products: [] };
 
 /** Valida la estructura antes de tocar la base local. */
 export function validateBackup(data: unknown): ValidationResult {
@@ -79,7 +92,8 @@ export function validateBackup(data: unknown): ValidationResult {
         continue;
       }
       const required = REQUIRED_FIELDS[name] ?? ['id'];
-      const bad = rows.findIndex((r) => !r || typeof r !== 'object' || required.some((f) => (r as Record<string, unknown>)[f] === undefined));
+      const arrays = ARRAY_FIELDS[name] ?? [];
+      const bad = rows.findIndex((r) => !r || typeof r !== 'object' || required.some((f) => (r as Record<string, unknown>)[f] === undefined) || arrays.some((f) => !Array.isArray((r as Record<string, unknown>)[f])));
       if (bad >= 0) errors.push(`"${name}": el registro ${bad + 1} está incompleto.`);
       counts[name] = rows.length;
     }
@@ -96,9 +110,14 @@ export function validateBackup(data: unknown): ValidationResult {
 export async function restoreBackup(data: BackupFile): Promise<void> {
   const check = validateBackup(data);
   if (!check.ok) throw new Error(check.errors.join(' '));
+  // Con la nube vinculada, restaurar pisaría los datos de todos los dispositivos con datos viejos.
+  if (await db.meta.get(CLOUD_LINK_KEY))
+    throw new Error('Este dispositivo está vinculado a la nube. Desvinculalo en Cuenta y nube antes de restaurar una copia.');
   const tables = DATA_TABLES.map((n) => db.table(n));
   await db.transaction('rw', tables, async () => {
     for (const name of DATA_TABLES) {
+      // Tablas que la copia no trae (copias viejas, o sin usuarios): se conservan las actuales.
+      if (data.tables[name] === undefined) continue;
       await db.table(name).clear();
       let rows = stripSecrets((data.tables[name] ?? []) as Record<string, unknown>[]);
       if (name === 'settings') rows = rows.map((s) => normalizeSettings(s) as unknown as Record<string, unknown>);

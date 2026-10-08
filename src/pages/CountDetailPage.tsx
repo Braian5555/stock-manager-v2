@@ -18,7 +18,7 @@ type Show = 'all' | 'pending' | 'done';
 
 export function CountDetailPage() {
   const { id = '' } = useParams();
-  const count = useLiveQuery(() => db.counts.get(id), [id]);
+  const count = useLiveQuery(async () => (await db.counts.get(id)) ?? null, [id]);
   const items = useLiveQuery(() => db.countItems.where('countId').equals(id).toArray(), [id]) ?? EMPTY;
   const products = useProducts();
   const lk = useLookups();

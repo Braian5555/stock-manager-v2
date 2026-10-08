@@ -33,7 +33,7 @@ export function ExportPage() {
     setBusy(true);
     await run(async () => {
       if (format === 'json') {
-        const data = scope === 'all' ? await createBackup() : Object.fromEntries(await Promise.all((SCOPE_TABLES[scope] ?? []).map(async (t) => [t, await db.table(t).toArray()])));
+        const data = scope === 'all' ? await createBackup({ includeUsers: can('admin') }) : Object.fromEntries(await Promise.all((SCOPE_TABLES[scope] ?? []).map(async (t) => [t, await db.table(t).toArray()])));
         return downloadBlob(toJsonBlob(data), `${base}_${scope}_${stamp()}.json`);
       }
       const { title, datasets } = await buildDatasets(scope);
@@ -43,7 +43,7 @@ export function ExportPage() {
     setBusy(false);
   };
 
-  const backup = () => run(async () => downloadBlob(toJsonBlob(await createBackup()), `backup_${base}_${stamp()}.json`), 'Copia de seguridad descargada');
+  const backup = () => run(async () => downloadBlob(toJsonBlob(await createBackup({ includeUsers: can('admin') })), `backup_${base}_${stamp()}.json`), 'Copia de seguridad descargada');
 
   const onRestoreFile = async (file: File) => {
     let data: unknown;
@@ -67,7 +67,7 @@ export function ExportPage() {
       ),
     });
     if (!ok) return;
-    const previous = await createBackup();
+    const previous = await createBackup({ includeUsers: true });
     const done = await run(() => restoreBackup(data as BackupFile).then(() => true));
     if (done) notify('Copia restaurada correctamente', { undo: () => restoreBackup(previous) });
   };

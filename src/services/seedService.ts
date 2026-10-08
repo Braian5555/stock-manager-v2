@@ -1,4 +1,4 @@
-import { db } from '../database/db';
+import { CLOUD_LINK_KEY, db } from '../database/db';
 import type { Category, Integration, Location, Product, Supplier, Unit } from '../models';
 import { nowIso, uuid } from '../utils/id';
 import { defaultSettings, SETTINGS_ID } from './settingsService';
@@ -33,10 +33,13 @@ export function defaultIntegration(): Integration {
  * Es idempotente: si ya existen datos no hace nada.
  */
 export async function ensureBaseData(): Promise<{ firstRun: boolean }> {
-  return db.transaction('rw', [db.settings, db.businesses, db.units, db.categories, db.locations, db.integrations], async () => {
+  return db.transaction('rw', [db.settings, db.businesses, db.units, db.categories, db.locations, db.integrations, db.meta], async () => {
     const existing = await db.settings.get(SETTINGS_ID);
     if (!(await db.integrations.get('maxirest'))) await db.integrations.add(defaultIntegration());
     if (existing) return { firstRun: false };
+    // Vinculado a la nube: la configuración y los catálogos vienen de ahí. Sembrar acá
+    // pisaría la configuración del negocio y duplicaría las listas en todos los dispositivos.
+    if (await db.meta.get(CLOUD_LINK_KEY)) return { firstRun: false };
     const s = defaultSettings();
     await db.settings.add(s);
     await db.businesses.add({ ...base(), name: s.businessName, subtitle: s.subtitle });

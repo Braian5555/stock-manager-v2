@@ -34,7 +34,7 @@ export function MovementModal({ product, onClose }: { product: Product | null; o
     setReason('');
     setMode('local');
     canSyncAdjustments().then(setCanSync).catch(() => setCanSync(false));
-  }, [product]);
+  }, [product?.id]); // eslint-disable-line react-hooks/exhaustive-deps -- reiniciar sólo al cambiar de producto
 
   if (!product) return null;
   const unit = lk.unit(product.unitId);

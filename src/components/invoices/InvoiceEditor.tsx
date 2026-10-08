@@ -1,6 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Camera, ImagePlus, Loader2, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+import { localYmd } from '../../utils/format';
 import { db } from '../../database/db';
 import type { Invoice } from '../../models';
 import { compressImage } from '../../services/imageService';
@@ -10,10 +11,7 @@ import { useFeedback } from '../../store/feedback';
 import { Modal } from '../ui/Modal';
 import { Field, Input, NumberInput, Select, Textarea } from '../ui';
 
-const today = () => {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-};
+const today = () => localYmd();
 
 interface Props {
   open: boolean;

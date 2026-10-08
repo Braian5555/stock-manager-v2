@@ -3,13 +3,13 @@
  * invitaciones y sincronización. Si no hay configuración, la app sigue 100% local.
  */
 import { useSyncExternalStore } from 'react';
-import { db, SYNC_TABLES } from '../database/db';
+import { CLOUD_LINK_KEY, db, SYNC_TABLES } from '../database/db';
 import { createBackup } from '../services/backupService';
 import { loadCloudConfig, type CloudConfig } from './config';
 import { SyncEngine, type SyncStatus } from './syncEngine';
 import type { CloudBackend, CloudImage, CloudUser, Workspace, WorkspaceRole } from './types';
 
-const LINK_KEY = 'cloud.link';
+const LINK_KEY = CLOUD_LINK_KEY;
 const PRE_JOIN_BACKUP_KEY = 'cloud.preJoinBackup';
 
 interface Link {
@@ -25,6 +25,8 @@ export interface CloudState {
   myWorkspaces: Workspace[];
   invites: Workspace[];
   status: SyncStatus;
+  /** true cuando terminó la primera descarga completa del espacio en este arranque. */
+  initialSynced?: boolean;
   error?: string;
 }
 
@@ -113,7 +115,8 @@ async function startEngine(wsId: string, opts: { pushAll?: boolean } = {}) {
   stopEngine();
   engine = new SyncEngine(backend, wsId);
   currentWsId = wsId;
-  engine.onStatus((status) => set({ status }));
+  set({ initialSynced: false });
+  engine.onStatus((status) => set(status.state === 'synced' && !state.initialSynced ? { status, initialSynced: true } : { status }));
   stopWatchWs = backend.watchWorkspace(wsId, (ws) => {
     if (ws) set({ workspace: ws, phase: 'linked' });
     else if (state.phase === 'linked') set({ error: 'No se pudo leer el espacio de trabajo (¿te quitaron el acceso?).' });
@@ -136,11 +139,14 @@ export async function uploadPendingImages(): Promise<void> {
   uploading = true;
   try {
     for (const img of await db.invoiceImages.where('uploaded').equals(0).toArray()) {
-      await c.backend.putImage(c.wsId, { id: img.id, invoiceId: img.invoiceId, type: img.type, data: img.data });
-      await db.invoiceImages.update(img.id, { uploaded: 1 });
+      try {
+        await c.backend.putImage(c.wsId, { id: img.id, invoiceId: img.invoiceId, type: img.type, data: img.data });
+        await db.invoiceImages.update(img.id, { uploaded: 1 });
+      } catch {
+        // Sin conexión o foto rechazada: se sigue con las demás y se reintenta más tarde.
+        if (typeof navigator !== 'undefined' && navigator.onLine === false) break;
+      }
     }
-  } catch {
-    // Sin conexión: se reintenta al volver la conexión o al abrir la app.
   } finally {
     uploading = false;
   }
@@ -205,10 +211,14 @@ export async function createWorkspace(name: string) {
 export async function openWorkspace(ws: Workspace) {
   const user = requireUser();
   if (!ws.memberUids.includes(user.uid)) await backend!.joinWorkspace(user, ws);
-  await db.meta.put({ key: PRE_JOIN_BACKUP_KEY, value: await createBackup() });
-  await db.transaction('rw', [...SYNC_TABLES.map((t) => db.table(t)), db.invoiceImages], async () => {
+  stopEngine(); // que el espacio anterior no reinserte datos mientras se reemplazan
+  // Copia de seguridad local antes de reemplazar (incluye fotos de facturas que no se habían subido).
+  const pendingImages = await db.invoiceImages.where('uploaded').equals(0).toArray();
+  await db.meta.put({ key: PRE_JOIN_BACKUP_KEY, value: { ...(await createBackup({ includeUsers: true })), pendingImages } });
+  await db.transaction('rw', [...SYNC_TABLES.map((t) => db.table(t)), db.invoiceImages, db.tombstones], async () => {
     for (const t of SYNC_TABLES) await db.table(t).clear();
     await db.invoiceImages.clear();
+    await db.tombstones.clear();
   });
   await db.meta.put({ key: LINK_KEY, value: { wsId: ws.id, uid: user.uid } satisfies Link });
   await startEngine(ws.id);

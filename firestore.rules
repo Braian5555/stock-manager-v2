@@ -25,6 +25,10 @@ service cloud.firestore {
     function isMember(wsId) {
       return signedIn() && request.auth.uid in wsData(wsId).memberUids;
     }
+    // Dueño o administrador del espacio (los únicos que cambian usuarios y configuración).
+    function isManager(wsId) {
+      return isMember(wsId) && wsData(wsId).roles[request.auth.uid] in ['owner', 'admin'];
+    }
 
     match /workspaces/{wsId} {
       // Leer: miembros, o personas invitadas (para poder ver y aceptar la invitación).
@@ -49,6 +53,8 @@ service cloud.firestore {
           && request.resource.data.ownerUid == resource.data.ownerUid
           && resource.data.ownerUid in request.resource.data.memberUids
           && request.resource.data.roles[resource.data.ownerUid] == 'owner'
+          // Un solo dueño; el resto sólo puede ser administrador o miembro.
+          && request.resource.data.roles.values().removeAll(['admin', 'member']) == ['owner']
           && request.resource.data.diff(resource.data).affectedKeys()
                .hasOnly(['name', 'inviteEmails', 'memberUids', 'roles', 'memberInfo'])
         )
@@ -73,11 +79,19 @@ service cloud.firestore {
 
       // Datos del negocio: sólo miembros, y sólo en las colecciones conocidas.
       match /{table}/{docId} {
-        allow read, write: if isMember(wsId) && table in [
+        allow read: if isMember(wsId) && table in [
           'settings', 'categories', 'units', 'locations', 'suppliers', 'products',
           'orders', 'orderItems', 'movements', 'counts', 'countItems', 'users',
           'invoices', 'invoiceImages', 'outlets', 'transfers'
         ];
+        // Operación diaria: cualquier miembro.
+        allow write: if isMember(wsId) && table in [
+          'categories', 'units', 'locations', 'suppliers', 'products',
+          'orders', 'orderItems', 'movements', 'counts', 'countItems',
+          'invoices', 'invoiceImages', 'outlets', 'transfers'
+        ];
+        // Usuarios con PIN y configuración: sólo dueño o administradores del espacio.
+        allow write: if isManager(wsId) && table in ['settings', 'users'];
       }
     }
   }

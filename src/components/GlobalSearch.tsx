@@ -1,3 +1,5 @@
+import type { ModuleKey } from '../models';
+import { MODULE_PERMISSIONS } from '../layouts/modules';
 import { MapPin, Package, Ruler, Tags, Truck } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
@@ -13,7 +15,15 @@ export function GlobalSearch({ open, onClose }: { open: boolean; onClose: () => 
   const [q, setQ] = useState('');
   const [hits, setHits] = useState<SearchHit[]>([]);
   const navigate = useNavigate();
-  const { can } = useSession();
+  const { canAny } = useSession();
+  const allowed = (m: ModuleKey) => canAny(MODULE_PERMISSIONS[m]);
+  // Destino de cada resultado según los permisos (sin permiso, el resultado no se muestra).
+  const target = (h: SearchHit): string | null => {
+    if (h.kind === 'product') return allowed('products') ? h.to : allowed('stock') ? '/stock' : null;
+    if (h.kind === 'supplier') return allowed('suppliers') ? h.to : null;
+    if (h.kind === 'unit') return allowed('units') ? h.to : null;
+    return allowed('stock') ? h.to : null;
+  };
 
   useEffect(() => {
     let alive = true;
@@ -27,7 +37,8 @@ export function GlobalSearch({ open, onClose }: { open: boolean; onClose: () => 
   const go = (h: SearchHit) => {
     onClose();
     setQ('');
-    navigate(h.kind === 'product' && !can('catalog.manage') ? `/stock` : h.to);
+    const to = target(h);
+    if (to) navigate(to);
   };
 
   return (
@@ -35,9 +46,9 @@ export function GlobalSearch({ open, onClose }: { open: boolean; onClose: () => 
       <div className="stack">
         <SearchInput value={q} onChange={setQ} placeholder="Productos, códigos, proveedores, familias, ubicaciones…" label="Búsqueda global" />
         <div className="list card" role="listbox" aria-label="Resultados">
-          {q && !hits.length && <p className="muted card-pad">Sin resultados para “{q}”.</p>}
+          {q && !hits.filter((h) => target(h)).length && <p className="muted card-pad">Sin resultados para “{q}”.</p>}
           {!q && <p className="muted card-pad small">Escribí para buscar en toda la app.</p>}
-          {hits.map((h) => {
+          {hits.filter((h) => target(h)).map((h) => {
             const Icon = ICON[h.kind];
             return (
               <button key={`${h.kind}:${h.id}`} type="button" role="option" aria-selected={false} className="list-item" onClick={() => go(h)}>

@@ -7,14 +7,16 @@
  * - Bloqueo progresivo tras PIN incorrectos.
  */
 import { useLiveQuery } from 'dexie-react-hooks';
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, type ReactNode } from 'react';
-import { db } from '../database/db';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { CLOUD_LINK_KEY, db } from '../database/db';
+import { useCloud } from '../cloud/cloudService';
 import type { AppUser, Permission } from '../models';
 import { effectivePermissions, saveUser, setCurrentActor, verifyPin } from '../services/userService';
 import { useSettings } from './settings';
 
 const SESSION_KEY = 'session';
 const LOCKOUT_KEY = 'pinLockout';
+let loginQueue: Promise<unknown> = Promise.resolve();
 
 interface StoredSession {
   userId: string;
@@ -25,7 +27,8 @@ interface Lockout {
   until: number;
 }
 
-export type SessionStatus = 'loading' | 'setup' | 'locked' | 'unlocked';
+/** waiting: el dispositivo está vinculado a la nube y todavía no llegaron los usuarios. */
+export type SessionStatus = 'loading' | 'waiting' | 'setup' | 'locked' | 'unlocked';
 
 interface SessionApi {
   status: SessionStatus;
@@ -36,6 +39,8 @@ interface SessionApi {
   login: (userId: string, pin: string) => Promise<void>;
   lock: () => Promise<void>;
   createFirstAdmin: (name: string, pin: string) => Promise<void>;
+  /** Deja de esperar a la nube y permite crear un administrador local. */
+  skipCloudWait: () => void;
 }
 
 const Ctx = createContext<SessionApi | null>(null);
@@ -56,8 +61,17 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const user = users && stored ? users.find((u) => u.id === stored.userId && u.active) : undefined;
   const expired = !!stored && settings.autoLockMinutes > 0 && Date.now() - stored.lastActive > settings.autoLockMinutes * 60_000;
 
+  // Vinculado a la nube y sin usuarios: se espera la primera sincronización antes de ofrecer
+  // "Crear administrador" (si no, cualquiera podría crear un administrador en ese hueco).
+  const linked = useLiveQuery(async () => !!(await db.meta.get(CLOUD_LINK_KEY)), []);
+  const cloud = useCloud();
+  const [skipWait, setSkipWait] = useState(false);
+
   let status: SessionStatus = 'loading';
-  if (users !== undefined && stored !== undefined) status = users.length === 0 ? 'setup' : user && !expired ? 'unlocked' : 'locked';
+  if (users !== undefined && stored !== undefined && linked !== undefined) {
+    if (users.length === 0) status = linked && !skipWait && !cloud.initialSynced ? 'waiting' : 'setup';
+    else status = user && !expired ? 'unlocked' : 'locked';
+  }
 
   useEffect(() => {
     setCurrentActor(status === 'unlocked' && user ? { id: user.id, name: user.name } : undefined);
@@ -91,20 +105,29 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     };
   }, [status, user, settings.autoLockMinutes, lock]);
 
-  const login = useCallback(async (userId: string, pin: string) => {
-    const lo = ((await db.meta.get(LOCKOUT_KEY))?.value as Lockout | undefined) ?? { failures: 0, until: 0 };
+  const login = useCallback((userId: string, pin: string) => {
+    // Los intentos se procesan de a uno (si no, varios intentos en paralelo leerían el mismo contador).
+    const attempt = loginQueue.then(() => tryLogin(userId, pin));
+    loginQueue = attempt.catch(() => undefined);
+    return attempt;
+  }, []);
+
+  const tryLogin = async (userId: string, pin: string) => {
+    // Contador por usuario: entrar con el PIN propio no reinicia los intentos fallidos contra otro usuario.
+    const key = `${LOCKOUT_KEY}:${userId}`;
+    const lo = ((await db.meta.get(key))?.value as Lockout | undefined) ?? { failures: 0, until: 0 };
     if (lo.until > Date.now()) throw new Error(`Demasiados intentos. Esperá ${Math.ceil((lo.until - Date.now()) / 1000)} segundos.`);
     const u = await db.users.get(userId);
     if (!u || !u.active) throw new Error('El usuario no existe o está desactivado.');
     if (!(await verifyPin(u, pin))) {
       const failures = lo.failures + 1;
-      await db.meta.put({ key: LOCKOUT_KEY, value: { failures, until: Date.now() + lockoutDelay(failures) } satisfies Lockout });
+      await db.meta.put({ key, value: { failures, until: Date.now() + lockoutDelay(failures) } satisfies Lockout });
       throw new Error(failures >= 5 ? `PIN incorrecto. Esperá ${Math.round(lockoutDelay(failures) / 1000)} segundos para volver a intentar.` : 'PIN incorrecto.');
     }
-    await db.meta.delete(LOCKOUT_KEY);
+    await db.meta.delete(key);
     lastActive.current = Date.now();
     await db.meta.put({ key: SESSION_KEY, value: { userId, lastActive: Date.now() } satisfies StoredSession });
-  }, []);
+  };
 
   const createFirstAdmin = useCallback(
     async (name: string, pin: string) => {
@@ -126,6 +149,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       login,
       lock,
       createFirstAdmin,
+      skipCloudWait: () => setSkipWait(true),
     };
   }, [status, user, users, login, lock, createFirstAdmin]);
 

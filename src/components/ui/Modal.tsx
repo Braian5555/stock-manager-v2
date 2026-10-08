@@ -11,6 +11,26 @@ interface ModalProps {
   wide?: boolean;
 }
 
+/**
+ * Pila de diálogos abiertos: sólo el de arriba responde a Esc/Tab, y el scroll de la página
+ * se libera recién cuando se cierra el último (p. ej. una confirmación sobre una factura).
+ */
+const stack: symbol[] = [];
+let savedOverflow = '';
+function pushModal(id: symbol) {
+  if (!stack.length) {
+    savedOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+  }
+  stack.push(id);
+}
+function popModal(id: symbol) {
+  const i = stack.lastIndexOf(id);
+  if (i >= 0) stack.splice(i, 1);
+  if (!stack.length) document.body.style.overflow = savedOverflow;
+}
+const isTop = (id: symbol) => stack[stack.length - 1] === id;
+
 /** Diálogo accesible: role=dialog, Esc cierra, foco inicial y foco atrapado. */
 export function Modal({ title, open, onClose, children, footer, wide }: ModalProps) {
   const ref = useRef<HTMLDivElement>(null);
@@ -26,7 +46,10 @@ export function Modal({ title, open, onClose, children, footer, wide }: ModalPro
       [...(node?.querySelectorAll<HTMLElement>('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])') ?? [])].filter((e) => !e.hasAttribute('disabled'));
     const first = node?.querySelector<HTMLElement>('[data-autofocus]') ?? focusables()[1] ?? focusables()[0];
     first?.focus();
+    const id = Symbol('modal');
+    pushModal(id);
     const onKey = (e: KeyboardEvent) => {
+      if (!isTop(id)) return;
       if (e.key === 'Escape') onCloseRef.current();
       if (e.key === 'Tab') {
         const f = focusables();
@@ -36,11 +59,9 @@ export function Modal({ title, open, onClose, children, footer, wide }: ModalPro
       }
     };
     document.addEventListener('keydown', onKey);
-    const overflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
     return () => {
       document.removeEventListener('keydown', onKey);
-      document.body.style.overflow = overflow;
+      popModal(id);
       previous?.focus?.();
     };
   }, [open]);
