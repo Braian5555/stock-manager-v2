@@ -146,6 +146,13 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setCurrentActor(status === 'unlocked' && user ? { id: user.id, name: user.name } : undefined);
   }, [status, user]);
 
+  // Con la nube también se guarda la sesión local: si después se desvincula el dispositivo,
+  // la persona sigue adentro con su usuario (y puede ponerse un PIN en Usuarios).
+  const userId = user?.id;
+  useEffect(() => {
+    if (cloudMode && status === 'unlocked' && userId) void db.meta.put({ key: SESSION_KEY, value: { userId, lastActive: Date.now() } satisfies StoredSession });
+  }, [cloudMode, status, userId]);
+
   const lock = useCallback(async () => {
     await db.meta.delete(SESSION_KEY);
     // Con la nube, "salir" es cerrar la sesión de la cuenta (los datos quedan en el dispositivo).

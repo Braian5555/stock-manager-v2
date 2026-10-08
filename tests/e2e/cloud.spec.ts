@@ -143,3 +143,31 @@ test('cuenta con email y contraseña: los datos vuelven al entrar desde un naveg
   await ctx1.close();
   await ctx2.close();
 });
+
+test('borrar un espacio de prueba que no usa este dispositivo', async ({ page }) => {
+  await useFakeCloud(page);
+  await loadDemo(page);
+  await go(page, '/nube');
+  await page.getByRole('button', { name: 'Entrar con una cuenta de Google' }).click();
+  await page.getByRole('button', { name: 'Crear y subir mis datos' }).click();
+  await dialog(page).getByRole('button', { name: 'Crear y subir datos' }).click();
+  await expect(page.getByText('Sincronizado').first()).toBeVisible();
+  // Otro espacio del mismo dueño (como los creados en pruebas anteriores).
+  await page.evaluate(() => {
+    const s = (globalThis as unknown as { __smFakeCloud: { saveWorkspace: (w: unknown) => void; coll: (p: string) => Map<string, unknown> } }).__smFakeCloud;
+    s.saveWorkspace({ id: 'ws-viejo', name: 'Espacio de prueba', ownerUid: 'u-demo', memberUids: ['u-demo'], roles: { 'u-demo': 'owner' }, memberInfo: {}, inviteEmails: [], createdAt: '2026-10-07T12:00:00.000Z' });
+    s.coll('ws-viejo/products').set('p1', { id: 'p1' });
+  });
+  await go(page, '/productos');
+  await go(page, '/nube');
+  await expect(page.getByRole('heading', { name: 'Otros espacios tuyos' })).toBeVisible();
+  await page.getByRole('button', { name: 'Borrar', exact: true }).click();
+  await dialog(page).getByRole('button', { name: 'Borrar espacio' }).click();
+  await expect(page.getByText('Espacio borrado')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Otros espacios tuyos' })).toHaveCount(0);
+  const left = await page.evaluate(() => {
+    const s = (globalThis as unknown as { __smFakeCloud: { workspaces: Map<string, unknown>; data: Map<string, unknown> } }).__smFakeCloud;
+    return { ws: s.workspaces.has('ws-viejo'), data: [...s.data.keys()].some((k) => k.startsWith('ws-viejo/')) };
+  });
+  expect(left).toEqual({ ws: false, data: false });
+});

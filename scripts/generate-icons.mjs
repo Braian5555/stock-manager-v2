@@ -17,7 +17,7 @@ for (const t of targets) {
   const inner = Math.round(t.size * (1 - t.pad * 2));
   const glyph = t.round ? svg : svg.replace(/<rect[^>]*\/>/, '');
   await page.setViewportSize({ width: t.size, height: t.size });
-  await page.setContent(`<html><body style="margin:0;width:${t.size}px;height:${t.size}px;display:grid;place-items:center;background:${t.round ? 'transparent' : '#4f46e5'}">
+  await page.setContent(`<html><body style="margin:0;width:${t.size}px;height:${t.size}px;display:grid;place-items:center;background:${t.round ? 'transparent' : 'linear-gradient(135deg,#0d9488,#115e59)'}">
     <div style="width:${inner}px;height:${inner}px">${glyph.replace('<svg ', `<svg width="${inner}" height="${inner}" `)}</div></body></html>`);
   await page.screenshot({ path: t.file, omitBackground: t.round });
   console.log('✓', t.file);

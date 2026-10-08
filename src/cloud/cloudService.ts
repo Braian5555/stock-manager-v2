@@ -311,6 +311,23 @@ export async function unlinkDevice() {
   void refreshLists();
 }
 
+/**
+ * Borra un espacio de la nube con todos sus datos. Sólo el dueño, y nunca el que usa este
+ * dispositivo (para eso primero hay que usar otro espacio): así nadie se queda sin datos ni usuario.
+ */
+export async function deleteWorkspace(ws: Workspace) {
+  const user = requireUser();
+  if (ws.ownerUid !== user.uid) throw new Error('Sólo el dueño puede borrar el espacio.');
+  const link = await getLink();
+  if (link?.wsId === ws.id) throw new Error('Es el espacio que usa este dispositivo. Para borrarlo, primero elegí otro espacio en este dispositivo.');
+  try {
+    await backend!.deleteWorkspace(ws);
+  } catch (e) {
+    throw new Error(friendly(e), { cause: e });
+  }
+  await refreshLists();
+}
+
 const canManage = () => !!state.user && !!state.workspace && ['owner', 'admin'].includes(state.workspace.roles[state.user.uid] ?? '');
 
 export async function inviteEmail(email: string) {

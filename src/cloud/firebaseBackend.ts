@@ -17,9 +17,9 @@ import {
 } from 'firebase/auth';
 import {
   arrayUnion, collection, deleteDoc, doc, getDoc, getDocs, initializeFirestore, onSnapshot, persistentLocalCache, persistentMultipleTabManager,
-  query, setDoc, updateDoc, where, type Firestore,
+  query, setDoc, updateDoc, where, writeBatch, type Firestore,
 } from 'firebase/firestore';
-import type { SyncTableName } from '../database/db';
+import { SYNC_TABLES, type SyncTableName } from '../database/db';
 import { effectiveAuthDomain, sameOriginAuth, type FirebaseWebConfig } from './config';
 import type { CloudBackend, CloudImage, CloudUser, RemoteChange, RemoteDoc, WatchInfo, Workspace } from './types';
 import { nowIso, uuid } from '../utils/id';
@@ -169,6 +169,19 @@ export class FirebaseBackend implements CloudBackend {
 
   async updateWorkspace(ws: Workspace, patch: Partial<Workspace>) {
     await updateDoc(this.ws(ws.id), patch as Record<string, unknown>);
+  }
+
+  async deleteWorkspace(ws: Workspace) {
+    // Firestore no borra subcolecciones al borrar el documento: se borran primero, de a lotes.
+    for (const table of [...SYNC_TABLES, 'invoiceImages']) {
+      const snap = await getDocs(collection(this.fs, 'workspaces', ws.id, table));
+      for (let i = 0; i < snap.docs.length; i += 400) {
+        const batch = writeBatch(this.fs);
+        for (const d of snap.docs.slice(i, i + 400)) batch.delete(d.ref);
+        await batch.commit();
+      }
+    }
+    await deleteDoc(this.ws(ws.id));
   }
 
   watchWorkspace(id: string, cb: (ws: Workspace | null) => void) {

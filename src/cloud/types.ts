@@ -60,6 +60,8 @@ export interface CloudBackend {
   createWorkspace(user: CloudUser, name: string): Promise<Workspace>;
   joinWorkspace(user: CloudUser, ws: Workspace): Promise<void>;
   updateWorkspace(ws: Workspace, patch: Partial<Pick<Workspace, 'name' | 'inviteEmails' | 'memberUids' | 'roles' | 'memberInfo'>>): Promise<void>;
+  /** Borra el espacio y todos sus datos en la nube (sólo el dueño). */
+  deleteWorkspace(ws: Workspace): Promise<void>;
   watchWorkspace(id: string, cb: (ws: Workspace | null) => void): () => void;
 
   /** Escritura offline-first: se encola si no hay conexión. Resuelve al confirmarse en el servidor. */

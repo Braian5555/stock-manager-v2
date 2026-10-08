@@ -410,3 +410,43 @@ hr.sep { border: 0; border-top: 1px solid var(--border); margin: 16px 0; }
 .invoice-page-msg { min-height: 160px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 16px; color: var(--text-3); text-align: center; }
 .invoice-page-msg img { width: 120px; opacity: 0.6; filter: blur(1px); }
 .transfer-line { padding: 8px 0; border-bottom: 1px solid var(--border); }
+
+/* ───────────────────────── Inicio ───────────────────────── */
+/* Celular: saludo, buscador, alertas cortas y botones grandes de acción. */
+.home-mobile { display: flex; flex-direction: column; gap: 14px; }
+.home-hello h1 { font-size: 1.5rem; }
+.home-hello p { margin-top: 2px; }
+.home-hello p::first-letter { text-transform: uppercase; }
+.home-search {
+  display: flex; align-items: center; gap: 10px; width: 100%; min-height: 52px; padding: 0 16px;
+  border-radius: var(--radius); border: 1px solid var(--border); background: var(--surface); color: var(--text-3);
+  font: inherit; font-size: 1rem; text-align: left; cursor: pointer; box-shadow: var(--shadow);
+}
+.home-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.home-chip { padding: 8px 12px; font-weight: 650; font-size: 0.88rem; }
+.home-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.home-action {
+  display: flex; flex-direction: column; justify-content: space-between; gap: 14px; min-height: 108px; padding: 14px;
+  border-radius: var(--radius); text-decoration: none; color: var(--text); font-weight: 700; font-size: 1rem; line-height: 1.2;
+  background: var(--surface); border: 1px solid var(--border); box-shadow: var(--shadow);
+  transition: transform 0.1s ease;
+}
+.home-action:active { transform: scale(0.97); }
+.home-action-icon { width: 46px; height: 46px; border-radius: 13px; display: grid; place-items: center; }
+.tone-a .home-action-icon { background: var(--primary-soft); color: var(--primary); }
+.tone-b .home-action-icon { background: var(--ok-bg); color: var(--ok); }
+.tone-c .home-action-icon { background: var(--info-bg); color: var(--info); }
+.tone-d .home-action-icon { background: var(--crit-bg); color: var(--crit); }
+.tone-e .home-action-icon { background: var(--low-bg); color: var(--low); }
+.tone-f .home-action-icon { background: var(--out-bg); color: var(--out); }
+.tone-g .home-action-icon { background: var(--surface-2); color: var(--text-2, var(--text)); }
+.home-actions .home-action:last-child:nth-child(odd) { grid-column: 1 / -1; min-height: 72px; flex-direction: row; align-items: center; justify-content: flex-start; }
+.home-logout { margin-top: 4px; }
+
+/* Computadora: tres columnas (alertas · movimientos · pedidos y remitos). */
+.home-desk-grid { grid-template-columns: 1fr; align-items: start; }
+@media (min-width: 1100px) { .home-desk-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.sidebar-logout { display: none; }
+@media (min-width: 1024px) {
+  .sidebar-logout { display: flex; justify-content: flex-start; gap: 12px; margin-top: auto; padding: 9px 12px; color: var(--text-2); font-weight: 600; }
+}

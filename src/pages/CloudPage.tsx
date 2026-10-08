@@ -1,7 +1,7 @@
 import { Cloud, CloudOff, LogOut, Mail, MailCheck, RefreshCw, ShieldCheck, Trash2, UserPlus, Users } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import {
-  ROLE_LABEL, cancelInvite, createWorkspace, inviteEmail, openWorkspace, recheckVerification, refreshLists, removeMember, resendVerification,
+  ROLE_LABEL, cancelInvite, createWorkspace, deleteWorkspace, inviteEmail, openWorkspace, recheckVerification, refreshLists, removeMember, resendVerification,
   setMemberRole, signIn, signOutCloud, unlinkDevice, useCloud,
 } from '../cloud/cloudService';
 import { PasswordLogin } from '../components/auth/PasswordLogin';
@@ -21,6 +21,10 @@ export function CloudPage() {
   const { run, confirm, notify } = useFeedback();
   const [wsName, setWsName] = useState(settings.businessName);
   const [email, setEmail] = useState('');
+  // Al abrir la página se actualiza la lista de espacios (por si se crearon o borraron en otro dispositivo).
+  useEffect(() => {
+    void refreshLists();
+  }, []);
 
   const open = async (ws: Workspace, invited: boolean) => {
     const ok = await confirm({
@@ -34,6 +38,21 @@ export function CloudPage() {
       confirmLabel: invited ? 'Unirme' : 'Usar este espacio',
     });
     if (ok) await run(() => openWorkspace(ws), invited ? 'Te uniste al espacio. Sincronizando…' : 'Sincronizando…');
+  };
+
+  const remove = async (ws: Workspace) => {
+    const ok = await confirm({
+      title: `Borrar el espacio "${ws.name}"`,
+      message: (
+        <>
+          <p>Se borran de la nube <b>todos los datos</b> de este espacio (productos, movimientos, pedidos, facturas, usuarios…). No se puede deshacer.</p>
+          <p className="small muted">Creado el {fmtDateTime(ws.createdAt)} · {ws.memberUids.length} {ws.memberUids.length === 1 ? 'miembro' : 'miembros'}. Los dispositivos que lo usaban se quedan con su copia local.</p>
+        </>
+      ),
+      danger: true,
+      confirmLabel: 'Borrar espacio',
+    });
+    if (ok) await run(() => deleteWorkspace(ws), 'Espacio borrado');
   };
 
   const create = async () => {
@@ -116,8 +135,13 @@ export function CloudPage() {
               <h2>Tus espacios</h2>
               {cloud.myWorkspaces.map((ws) => (
                 <div key={ws.id} className="row between wrap">
-                  <span><b>{ws.name}</b> <span className="muted small">· {ws.memberUids.length} {ws.memberUids.length === 1 ? 'miembro' : 'miembros'}</span></span>
-                  <button type="button" className="btn btn-sm" onClick={() => open(ws, false)}>Usar en este dispositivo</button>
+                  <span><b>{ws.name}</b> <span className="muted small">· {ws.memberUids.length} {ws.memberUids.length === 1 ? 'miembro' : 'miembros'} · creado {fmtDateTime(ws.createdAt)}</span></span>
+                  <span className="row">
+                    <button type="button" className="btn btn-sm" onClick={() => open(ws, false)}>Usar en este dispositivo</button>
+                    {ws.ownerUid === cloud.user?.uid && (
+                      <button type="button" className="btn btn-sm btn-ghost icon-btn btn-danger" aria-label={`Borrar el espacio ${ws.name}`} onClick={() => remove(ws)}><Trash2 size={16} /></button>
+                    )}
+                  </span>
                 </div>
               ))}
             </section>
@@ -154,6 +178,21 @@ export function CloudPage() {
               </button>
             </div>
           </section>
+
+          {cloud.myWorkspaces.some((w) => w.id !== cloud.workspace?.id) && (
+            <section className="card card-pad stack" aria-labelledby="otros-espacios">
+              <h2 id="otros-espacios">Otros espacios tuyos</h2>
+              <p className="small muted">No los usa este dispositivo. Si son de prueba, podés borrarlos.</p>
+              {cloud.myWorkspaces.filter((w) => w.id !== cloud.workspace?.id).map((ws) => (
+                <div key={ws.id} className="row between wrap">
+                  <span><b>{ws.name}</b> <span className="muted small">· creado {fmtDateTime(ws.createdAt)}</span></span>
+                  {ws.ownerUid === cloud.user?.uid && (
+                    <button type="button" className="btn btn-sm btn-danger" onClick={() => remove(ws)}><Trash2 size={16} aria-hidden /> Borrar</button>
+                  )}
+                </div>
+              ))}
+            </section>
+          )}
 
           {cloud.workspace && cloud.user && <Members ws={cloud.workspace} me={cloud.user.uid} email={email} setEmail={setEmail} onInvite={async () => {
             const ok = await run(() => inviteEmail(email).then(() => true));

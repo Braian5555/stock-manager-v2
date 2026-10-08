@@ -158,6 +158,10 @@ export class FakeBackend implements CloudBackend {
     const cur = this.store.workspaces.get(ws.id);
     if (cur) this.store.saveWorkspace({ ...cur, ...patch });
   }
+  async deleteWorkspace(ws: Workspace) {
+    for (const key of [...this.store.data.keys()]) if (key.startsWith(`${ws.id}/`)) this.store.data.delete(key);
+    this.store.workspaces.delete(ws.id);
+  }
   watchWorkspace(id: string, cb: (ws: Workspace | null) => void) {
     return this.store.listenWorkspace(id, cb);
   }

@@ -1,4 +1,3 @@
-import { Boxes } from 'lucide-react';
 import { useSettings } from '../store/settings';
 
 export function Logo({ size = 36 }: { size?: number }) {
@@ -10,7 +9,7 @@ export function Logo({ size = 36 }: { size?: number }) {
       ) : logo.kind === 'image' && logo.value ? (
         <img src={logo.value} alt="" />
       ) : (
-        <Boxes size={size * 0.56} />
+        <img src={`${import.meta.env.BASE_URL}favicon.svg`} alt="" />
       )}
     </span>
   );

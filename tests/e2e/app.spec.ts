@@ -8,7 +8,7 @@ const BASE = process.env.VITE_BASE_PATH ?? '/stock-manager/';
 
 test('1 · abre la app sin mostrar código fuente ni errores', async ({ page }) => {
   const errors = await open(page);
-  await expect(page.getByRole('heading', { name: 'Inicio', level: 1 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /^(Inicio|Hola)/, level: 1 })).toBeVisible();
   const text = await page.locator('body').innerText();
   expect(text).not.toMatch(/import\s|export\s|function\s*\(|=>|React\.|createElement|<\/?script/);
   expect(await page.locator('script:not([src])').count()).toBe(0);
@@ -156,7 +156,7 @@ test('18-19 · PWA instalable y funciona offline', async ({ page, context }) => 
 
   await context.setOffline(true);
   await page.reload();
-  await expect(page.getByRole('heading', { name: 'Inicio', level: 1 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /^(Inicio|Hola)/, level: 1 })).toBeVisible();
   await expect(page.getByText(/Sin conexión/)).toBeVisible();
   await page.goto('./#/stock');
   await expect(page.getByRole('article', { name: 'Harina 000' })).toBeVisible();

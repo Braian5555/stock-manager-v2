@@ -1,4 +1,4 @@
-import { CloudOff, Menu as MenuIcon, Search, UploadCloud } from 'lucide-react';
+import { CloudOff, Lock, LogOut, Menu as MenuIcon, Search, UploadCloud } from 'lucide-react';
 import { Suspense, useEffect, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router';
 import { GlobalSearch } from '../components/GlobalSearch';
@@ -31,8 +31,13 @@ export function AppLayout() {
         setSearchOpen(true);
       }
     };
+    const onOpen = () => setSearchOpen(true);
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    window.addEventListener('sm:open-search', onOpen);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('sm:open-search', onOpen);
+    };
   }, []);
 
   // Llaves obligatorias: en Chrome reciente scrollTo() devuelve una Promise y React
@@ -41,7 +46,7 @@ export function AppLayout() {
     window.scrollTo(0, 0);
   }, [location.pathname]);
 
-  const { canAny } = useSession();
+  const { canAny, lock, cloudMode } = useSession();
   const visible = settings.menu.filter((m) => m.visible && canAny(MODULE_PERMISSIONS[m.key]));
   const bottom = visible.filter((m) => BOTTOM_KEYS.includes(m.key));
   const connected = integration && integration.mode !== 'disabled' && integration.mode !== 'excel' && integration.status !== 'desconectado';
@@ -72,6 +77,9 @@ export function AppLayout() {
             );
           })}
         </nav>
+        <button type="button" className="btn btn-ghost sidebar-logout" onClick={() => void lock()}>
+          {cloudMode ? <><LogOut size={19} aria-hidden /> Cerrar sesión</> : <><Lock size={19} aria-hidden /> Bloquear</>}
+        </button>
       </aside>
       <div style={{ minWidth: 0 }}>
         <UpdatePrompt />
