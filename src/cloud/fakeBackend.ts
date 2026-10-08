@@ -4,10 +4,10 @@
  * Expone `globalThis.__smFakeCloud` para que una prueba actúe como "otro dispositivo".
  */
 import type { SyncTableName } from '../database/db';
-import type { CloudBackend, CloudImage, CloudUser, RemoteChange, RemoteDoc, Workspace } from './types';
+import type { CloudBackend, CloudImage, CloudUser, RemoteChange, RemoteDoc, WatchInfo, Workspace } from './types';
 import { nowIso, uuid } from '../utils/id';
 
-type Listener = (changes: RemoteChange[], initial: boolean) => void;
+type Listener = (changes: RemoteChange[], info: WatchInfo) => void;
 
 export class FakeCloudStore {
   workspaces = new Map<string, Workspace>();
@@ -35,14 +35,18 @@ export class FakeCloudStore {
   setOnline(online: boolean) {
     this.online = online;
     this.flush();
+    if (online) for (const [l, path] of this.unconfirmed) l([], { initial: false, serverIds: [...this.coll(path).keys()] });
+    if (online) this.unconfirmed.clear();
   }
+  /** Escuchas que arrancaron sin conexión: reciben la lista del "servidor" al volver. */
+  private unconfirmed = new Map<Listener, string>();
 
   private flush() {
     if (!this.online) return;
     const q = this.queue.splice(0);
     for (const item of q) {
       this.coll(item.path).set(item.doc.id, item.doc);
-      for (const l of this.listeners.get(item.path) ?? []) l([{ doc: structuredClone(item.doc), pending: false }], false);
+      for (const l of this.listeners.get(item.path) ?? []) l([{ doc: structuredClone(item.doc), pending: false }], { initial: false });
       item.resolve();
     }
   }
@@ -50,7 +54,11 @@ export class FakeCloudStore {
   listen(path: string, l: Listener) {
     if (!this.listeners.has(path)) this.listeners.set(path, new Set());
     this.listeners.get(path)!.add(l);
-    queueMicrotask(() => l([...this.coll(path).values()].map((d) => ({ doc: structuredClone(d), pending: false })), true));
+    queueMicrotask(() => {
+      const docs = [...this.coll(path).values()];
+      if (!this.online) this.unconfirmed.set(l, path);
+      l(docs.map((d) => ({ doc: structuredClone(d), pending: false })), { initial: true, serverIds: this.online ? docs.map((d) => d.id) : undefined });
+    });
     return () => this.listeners.get(path)!.delete(l);
   }
 

@@ -16,7 +16,7 @@
  */
 import { useLiveQuery } from 'dexie-react-hooks';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { db } from '../database/db';
+import { CLOUD_LINK_KEY, db } from '../database/db';
 import type { AppUser, Permission } from '../models';
 import { effectivePermissions, randomPin, saveUser, setCurrentActor, verifyPin } from '../services/userService';
 import { signOutCloud, useCloud, type CloudState } from '../cloud/cloudService';
@@ -24,6 +24,7 @@ import { useSettings } from './settings';
 
 const SESSION_KEY = 'session';
 const LOCKOUT_KEY = 'pinLockout';
+let loginQueue: Promise<unknown> = Promise.resolve();
 
 interface StoredSession {
   userId: string;
@@ -63,7 +64,6 @@ interface SessionApi {
   useLocalOnly: () => void;
 }
 
-const LINK_KEY = 'cloud.link';
 
 /** Estado de la sesión de un dispositivo vinculado a la nube. */
 function cloudStatus(cloud: CloudState, users: AppUser[]): { status: SessionStatus; user?: AppUser; provision?: boolean; text?: string } {
@@ -74,7 +74,7 @@ function cloudStatus(cloud: CloudState, users: AppUser[]): { status: SessionStat
   const mine = users.find((u) => u.email === email);
   if (mine) return mine.active ? { status: 'unlocked', user: mine } : { status: 'cloud_disabled' };
   // Esperar la primera descarga antes de decidir que hay que crear el usuario.
-  if (cloud.status.state === 'connecting' || !cloud.workspace) return { status: 'loading', text: 'Descargando tus datos…' };
+  if (!cloud.initialSynced || !cloud.workspace) return { status: 'loading', text: 'Descargando tus datos…' };
   return { status: 'loading', provision: true, text: 'Preparando tu usuario…' };
 }
 
@@ -92,7 +92,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   // null = no hay sesión guardada; undefined = todavía cargando.
   const stored = useLiveQuery(async () => ((await db.meta.get(SESSION_KEY))?.value as StoredSession | undefined) ?? null, []);
   // null = dispositivo no vinculado a la nube.
-  const link = useLiveQuery(async () => (await db.meta.get(LINK_KEY))?.value ?? null, []);
+  const link = useLiveQuery(async () => (await db.meta.get(CLOUD_LINK_KEY))?.value ?? null, []);
   const cloud = useCloud();
   const [localOnly, setLocalOnly] = useState(false);
   const lastActive = useRef(Date.now());
@@ -176,20 +176,29 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     };
   }, [status, user, settings.autoLockMinutes, lock, cloudMode]);
 
-  const login = useCallback(async (userId: string, pin: string) => {
-    const lo = ((await db.meta.get(LOCKOUT_KEY))?.value as Lockout | undefined) ?? { failures: 0, until: 0 };
+  const login = useCallback((userId: string, pin: string) => {
+    // Los intentos se procesan de a uno (si no, varios intentos en paralelo leerían el mismo contador).
+    const attempt = loginQueue.then(() => tryLogin(userId, pin));
+    loginQueue = attempt.catch(() => undefined);
+    return attempt;
+  }, []);
+
+  const tryLogin = async (userId: string, pin: string) => {
+    // Contador por usuario: entrar con el PIN propio no reinicia los intentos fallidos contra otro usuario.
+    const key = `${LOCKOUT_KEY}:${userId}`;
+    const lo = ((await db.meta.get(key))?.value as Lockout | undefined) ?? { failures: 0, until: 0 };
     if (lo.until > Date.now()) throw new Error(`Demasiados intentos. Esperá ${Math.ceil((lo.until - Date.now()) / 1000)} segundos.`);
     const u = await db.users.get(userId);
     if (!u || !u.active) throw new Error('El usuario no existe o está desactivado.');
     if (!(await verifyPin(u, pin))) {
       const failures = lo.failures + 1;
-      await db.meta.put({ key: LOCKOUT_KEY, value: { failures, until: Date.now() + lockoutDelay(failures) } satisfies Lockout });
+      await db.meta.put({ key, value: { failures, until: Date.now() + lockoutDelay(failures) } satisfies Lockout });
       throw new Error(failures >= 5 ? `PIN incorrecto. Esperá ${Math.round(lockoutDelay(failures) / 1000)} segundos para volver a intentar.` : 'PIN incorrecto.');
     }
-    await db.meta.delete(LOCKOUT_KEY);
+    await db.meta.delete(key);
     lastActive.current = Date.now();
     await db.meta.put({ key: SESSION_KEY, value: { userId, lastActive: Date.now() } satisfies StoredSession });
-  }, []);
+  };
 
   const createFirstAdmin = useCallback(
     async (name: string, pin: string) => {
