@@ -1,7 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks';
-import { MapPin, Mail, Pencil, Phone, Plus, Ruler, Tags, Trash2, Truck } from 'lucide-react';
+import { ChevronRight, MapPin, Mail, Pencil, Phone, Plus, Ruler, Tags, Trash2, Truck } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
 import type { Table } from 'dexie';
 import { db } from '../database/db';
 import type { BaseEntity, ModuleKey } from '../models';
@@ -13,6 +13,7 @@ import { useProducts, EMPTY } from '../hooks/useData';
 import { Modal } from '../components/ui/Modal';
 import { EmptyState, Field, Input, PageHeader, SearchInput, Textarea } from '../components/ui';
 import { matches } from '../utils/format';
+import { statusOf } from '../services/stockService';
 
 type Kind = 'category' | 'unit' | 'location' | 'supplier';
 interface FieldDef { key: string; label: string; type?: 'text' | 'email' | 'tel' | 'textarea'; required?: boolean; placeholder?: string }
@@ -44,6 +45,9 @@ const CONFIG: Record<Kind, { module: ModuleKey; singular: string; icon: typeof T
 
 const cap = (s: string) => s[0].toUpperCase() + s.slice(1);
 
+/** Al tocar un ítem se abre Stock filtrado por él (las unidades no tienen filtro propio). */
+const STOCK_FILTER: Partial<Record<Kind, string>> = { category: 'familia', location: 'ubicacion', supplier: 'proveedor' };
+
 export function CatalogPage({ kind }: { kind: Kind }) {
   const cfg = CONFIG[kind];
   const settings = useSettings();
@@ -72,6 +76,27 @@ export function CatalogPage({ kind }: { kind: Kind }) {
     }
     return m;
   }, [products, kind, cfg.productField]);
+
+  // Productos activos sin stock / con stock bajo de cada ítem (para el resumen de la fila).
+  const alerts = useMemo(() => {
+    const m = new Map<string, { out: number; low: number }>();
+    if (kind === 'unit') return m;
+    for (const p of products) {
+      if (!p.active) continue;
+      const st = statusOf(p, settings);
+      if (st === 'normal') continue;
+      const ids = kind === 'supplier' ? [p.supplierId, ...p.alternativeSupplierIds] : [p[cfg.productField]];
+      for (const id of new Set(ids)) {
+        if (!id) continue;
+        const a = m.get(id) ?? { out: 0, low: 0 };
+        if (st === 'sin_stock') a.out++;
+        else a.low++;
+        m.set(id, a);
+      }
+    }
+    return m;
+  }, [products, kind, cfg.productField, settings]);
+  const filterParam = STOCK_FILTER[kind];
 
   const list = rows.filter((r) => matches(q, ...cfg.fields.map((f) => r[f.key] as string | undefined)));
 
@@ -119,10 +144,18 @@ export function CatalogPage({ kind }: { kind: Kind }) {
                 <Icon size={18} className="muted" aria-hidden />
                 <div className="grow">
                   <div className="list-title truncate">
-                    {r.name} {kind === 'unit' && <span className="muted">({String(r.abbreviation ?? '')})</span>}
+                    {filterParam ? (
+                      <Link to={`/stock?${filterParam}=${encodeURIComponent(r.id)}`} className="catalog-open" aria-label={`Ver los productos de ${r.name}`}>
+                        {r.name} <ChevronRight size={15} aria-hidden className="muted" />
+                      </Link>
+                    ) : (
+                      <>{r.name} <span className="muted">({String(r.abbreviation ?? '')})</span></>
+                    )}
                   </div>
                   <div className="list-sub row wrap" style={{ gap: '2px 12px' }}>
-                    <span>{usage.get(r.id) ?? 0} productos</span>
+                    <span>{usage.get(r.id) ?? 0} {usage.get(r.id) === 1 ? 'producto' : 'productos'}</span>
+                    {(alerts.get(r.id)?.out ?? 0) > 0 && <span className="catalog-alert out">{alerts.get(r.id)!.out} sin stock</span>}
+                    {(alerts.get(r.id)?.low ?? 0) > 0 && <span className="catalog-alert low">{alerts.get(r.id)!.low} con stock bajo</span>}
                     {kind === 'supplier' && typeof r.phone === 'string' && <a href={`tel:${r.phone}`} className="row" style={{ gap: 4 }}><Phone size={12} aria-hidden />{r.phone}</a>}
                     {kind === 'supplier' && typeof r.email === 'string' && <a href={`mailto:${r.email}`} className="row" style={{ gap: 4 }}><Mail size={12} aria-hidden />{r.email}</a>}
                     {kind === 'supplier' && typeof r.contact === 'string' && <span>{r.contact}</span>}

@@ -576,3 +576,16 @@ hr.sep { border: 0; border-top: 1px solid var(--border); margin: 16px 0; }
   .bottom-nav a span { padding: 0 1px; }
 }
 @media (max-width: 719px) { .btn { min-height: 46px; } .btn.btn-sm { min-height: 38px; } }
+
+/* Familias / ubicaciones / proveedores: el nombre abre Stock filtrado. */
+.catalog-open { display: inline-flex; align-items: center; gap: 4px; color: inherit; text-decoration: none; font-weight: 650; min-height: 32px; }
+.catalog-open:hover { color: var(--primary); }
+.catalog-alert { font-weight: 650; }
+.catalog-alert.out { color: var(--out); }
+.catalog-alert.low { color: var(--low); }
+/* Stock: filtros activos visibles (también en el celular, donde los filtros están plegados). */
+.filter-chips { display: flex; flex-wrap: wrap; gap: 8px; margin: -4px 0 12px; }
+.filter-chip {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 6px 12px; border-radius: 999px; cursor: pointer;
+  border: 1px solid color-mix(in srgb, var(--primary) 35%, var(--border)); background: var(--primary-soft); color: var(--text); font: inherit; font-size: 0.88rem;
+}

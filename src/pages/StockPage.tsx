@@ -1,6 +1,6 @@
 import { useSession } from '../store/session';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Boxes, MapPin, Plus, SlidersHorizontal, Tags, Truck } from 'lucide-react';
+import { Boxes, MapPin, Plus, SlidersHorizontal, Tags, Truck, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { db } from '../database/db';
@@ -72,6 +72,14 @@ export function StockPage() {
           <SlidersHorizontal size={18} aria-hidden /> Filtros{activeFilters ? ` (${activeFilters})` : ''}
         </button>
       </div>
+      {(f.familia || f.ubicacion || f.proveedor || f.estado) && (
+        <div className="filter-chips" aria-label="Filtros activos">
+          {f.familia && <button type="button" className="filter-chip" onClick={() => setF('familia', '')} aria-label={`Quitar filtro familia ${lk.category(f.familia)}`}>Familia: <b>{lk.category(f.familia) || '—'}</b> <X size={14} aria-hidden /></button>}
+          {f.ubicacion && <button type="button" className="filter-chip" onClick={() => setF('ubicacion', '')} aria-label={`Quitar filtro ubicación ${lk.location(f.ubicacion)}`}>Ubicación: <b>{lk.location(f.ubicacion) || '—'}</b> <X size={14} aria-hidden /></button>}
+          {f.proveedor && <button type="button" className="filter-chip" onClick={() => setF('proveedor', '')} aria-label={`Quitar filtro proveedor ${lk.supplier(f.proveedor)}`}>Proveedor: <b>{lk.supplier(f.proveedor) || '—'}</b> <X size={14} aria-hidden /></button>}
+          {f.estado && <button type="button" className="filter-chip" onClick={() => setF('estado', '')} aria-label="Quitar filtro estado">Estado: <b>{f.estado === 'bajo' ? 'Bajo y crítico' : STATUS_LABEL[f.estado as StockStatus]}</b> <X size={14} aria-hidden /></button>}
+        </div>
+      )}
       <div id="stock-filters" className={`filters ${showFilters ? '' : 'collapsed'}`}>
         <Select aria-label="Filtrar por familia" value={f.familia} onChange={(e) => setF('familia', e.target.value)}>
           <option value="">Todas las familias</option>
