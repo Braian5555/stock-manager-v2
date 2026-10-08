@@ -168,6 +168,7 @@ export function CloudPage() {
             <dl className="kv">
               <dt>Última sincronización</dt><dd>{fmtDateTime(cloud.status.lastSyncAt)}</dd>
               <dt>Cambios por enviar</dt><dd>{cloud.status.pending}</dd>
+              {cloud.workspace && <><dt>Espacio creado</dt><dd>{fmtDateTime(cloud.workspace.createdAt)}</dd></>}
               {cloud.user && cloud.workspace && <><dt>Tu rol</dt><dd>{ROLE_LABEL[cloud.workspace.roles[cloud.user.uid] ?? 'member']}</dd></>}
             </dl>
             {cloud.status.error && <p className="small" style={{ color: 'var(--out)' }}>{cloud.status.error}</p>}

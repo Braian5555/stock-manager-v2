@@ -62,7 +62,8 @@ export interface CloudBackend {
   updateWorkspace(ws: Workspace, patch: Partial<Pick<Workspace, 'name' | 'inviteEmails' | 'memberUids' | 'roles' | 'memberInfo'>>): Promise<void>;
   /** Borra el espacio y todos sus datos en la nube (sólo el dueño). */
   deleteWorkspace(ws: Workspace): Promise<void>;
-  watchWorkspace(id: string, cb: (ws: Workspace | null) => void): () => void;
+  /** `gone`: el servidor confirmó que el espacio ya no existe o que esta cuenta perdió el acceso. */
+  watchWorkspace(id: string, cb: (ws: Workspace | null, gone: boolean) => void): () => void;
 
   /** Escritura offline-first: se encola si no hay conexión. Resuelve al confirmarse en el servidor. */
   put(wsId: string, table: SyncTableName, doc: RemoteDoc): Promise<void>;

@@ -144,9 +144,16 @@ async function startEngine(wsId: string, opts: { pushAll?: boolean } = {}) {
   currentWsId = wsId;
   set({ initialSynced: false });
   engine.onStatus((status) => set(status.state === 'synced' && !state.initialSynced ? { status, initialSynced: true } : { status }));
-  stopWatchWs = backend.watchWorkspace(wsId, (ws) => {
-    if (ws) set({ workspace: ws, phase: 'linked' });
-    else if (state.phase === 'linked') set({ error: 'No se pudo leer el espacio de trabajo (¿te quitaron el acceso?).' });
+  stopWatchWs = backend.watchWorkspace(wsId, (ws, gone) => {
+    if (ws) set({ workspace: ws, phase: 'linked', error: undefined });
+    else if (gone) {
+      // El espacio que usaba este dispositivo se borró (o le quitaron el acceso a esta cuenta):
+      // se deja de sincronizar y se pide elegir el espacio correcto. Los datos locales quedan.
+      stopEngine();
+      const error = 'El espacio que usaba este dispositivo ya no existe o no tenés acceso. Elegí el espacio correcto para volver a sincronizar.';
+      set({ phase: 'no_workspace', workspace: undefined, status: { state: 'idle', pending: 0 }, error });
+      void refreshLists().then(() => set({ error }));
+    } else if (state.phase === 'linked') set({ error: 'No se pudo leer el espacio de trabajo. Revisá la conexión.' });
   });
   set({ phase: 'linked' });
   await engine.start(opts);

@@ -171,3 +171,25 @@ test('borrar un espacio de prueba que no usa este dispositivo', async ({ page })
   });
   expect(left).toEqual({ ws: false, data: false });
 });
+
+test('si el espacio de este dispositivo se borra en otro lado, pide elegir el correcto', async ({ page }) => {
+  await useFakeCloud(page);
+  await loadDemo(page);
+  await go(page, '/nube');
+  await page.getByRole('button', { name: 'Entrar con una cuenta de Google' }).click();
+  await page.getByRole('button', { name: 'Crear y subir mis datos' }).click();
+  await dialog(page).getByRole('button', { name: 'Crear y subir datos' }).click();
+  await expect(page.getByText('Sincronizado').first()).toBeVisible();
+  await expect(page.getByText('Espacio creado', { exact: true })).toBeVisible();
+  // Otro dispositivo borra el espacio y crea uno nuevo.
+  await page.evaluate(() => {
+    const s = (globalThis as unknown as { __smFakeCloud: { workspaces: Map<string, unknown>; removeWorkspace: (id: string) => void; saveWorkspace: (w: unknown) => void } }).__smFakeCloud;
+    for (const id of [...s.workspaces.keys()]) s.removeWorkspace(id);
+    s.saveWorkspace({ id: 'ws-nuevo', name: 'Espacio nuevo', ownerUid: 'u-demo', memberUids: ['u-demo'], roles: { 'u-demo': 'owner' }, memberInfo: {}, inviteEmails: [], createdAt: '2026-10-08T15:00:00.000Z' });
+  });
+  await expect(page.getByText('El espacio que usaba este dispositivo ya no existe')).toBeVisible();
+  await expect(page.getByText('Espacio nuevo', { exact: true }).first()).toBeVisible();
+  await page.getByRole('button', { name: 'Usar en este dispositivo' }).click();
+  await dialog(page).getByRole('button', { name: 'Usar este espacio' }).click();
+  await expect(page.getByRole('heading', { name: 'Espacio nuevo' })).toBeVisible();
+});

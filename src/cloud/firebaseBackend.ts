@@ -184,8 +184,14 @@ export class FirebaseBackend implements CloudBackend {
     await deleteDoc(this.ws(ws.id));
   }
 
-  watchWorkspace(id: string, cb: (ws: Workspace | null) => void) {
-    return onSnapshot(this.ws(id), (s) => cb(s.exists() ? FirebaseBackend.toWorkspace(s.id, s.data()) : null), () => cb(null));
+  watchWorkspace(id: string, cb: (ws: Workspace | null, gone: boolean) => void) {
+    return onSnapshot(
+      this.ws(id),
+      { includeMetadataChanges: true },
+      (s) => (s.exists() ? cb(FirebaseBackend.toWorkspace(s.id, s.data()), false) : cb(null, !s.metadata.fromCache)),
+      // Un espacio borrado tampoco se puede leer (las reglas exigen ser miembro): también cuenta como "ya no está".
+      (e) => cb(null, (e as { code?: string }).code === 'permission-denied'),
+    );
   }
 
   put(wsId: string, table: SyncTableName, d: RemoteDoc) {

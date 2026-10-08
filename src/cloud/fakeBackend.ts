@@ -67,6 +67,11 @@ export class FakeCloudStore {
     for (const l of this.wsListeners.get(ws.id) ?? []) l(structuredClone(ws));
   }
 
+  removeWorkspace(id: string) {
+    this.workspaces.delete(id);
+    for (const l of this.wsListeners.get(id) ?? []) l(null);
+  }
+
   listenWorkspace(id: string, l: (ws: Workspace | null) => void) {
     if (!this.wsListeners.has(id)) this.wsListeners.set(id, new Set());
     this.wsListeners.get(id)!.add(l);
@@ -160,10 +165,10 @@ export class FakeBackend implements CloudBackend {
   }
   async deleteWorkspace(ws: Workspace) {
     for (const key of [...this.store.data.keys()]) if (key.startsWith(`${ws.id}/`)) this.store.data.delete(key);
-    this.store.workspaces.delete(ws.id);
+    this.store.removeWorkspace(ws.id);
   }
-  watchWorkspace(id: string, cb: (ws: Workspace | null) => void) {
-    return this.store.listenWorkspace(id, cb);
+  watchWorkspace(id: string, cb: (ws: Workspace | null, gone: boolean) => void) {
+    return this.store.listenWorkspace(id, (ws) => cb(ws, !ws));
   }
   put(wsId: string, table: SyncTableName, d: RemoteDoc) {
     return this.store.write(`${wsId}/${table}`, d);
