@@ -13,6 +13,7 @@
 import Dexie from 'dexie';
 import { db, remoteTransactions, setMutationListener, SYNC_TABLES, type SyncTableName } from '../database/db';
 import { recomputeStock } from '../services/stockService';
+import { fixDuplicateNumbers } from '../services/numberingService';
 import { nowIso } from '../utils/id';
 import type { CloudBackend, RemoteChange, RemoteDoc, WatchInfo } from './types';
 
@@ -149,8 +150,10 @@ export class SyncEngine {
       const tx = Dexie.currentTransaction as unknown as { idbtrans: IDBTransaction };
       remoteTransactions.add(tx.idbtrans);
       const t = db.table(table);
-      for (const d of docs) {
-        const local = (await t.get(d.id)) as RemoteDoc | undefined;
+      // Una sola lectura para todo el lote (antes: una por documento; lento en la primera descarga).
+      const locals = (await t.bulkGet(docs.map((d) => d.id))) as (RemoteDoc | undefined)[];
+      for (const [i, d] of docs.entries()) {
+        const local = locals[i];
         const remoteAt = d.updatedAt ?? '';
         if (local && (local.updatedAt ?? '') >= remoteAt) {
           // Lo local es igual o más nuevo: si es más nuevo, se vuelve a subir.
@@ -195,6 +198,9 @@ export class SyncEngine {
     });
 
     for (const d of toPush) this.send(table, d);
+    // Pedidos o remitos creados a la vez sin conexión en dos dispositivos: se corrigen los números.
+    // Fuera de la transacción remota, para que la corrección se suba como un cambio normal.
+    if ((table === 'orders' || table === 'transfers') && docs.length) await fixDuplicateNumbers(table).catch(() => 0);
     if (info.initial && --this.initialLeft === 0) this.setStatus({ state: 'synced', lastSyncAt: nowIso() });
     else if (!info.initial) this.setStatus({ lastSyncAt: nowIso() });
   }

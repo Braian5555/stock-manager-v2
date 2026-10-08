@@ -54,7 +54,7 @@ export function CountsPage() {
       <PageHeader
         title={menuLabel(settings, 'count')}
         subtitle="Contá físicamente, compará y ajustá"
-        actions={<button type="button" className="btn btn-primary" onClick={() => { setForm({ name: '', locationId: '', categoryId: '', outletId: '', baseline: integration?.stockAuthority === 'maxirest' && hasExternal ? 'maxirest' : 'local' }); setOpen(true); }}><Plus size={18} aria-hidden /> Nuevo conteo</button>}
+        actions={<button type="button" className="btn btn-primary" onClick={() => { setForm({ name: '', locationId: '', categoryId: '', outletId: '', baseline: integration && integration.mode !== 'disabled' && integration.stockAuthority === 'maxirest' && hasExternal ? 'maxirest' : 'local' }); setOpen(true); }}><Plus size={18} aria-hidden /> Nuevo conteo</button>}
       />
       <div className="card">
         {counts.length === 0 ? (

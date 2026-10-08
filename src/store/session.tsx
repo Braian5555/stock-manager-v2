@@ -104,10 +104,19 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   let provision = false;
   if (users !== undefined && stored !== undefined && link !== undefined) {
     if (cloudMode) {
-      const c = cloudStatus(cloud, users);
-      ({ status, user } = c);
-      loadingText = c.text;
-      provision = !!c.provision;
+      // Arranque rápido: mientras Firebase todavía carga, si este dispositivo ya tenía la sesión
+      // abierta se entra directo con ese usuario (los datos ya están acá). Si al terminar de cargar
+      // la cuenta no tiene sesión, se pide iniciar sesión como siempre.
+      const remembered = stored ? users.find((u) => u.id === stored.userId && u.active && u.email) : undefined;
+      if (cloud.phase === 'loading' && remembered) {
+        status = 'unlocked';
+        user = remembered;
+      } else {
+        const c = cloudStatus(cloud, users);
+        ({ status, user } = c);
+        loadingText = c.text;
+        provision = !!c.provision;
+      }
     } else if (users.length === 0) {
       const cloudAvailable = !localOnly && cloud.phase !== 'unconfigured';
       if (!cloudAvailable) status = 'setup';

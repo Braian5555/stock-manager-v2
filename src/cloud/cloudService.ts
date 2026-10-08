@@ -127,13 +127,19 @@ async function autoOpen() {
   }
 }
 
+let listsError: string | undefined;
+
 export async function refreshLists() {
   if (!backend || !state.user) return;
   try {
     const [myWorkspaces, invites] = await Promise.all([backend.myWorkspaces(state.user), backend.myInvites(state.user)]);
-    set({ myWorkspaces, invites, error: undefined });
+    // Sólo se limpia el error si lo había puesto un refresco anterior (no otros avisos, p. ej. "el espacio ya no existe").
+    const clear = listsError !== undefined && state.error === listsError;
+    listsError = undefined;
+    set(clear ? { myWorkspaces, invites, error: undefined } : { myWorkspaces, invites });
   } catch (e) {
-    set({ error: friendly(e) });
+    listsError = friendly(e);
+    set({ error: listsError });
   }
 }
 
@@ -152,7 +158,7 @@ async function startEngine(wsId: string, opts: { pushAll?: boolean } = {}) {
       stopEngine();
       const error = 'El espacio que usaba este dispositivo ya no existe o no tenés acceso. Elegí el espacio correcto para volver a sincronizar.';
       set({ phase: 'no_workspace', workspace: undefined, status: { state: 'idle', pending: 0 }, error });
-      void refreshLists().then(() => set({ error }));
+      void refreshLists();
     } else if (state.phase === 'linked') set({ error: 'No se pudo leer el espacio de trabajo. Revisá la conexión.' });
   });
   set({ phase: 'linked' });

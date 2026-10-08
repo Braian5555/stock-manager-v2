@@ -1,5 +1,5 @@
 import { ArrowLeft, Cloud, Lock, LogOut, UserX } from 'lucide-react';
-import { useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { useSession } from '../../store/session';
 import { useSettings } from '../../store/settings';
 import { useFeedback } from '../../store/feedback';
@@ -8,9 +8,12 @@ import { Logo } from '../Logo';
 import { Field, Input } from '../ui';
 import { PinPad } from './PinPad';
 import { UserAvatar } from './UserAvatar';
-import { CloudPage } from '../../pages/CloudPage';
 import { signOutCloud, useCloud } from '../../cloud/cloudService';
 import { PasswordLogin } from './PasswordLogin';
+
+// La pantalla de espacios de trabajo sólo se usa al vincular: se carga cuando hace falta.
+const LazyCloudPage = lazy(() => import('../../pages/CloudPage').then((m) => ({ default: m.CloudPage })));
+const CloudPage = () => <Suspense fallback={<p className="muted" aria-busy="true">Cargando…</p>}><LazyCloudPage /></Suspense>;
 
 function Shell({ children, wide }: { children: React.ReactNode; wide?: boolean }) {
   const settings = useSettings();
