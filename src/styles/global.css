@@ -446,6 +446,9 @@ hr.sep { border: 0; border-top: 1px solid var(--border); margin: 16px 0; }
 /* Computadora: tres columnas (alertas · movimientos · pedidos y remitos). */
 .home-desk-grid { grid-template-columns: 1fr; align-items: start; }
 @media (min-width: 1100px) { .home-desk-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+
+/* Configuración → Eliminar todos los datos */
+.danger-zone { border-color: color-mix(in srgb, var(--out) 35%, var(--border)); }
 .sidebar-logout { display: none; }
 @media (min-width: 1024px) {
   .sidebar-logout { display: flex; justify-content: flex-start; gap: 12px; margin-top: auto; padding: 9px 12px; color: var(--text-2); font-weight: 600; }

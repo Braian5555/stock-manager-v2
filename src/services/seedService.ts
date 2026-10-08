@@ -53,6 +53,18 @@ export async function ensureBaseData(): Promise<{ firstRun: boolean }> {
   });
 }
 
+/** Unidades, familias y ubicaciones de base (sólo las listas que estén vacías). */
+export async function ensureBaseCatalogs(): Promise<void> {
+  await db.transaction('rw', [db.units, db.categories, db.locations], async () => {
+    if ((await db.units.count()) === 0)
+      await db.units.bulkAdd(DEFAULT_UNITS.map(([name, abbreviation]) => ({ ...base(), name, abbreviation }) satisfies Unit));
+    if ((await db.categories.count()) === 0)
+      await db.categories.bulkAdd(DEFAULT_CATEGORIES.map((name) => ({ ...base(), name }) satisfies Category));
+    if ((await db.locations.count()) === 0)
+      await db.locations.bulkAdd(DEFAULT_LOCATIONS.map((name) => ({ ...base(), name }) satisfies Location));
+  });
+}
+
 /** Datos de ejemplo 100% genéricos (sin marcas ni proveedores reales). */
 export async function loadDemoData(): Promise<void> {
   const suppliers: Supplier[] = [

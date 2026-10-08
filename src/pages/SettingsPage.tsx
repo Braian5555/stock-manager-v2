@@ -9,6 +9,7 @@ import { useSettings } from '../store/settings';
 import { Logo } from '../components/Logo';
 import { CommitInput, Field, NumberInput, PageHeader, Segmented } from '../components/ui';
 import { readableInk } from '../utils/color';
+import { WipeDataSection } from '../components/WipeDataSection';
 
 const EMOJIS = ['📦', '🏪', '🍽️', '🍔', '🍕', '☕', '🍺', '🥩', '🥬', '🐟', '🧊', '🧴', '🛒', '🏨', '🏭', '🔧'];
 const COLORS = ['#4f46e5', '#2563eb', '#0891b2', '#059669', '#65a30d', '#d97706', '#dc2626', '#db2777', '#7c3aed', '#334155'];
@@ -141,6 +142,8 @@ export function SettingsPage() {
           )}
           <p className="small muted">Los datos se guardan sólo en este dispositivo y funcionan sin Internet. Hacé copias de seguridad periódicas desde “Exportar y backup”.</p>
         </section>
+
+        <WipeDataSection />
       </div>
     </>
   );
