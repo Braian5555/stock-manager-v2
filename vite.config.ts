@@ -56,7 +56,9 @@ export default defineConfig({
         cleanupOutdatedCaches: true,
         // Fallback de navegación SOLO para documentos HTML dentro del scope.
         navigateFallback: 'index.html',
-        navigateFallbackDenylist: [/\/[^/?]+\.[^/]+$/],
+        // /__/ son las rutas reservadas de Firebase Hosting (inicio de sesión con Google: /__/auth/handler
+        // y /__/auth/iframe). Si el service worker las contesta con index.html, el login nunca termina.
+        navigateFallbackDenylist: [/\/[^/?]+\.[^/]+$/, /^\/__\//],
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
         clientsClaim: false,
         skipWaiting: false,

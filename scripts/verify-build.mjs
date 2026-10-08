@@ -53,6 +53,8 @@ const sw = readFileSync(join(DIST, 'sw.js'), 'utf8');
 if (!sw.includes('index.html')) fail('El SW no precachea index.html');
 if (!/cleanupOutdatedCaches/.test(sw)) fail('El SW no limpia caches antiguas');
 if (/skipWaiting\(\)\s*[;,]?\s*self\.addEventListener\("install"/.test(sw)) fail('El SW hace skipWaiting automático');
+// El SW no puede contestar las rutas reservadas de Firebase (/__/auth/...) con index.html.
+if (!sw.includes('/^\\/__\\//')) fail('El SW no excluye /__/ (inicio de sesión con Google de Firebase Hosting)');
 const workbox = readdirSync(DIST).find((f) => /^workbox-.*\.js$/.test(f));
 if (!workbox) fail('Falta runtime de Workbox');
 ok('service worker con precache versionado y limpieza de caches');

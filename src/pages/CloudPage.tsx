@@ -1,5 +1,5 @@
 import { Cloud, CloudOff, LogOut, Mail, MailCheck, RefreshCw, ShieldCheck, Trash2, UserPlus, Users } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ROLE_LABEL, cancelInvite, createWorkspace, inviteEmail, openWorkspace, recheckVerification, refreshLists, removeMember, resendVerification,
   setMemberRole, signIn, signOutCloud, unlinkDevice, useCloud,
@@ -51,7 +51,7 @@ export function CloudPage() {
       {cloud.provider === 'fake' && <div className="alert alert-demo" style={{ marginBottom: 12 }}>Nube de prueba (en memoria): sólo para pruebas automáticas.</div>}
       {cloud.error && <div className="alert alert-danger" style={{ marginBottom: 12 }}>{cloud.error}</div>}
 
-      {cloud.phase === 'loading' && <p className="muted">Cargando…</p>}
+      {cloud.phase === 'loading' && <SlowLoading />}
 
       {cloud.phase === 'unconfigured' && (
         <section className="card card-pad stack">
@@ -226,5 +226,22 @@ function Members({ ws, me, email, setEmail, onInvite }: { ws: Workspace; me: str
         </form>
       )}
     </section>
+  );
+}
+
+/** Si la conexión con Google tarda demasiado, se ofrece recargar en vez de dejar "Cargando…" para siempre. */
+function SlowLoading() {
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setSlow(true), 10_000);
+    return () => clearTimeout(t);
+  }, []);
+  if (!slow) return <p className="muted">Cargando…</p>;
+  return (
+    <div className="card card-pad stack" role="status">
+      <p>La conexión con Google está tardando más de lo normal.</p>
+      <p className="small muted">Revisá la conexión a Internet. Si la app está instalada y acabás de actualizarla, cerrala del todo y volvé a abrirla.</p>
+      <div><button type="button" className="btn" onClick={() => location.reload()}>Reintentar</button></div>
+    </div>
   );
 }
