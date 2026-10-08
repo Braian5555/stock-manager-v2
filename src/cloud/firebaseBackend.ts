@@ -1,5 +1,5 @@
 /**
- * Backend real: Firebase Authentication (Google) + Cloud Firestore.
+ * Backend real: Firebase Authentication (email y contraseña, o Google) + Cloud Firestore.
  *
  * Estructura en Firestore:
  *   workspaces/{wsId}                  → nombre, miembros, roles, invitaciones
@@ -11,8 +11,9 @@
  */
 import { initializeApp, type FirebaseApp } from 'firebase/app';
 import {
-  GoogleAuthProvider, browserLocalPersistence, browserPopupRedirectResolver, indexedDBLocalPersistence, initializeAuth,
-  onAuthStateChanged, signInWithPopup, signInWithRedirect, signOut, type Auth, type User,
+  GoogleAuthProvider, browserLocalPersistence, browserPopupRedirectResolver, createUserWithEmailAndPassword, indexedDBLocalPersistence,
+  initializeAuth, onAuthStateChanged, reload, sendEmailVerification, sendPasswordResetEmail, signInWithEmailAndPassword, signInWithPopup,
+  signInWithRedirect, signOut, updateProfile, type Auth, type User,
 } from 'firebase/auth';
 import {
   arrayUnion, collection, deleteDoc, doc, getDoc, getDocs, initializeFirestore, onSnapshot, persistentLocalCache, persistentMultipleTabManager,
@@ -20,10 +21,16 @@ import {
 } from 'firebase/firestore';
 import type { SyncTableName } from '../database/db';
 import { effectiveAuthDomain, sameOriginAuth, type FirebaseWebConfig } from './config';
-import type { CloudBackend, CloudImage, CloudUser, RemoteChange, RemoteDoc, WatchInfo, Workspace } from './types';
+import type { CloudBackend, CloudImage, CloudUser, RemoteChange, RemoteDoc, Workspace } from './types';
 import { nowIso, uuid } from '../utils/id';
 
-const toUser = (u: User): CloudUser => ({ uid: u.uid, email: (u.email ?? '').toLowerCase(), name: u.displayName ?? undefined, photoURL: u.photoURL ?? undefined });
+const toUser = (u: User): CloudUser => ({
+  uid: u.uid,
+  email: (u.email ?? '').toLowerCase(),
+  name: u.displayName ?? undefined,
+  photoURL: u.photoURL ?? undefined,
+  emailVerified: u.emailVerified,
+});
 
 export class FirebaseBackend implements CloudBackend {
   readonly kind = 'firebase' as const;
@@ -72,6 +79,35 @@ export class FirebaseBackend implements CloudBackend {
       }
       throw e;
     }
+  }
+
+  async signInWithPassword(email: string, password: string): Promise<CloudUser> {
+    return toUser((await signInWithEmailAndPassword(this.auth, email.trim(), password)).user);
+  }
+
+  async signUpWithPassword(email: string, password: string, name: string): Promise<CloudUser> {
+    const { user } = await createUserWithEmailAndPassword(this.auth, email.trim(), password);
+    if (name.trim()) await updateProfile(user, { displayName: name.trim() });
+    // La verificación hace falta para aceptar invitaciones (reglas de Firestore).
+    await sendEmailVerification(user).catch(() => undefined);
+    return toUser(user);
+  }
+
+  sendPasswordReset(email: string) {
+    return sendPasswordResetEmail(this.auth, email.trim());
+  }
+
+  async reloadUser(): Promise<CloudUser | null> {
+    const u = this.auth.currentUser;
+    if (!u) return null;
+    await reload(u);
+    // Token nuevo: así Firestore ve email_verified = true sin cerrar sesión.
+    await u.getIdToken(true);
+    return toUser(u);
+  }
+
+  async resendVerification() {
+    if (this.auth.currentUser) await sendEmailVerification(this.auth.currentUser);
   }
 
   signOut() {
@@ -143,20 +179,15 @@ export class FirebaseBackend implements CloudBackend {
     return setDoc(doc(this.fs, 'workspaces', wsId, table, d.id), d);
   }
 
-  watch(wsId: string, table: SyncTableName, cb: (changes: RemoteChange[], info: WatchInfo) => void, onError: (e: unknown) => void) {
+  watch(wsId: string, table: SyncTableName, cb: (changes: RemoteChange[], initial: boolean) => void, onError: (e: unknown) => void) {
     let first = true;
-    let confirmed = false;
     return onSnapshot(
       collection(this.fs, 'workspaces', wsId, table),
-      { includeMetadataChanges: true },
       (snap) => {
         const changes = snap.docChanges()
           .filter((c) => c.type !== 'removed')
           .map((c) => ({ doc: { ...c.doc.data(), id: c.doc.id } as RemoteDoc, pending: c.doc.metadata.hasPendingWrites }));
-        const serverIds = !confirmed && !snap.metadata.fromCache ? snap.docs.map((d) => d.id) : undefined;
-        if (serverIds) confirmed = true;
-        if (!changes.length && !first && !serverIds) return; // sólo cambió metadata
-        cb(changes, { initial: first, serverIds });
+        cb(changes, first);
         first = false;
       },
       onError,

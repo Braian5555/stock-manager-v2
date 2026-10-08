@@ -273,6 +273,8 @@ export interface AppUser extends BaseEntity {
   pinSalt: string;
   active: boolean;
   color?: string;
+  /** Email de la cuenta de la nube con la que entra esta persona (minúsculas). */
+  email?: string;
 }
 
 // ───────────────────────── Facturas recibidas ─────────────────────────

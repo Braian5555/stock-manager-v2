@@ -45,7 +45,7 @@ test('facturas: sacar fotos, guardar, ver, descargar y bajarlas de la nube en ot
   await page.route('**/firebase-config.json', (r) => r.fulfill({ contentType: 'application/json', body: JSON.stringify({ provider: 'fake' }) }));
   await loadDemo(page);
   await go(page, '/nube');
-  await page.getByRole('button', { name: 'Iniciar sesión con Google' }).click();
+  await page.getByRole('button', { name: 'Entrar con una cuenta de Google' }).click();
   await page.getByRole('button', { name: 'Crear y subir mis datos' }).click();
   await dialog(page).getByRole('button', { name: 'Crear y subir datos' }).click();
   await expect(page.getByText('Sincronizado').first()).toBeVisible();

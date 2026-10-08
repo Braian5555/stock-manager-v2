@@ -1,15 +1,15 @@
 /**
- * Servicio de nube: inicio de sesión con Google, espacios de trabajo compartidos,
+ * Servicio de nube: inicio de sesión (email y contraseña, o Google), espacios de trabajo compartidos,
  * invitaciones y sincronización. Si no hay configuración, la app sigue 100% local.
  */
 import { useSyncExternalStore } from 'react';
-import { CLOUD_LINK_KEY, db, SYNC_TABLES } from '../database/db';
+import { db, SYNC_TABLES } from '../database/db';
 import { createBackup } from '../services/backupService';
 import { loadCloudConfig, type CloudConfig } from './config';
 import { SyncEngine, type SyncStatus } from './syncEngine';
 import type { CloudBackend, CloudImage, CloudUser, Workspace, WorkspaceRole } from './types';
 
-const LINK_KEY = CLOUD_LINK_KEY;
+const LINK_KEY = 'cloud.link';
 const PRE_JOIN_BACKUP_KEY = 'cloud.preJoinBackup';
 
 interface Link {
@@ -25,8 +25,6 @@ export interface CloudState {
   myWorkspaces: Workspace[];
   invites: Workspace[];
   status: SyncStatus;
-  /** true cuando terminó la primera descarga completa del espacio en este arranque. */
-  initialSynced?: boolean;
   error?: string;
 }
 
@@ -97,7 +95,34 @@ async function onUser(user: CloudUser | null) {
     return;
   }
   set({ phase: 'no_workspace' });
+  if (link) {
+    // Dispositivo compartido: otra persona del mismo espacio inicia sesión → se sigue con
+    // los mismos datos, sin volver a descargarlos.
+    await refreshLists();
+    if (state.myWorkspaces.some((w) => w.id === link.wsId)) {
+      await db.meta.put({ key: LINK_KEY, value: { wsId: link.wsId, uid: user.uid } satisfies Link });
+      await startEngine(link.wsId);
+      return;
+    }
+  }
   await refreshLists();
+  await autoOpen();
+}
+
+/**
+ * Dispositivo nuevo (sin usuarios locales): si la cuenta tiene un solo espacio, o una sola
+ * invitación, se abre solo y se descargan los datos. No hay nada local que se pueda perder.
+ */
+async function autoOpen() {
+  if (state.phase !== 'no_workspace' || (await db.users.count()) > 0) return;
+  const { myWorkspaces, invites } = state;
+  const only = myWorkspaces.length === 1 ? myWorkspaces[0] : myWorkspaces.length === 0 && invites.length === 1 ? invites[0] : undefined;
+  if (!only) return;
+  try {
+    await openWorkspace(only);
+  } catch (e) {
+    set({ error: friendly(e) });
+  }
 }
 
 export async function refreshLists() {
@@ -115,8 +140,7 @@ async function startEngine(wsId: string, opts: { pushAll?: boolean } = {}) {
   stopEngine();
   engine = new SyncEngine(backend, wsId);
   currentWsId = wsId;
-  set({ initialSynced: false });
-  engine.onStatus((status) => set(status.state === 'synced' && !state.initialSynced ? { status, initialSynced: true } : { status }));
+  engine.onStatus((status) => set({ status }));
   stopWatchWs = backend.watchWorkspace(wsId, (ws) => {
     if (ws) set({ workspace: ws, phase: 'linked' });
     else if (state.phase === 'linked') set({ error: 'No se pudo leer el espacio de trabajo (¿te quitaron el acceso?).' });
@@ -139,14 +163,11 @@ export async function uploadPendingImages(): Promise<void> {
   uploading = true;
   try {
     for (const img of await db.invoiceImages.where('uploaded').equals(0).toArray()) {
-      try {
-        await c.backend.putImage(c.wsId, { id: img.id, invoiceId: img.invoiceId, type: img.type, data: img.data });
-        await db.invoiceImages.update(img.id, { uploaded: 1 });
-      } catch {
-        // Sin conexión o foto rechazada: se sigue con las demás y se reintenta más tarde.
-        if (typeof navigator !== 'undefined' && navigator.onLine === false) break;
-      }
+      await c.backend.putImage(c.wsId, { id: img.id, invoiceId: img.invoiceId, type: img.type, data: img.data });
+      await db.invoiceImages.update(img.id, { uploaded: 1 });
     }
+  } catch {
+    // Sin conexión: se reintenta al volver la conexión o al abrir la app.
   } finally {
     uploading = false;
   }
@@ -175,7 +196,7 @@ function stopEngine() {
 }
 
 function requireUser(): CloudUser {
-  if (!backend || !state.user) throw new Error('Iniciá sesión con Google primero.');
+  if (!backend || !state.user) throw new Error('Iniciá sesión primero.');
   return state.user;
 }
 
@@ -186,6 +207,57 @@ export async function signIn() {
   } catch (e) {
     throw new Error(friendly(e), { cause: e });
   }
+}
+
+function requireBackend(): CloudBackend {
+  if (!backend) throw new Error('La nube no está configurada.');
+  return backend;
+}
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+export async function signInWithPassword(email: string, password: string) {
+  if (!EMAIL_RE.test(email.trim())) throw new Error('Ingresá un email válido.');
+  if (!password) throw new Error('Ingresá tu contraseña.');
+  try {
+    await requireBackend().signInWithPassword(email, password);
+  } catch (e) {
+    throw new Error(friendly(e), { cause: e });
+  }
+}
+
+export async function signUpWithPassword(email: string, password: string, name: string) {
+  if (!name.trim()) throw new Error('Ingresá tu nombre.');
+  if (!EMAIL_RE.test(email.trim())) throw new Error('Ingresá un email válido.');
+  if (password.length < 6) throw new Error('La contraseña debe tener al menos 6 caracteres.');
+  try {
+    await requireBackend().signUpWithPassword(email, password, name);
+  } catch (e) {
+    throw new Error(friendly(e), { cause: e });
+  }
+}
+
+export async function sendPasswordReset(email: string) {
+  if (!EMAIL_RE.test(email.trim())) throw new Error('Escribí tu email arriba y volvé a tocar “Olvidé mi contraseña”.');
+  try {
+    await requireBackend().sendPasswordReset(email);
+  } catch (e) {
+    throw new Error(friendly(e), { cause: e });
+  }
+}
+
+/** Después de tocar el link del email de verificación. */
+export async function recheckVerification() {
+  const user = await requireBackend().reloadUser();
+  if (!user) return;
+  set({ user });
+  if (!user.emailVerified) throw new Error('Todavía no figura verificado. Tocá el link del email que te llegó (revisá también spam).');
+  await refreshLists();
+  await autoOpen();
+}
+
+export async function resendVerification() {
+  await requireBackend().resendVerification();
 }
 
 /** Cierra la sesión. Los datos quedan en este dispositivo. */
@@ -211,14 +283,10 @@ export async function createWorkspace(name: string) {
 export async function openWorkspace(ws: Workspace) {
   const user = requireUser();
   if (!ws.memberUids.includes(user.uid)) await backend!.joinWorkspace(user, ws);
-  stopEngine(); // que el espacio anterior no reinserte datos mientras se reemplazan
-  // Copia de seguridad local antes de reemplazar (incluye fotos de facturas que no se habían subido).
-  const pendingImages = await db.invoiceImages.where('uploaded').equals(0).toArray();
-  await db.meta.put({ key: PRE_JOIN_BACKUP_KEY, value: { ...(await createBackup({ includeUsers: true })), pendingImages } });
-  await db.transaction('rw', [...SYNC_TABLES.map((t) => db.table(t)), db.invoiceImages, db.tombstones], async () => {
+  await db.meta.put({ key: PRE_JOIN_BACKUP_KEY, value: await createBackup() });
+  await db.transaction('rw', [...SYNC_TABLES.map((t) => db.table(t)), db.invoiceImages], async () => {
     for (const t of SYNC_TABLES) await db.table(t).clear();
     await db.invoiceImages.clear();
-    await db.tombstones.clear();
   });
   await db.meta.put({ key: LINK_KEY, value: { wsId: ws.id, uid: user.uid } satisfies Link });
   await startEngine(ws.id);
@@ -277,8 +345,18 @@ export function friendly(e: unknown): string {
     'auth/cancelled-popup-request': 'Se canceló el inicio de sesión.',
     'auth/unauthorized-domain': 'Este sitio no está autorizado en Firebase. Agregá el dominio en Authentication → Settings → Authorized domains.',
     'auth/network-request-failed': 'Sin conexión. Probá de nuevo cuando tengas Internet.',
-    'auth/operation-not-allowed': 'El inicio con Google no está activado en Firebase (Authentication → Sign-in method).',
-    'permission-denied': 'No tenés permiso para esta acción (revisá las reglas de Firestore o tu invitación).',
+    'auth/operation-not-allowed': 'Ese método de inicio de sesión no está activado en Firebase (Authentication → Sign-in method).',
+    'auth/invalid-credential': 'Email o contraseña incorrectos.',
+    'auth/wrong-password': 'Email o contraseña incorrectos.',
+    'auth/user-not-found': 'Email o contraseña incorrectos.',
+    'auth/invalid-email': 'El email no es válido.',
+    'auth/email-already-in-use': 'Ya existe una cuenta con ese email. Tocá “Ya tengo cuenta” para entrar.',
+    'auth/weak-password': 'La contraseña es muy débil: usá al menos 6 caracteres.',
+    'auth/too-many-requests': 'Demasiados intentos. Esperá unos minutos o restablecé la contraseña.',
+    'auth/user-disabled': 'Esta cuenta está desactivada.',
+    'permission-denied': state.user?.emailVerified === false
+      ? 'Primero verificá tu email: tocá el link que te llegó y después “Ya verifiqué mi email”.'
+      : 'No tenés permiso para esta acción (revisá las reglas de Firestore o tu invitación).',
     unavailable: 'Sin conexión con la nube. Los cambios se guardan y se envían al volver.',
   };
   if (map[code]) return map[code];

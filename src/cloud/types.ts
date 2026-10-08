@@ -9,6 +9,8 @@ export interface CloudUser {
   email: string;
   name?: string;
   photoURL?: string;
+  /** false si la cuenta es de email y contraseña y todavía no confirmó el email. */
+  emailVerified?: boolean;
 }
 
 export type WorkspaceRole = 'owner' | 'admin' | 'member';
@@ -41,7 +43,16 @@ export interface RemoteChange {
 export interface CloudBackend {
   readonly kind: 'firebase' | 'fake';
   onUser(cb: (user: CloudUser | null) => void): () => void;
+  /** Inicio de sesión con Google. */
   signIn(): Promise<CloudUser>;
+  /** Inicio de sesión con email y contraseña. */
+  signInWithPassword(email: string, password: string): Promise<CloudUser>;
+  /** Crea una cuenta con email y contraseña y envía el email de verificación. */
+  signUpWithPassword(email: string, password: string, name: string): Promise<CloudUser>;
+  sendPasswordReset(email: string): Promise<void>;
+  /** Vuelve a pedir el estado de la cuenta (p. ej. después de verificar el email). */
+  reloadUser(): Promise<CloudUser | null>;
+  resendVerification(): Promise<void>;
   signOut(): Promise<void>;
 
   myWorkspaces(user: CloudUser): Promise<Workspace[]>;
@@ -53,23 +64,14 @@ export interface CloudBackend {
 
   /** Escritura offline-first: se encola si no hay conexión. Resuelve al confirmarse en el servidor. */
   put(wsId: string, table: SyncTableName, doc: RemoteDoc): Promise<void>;
-  /**
-   * Escucha una colección. El primer lote (`initial`) trae lo que haya (puede venir de la copia
-   * local de Firestore). `serverIds` llega UNA vez, cuando el servidor confirmó la lista completa:
-   * recién ahí se puede saber qué registros existen sólo en este dispositivo.
-   */
-  watch(wsId: string, table: SyncTableName, cb: (changes: RemoteChange[], info: WatchInfo) => void, onError: (e: unknown) => void): () => void;
+  /** Escucha una colección. El primer lote trae todos los documentos. */
+  watch(wsId: string, table: SyncTableName, cb: (changes: RemoteChange[], initial: boolean) => void, onError: (e: unknown) => void): () => void;
 
   /** Fotos de facturas: se suben/bajan de a una, fuera de la sincronización general. */
   putImage(wsId: string, img: CloudImage): Promise<void>;
   /** null si no existe. Lanza error si no hay conexión y no está en la copia local. */
   getImage(wsId: string, id: string): Promise<CloudImage | null>;
   deleteImage(wsId: string, id: string): Promise<void>;
-}
-
-export interface WatchInfo {
-  initial: boolean;
-  serverIds?: string[];
 }
 
 export interface CloudImage {

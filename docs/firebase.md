@@ -4,7 +4,7 @@ Stock Manager puede guardar los datos en la nube de Google para usarlos en vario
 
 **Cómo funciona**
 
-- Cada persona inicia sesión con su cuenta de Google.
+- Cada persona inicia sesión con su **email y contraseña** (o, si prefiere, con su cuenta de Google). En un dispositivo nuevo, lo primero que muestra la app es "Iniciar sesión": con un solo espacio de trabajo, los datos se descargan solos.
 - Los datos viven en un **espacio de trabajo** (tu negocio). El dueño invita a otras personas por email.
 - La app siempre trabaja sobre la copia del dispositivo: funciona **sin Internet** y sincroniza sola al volver la conexión.
 - Si dos personas mueven el stock del mismo producto al mismo tiempo, no se pierde ningún movimiento: el stock se recalcula a partir del historial.
@@ -20,11 +20,12 @@ Se usa **Firebase** (Google): *Authentication* para el inicio de sesión y *Clou
 2. **Crear un proyecto** (o *Add project*). Nombre: por ejemplo `stock-manager`.
 3. Cuando pregunte por Google Analytics, podés desactivarlo. Tocá **Crear proyecto**.
 
-## Paso 2 — Activar el inicio de sesión con Google
+## Paso 2 — Activar el inicio de sesión
 
 1. En el menú de la izquierda: **Compilación → Authentication** (*Build → Authentication*) → **Comenzar**.
-2. Pestaña **Sign-in method** → elegí **Google** → **Habilitar** → elegí tu email de asistencia → **Guardar**.
-3. Pestaña **Settings → Authorized domains** → **Add domain** → escribí `braian5555.github.io` → **Add**.
+2. Pestaña **Sign-in method** → **Agregar proveedor nuevo** → **Correo electrónico/contraseña** → activá el primer interruptor (*Correo electrónico/contraseña*) → **Guardar**.
+3. (Opcional) Para ofrecer también "Entrar con Google": **Agregar proveedor nuevo** → **Google** → **Habilitar** → elegí tu email de asistencia → **Guardar**.
+4. Pestaña **Settings → Authorized domains** → **Add domain** → escribí `braian5555.github.io` → **Add**.
 
 ## Paso 3 — Crear la base de datos
 
@@ -76,7 +77,7 @@ Se usa **Firebase** (Google): *Authentication* para el inicio de sesión y *Clou
 
 1. **Cuenta y nube → Miembros → Invitar por email** → escribí el Gmail de la persona → **Invitar**.
 2. Esa persona abre la app, inicia sesión con ese Gmail y en **Invitaciones** toca **Unirme**.
-3. Roles: **Dueño** (vos), **Administrador** (puede invitar y quitar personas, y cambiar usuarios con PIN y configuración), **Miembro** (usa la app: stock, pedidos, conteos, remitos, facturas; no puede cambiar usuarios ni configuración).
+3. Roles: **Dueño** (vos), **Administrador** (puede invitar y quitar personas), **Miembro** (usa la app).
 
 ---
 
@@ -95,9 +96,7 @@ Se usa **Firebase** (Google): *Authentication* para el inicio de sesión y *Clou
 - Estructura: `workspaces/{id}` (nombre, `memberUids`, `roles`, `memberInfo`, `inviteEmails`) y `workspaces/{id}/{tabla}/{registro}`.
 - Tablas sincronizadas: configuración, familias, unidades, ubicaciones, proveedores, productos, pedidos y sus ítems, movimientos, conteos y sus ítems, usuarios y facturas.
 - Fotos de facturas: `workspaces/{id}/invoiceImages/{foto}` (JPEG comprimido a menos de 650 KB, en base64). No se sincronizan en bloque: se suben al guardarlas y cada dispositivo baja una foto sólo cuando se abre, para no gastar la cuota gratuita. Con más de unos pocos miles de facturas conviene pasar a Cloud Storage (requiere el plan Blaze). La integración con Maxirest (cola, copias externas) queda por dispositivo.
-- Eliminaciones: se guardan como lápidas (`_deleted: true`) en la nube y también en cada dispositivo (tabla local `tombstones`), así una eliminación hecha sin conexión se envía después y una versión vieja que llegue tarde no revive lo borrado.
-- Lo que existe sólo en un dispositivo se sube recién cuando el servidor confirmó la lista completa (no con la copia parcial de caché).
-- Restaurar un backup está bloqueado mientras el dispositivo está vinculado (pisaría los datos de todos).
+- Eliminaciones: se guardan como lápidas (`_deleted: true`) para que un dispositivo que estuvo desconectado no reviva lo borrado.
 - Stock: los movimientos son inmutables; el stock se recalcula con `foldStock()` (los ajustes y conteos fijan el valor, el resto suma o resta).
 - Código: `src/cloud/` (backend Firebase, motor de sincronización, servicio de cuenta) y `firestore.rules`.
 - Pruebas: `tests/unit/cloud-sync.test.ts` y `tests/e2e/cloud.spec.ts` usan un backend en memoria. Las reglas de seguridad no se pudieron probar con el emulador de Firebase en el entorno de desarrollo; conviene probarlas con dos cuentas reales antes de invitar empleados.

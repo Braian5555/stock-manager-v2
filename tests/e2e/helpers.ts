@@ -8,9 +8,16 @@ export const ADMIN = { name: 'Admin Prueba', pin: '1234' };
  */
 export async function ensureSession(page: Page) {
   const setup = page.getByRole('heading', { name: 'Crear usuario administrador' });
+  const cloudLogin = page.getByRole('heading', { name: 'Iniciar sesión' });
   const lock = page.locator('.pinpad, .user-grid');
   const app = page.locator('main#contenido');
-  await expect(setup.or(lock).or(app).first()).toBeVisible();
+  await expect(setup.or(cloudLogin).or(lock).or(app).first()).toBeVisible();
+  // Con la nube configurada, un dispositivo nuevo ofrece iniciar sesión: las pruebas
+  // generales usan el modo local.
+  if (await cloudLogin.isVisible()) {
+    await page.getByRole('button', { name: 'Usar sólo en este dispositivo, sin nube' }).click();
+    await expect(setup).toBeVisible();
+  }
   if (await setup.isVisible()) {
     await page.getByLabel('Tu nombre').fill(ADMIN.name);
     await page.getByLabel(/^PIN( ·|$)/).fill(ADMIN.pin);

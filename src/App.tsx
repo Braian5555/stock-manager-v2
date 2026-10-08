@@ -5,7 +5,7 @@ import { initCloud } from './cloud/cloudService';
 import { FeedbackProvider } from './store/feedback';
 import { SettingsProvider } from './store/settings';
 import { SessionProvider, useSession } from './store/session';
-import { LockScreen, SetupScreen, WaitingCloudScreen } from './components/auth/AuthScreens';
+import { CloudDisabledScreen, CloudLoginScreen, CloudWorkspaceScreen, LockScreen, SetupScreen } from './components/auth/AuthScreens';
 import { Guard } from './components/auth/Guard';
 import { AppLayout } from './layouts/AppLayout';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -106,11 +106,13 @@ export function App() {
   );
 }
 
-/** Muestra crear administrador / bloqueo con PIN hasta que haya un usuario con sesión. */
+/** Muestra el inicio de sesión (nube o PIN) hasta que haya un usuario con sesión. */
 function SessionGate({ children }: { children: React.ReactNode }) {
-  const { status } = useSession();
-  if (status === 'loading') return <div className="splash" aria-busy="true">Cargando…</div>;
-  if (status === 'waiting') return <WaitingCloudScreen />;
+  const { status, loadingText } = useSession();
+  if (status === 'loading') return <div className="splash" aria-busy="true">{loadingText ?? 'Cargando…'}</div>;
+  if (status === 'cloud_login') return <CloudLoginScreen />;
+  if (status === 'cloud_workspace') return <CloudWorkspaceScreen />;
+  if (status === 'cloud_disabled') return <CloudDisabledScreen />;
   if (status === 'setup') return <SetupScreen />;
   if (status === 'locked') return <LockScreen />;
   return <>{children}</>;

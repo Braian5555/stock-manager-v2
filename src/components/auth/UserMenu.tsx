@@ -1,4 +1,4 @@
-import { Lock, UserCog } from 'lucide-react';
+import { Lock, LogOut, UserCog } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router';
 import { useSession } from '../../store/session';
@@ -7,7 +7,7 @@ import { UserAvatar } from './UserAvatar';
 
 /** Usuario actual con acceso rápido a "Bloquear" (cambiar de usuario). */
 export function UserMenu() {
-  const { user, lock, can } = useSession();
+  const { user, lock, can, cloudMode } = useSession();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -37,7 +37,7 @@ export function UserMenu() {
             </Link>
           )}
           <button role="menuitem" type="button" className="btn btn-ghost btn-block" style={{ justifyContent: 'flex-start' }} onClick={() => void lock()}>
-            <Lock size={18} aria-hidden /> Bloquear / cambiar usuario
+            {cloudMode ? <><LogOut size={18} aria-hidden /> Cerrar sesión</> : <><Lock size={18} aria-hidden /> Bloquear / cambiar usuario</>}
           </button>
         </div>
       )}

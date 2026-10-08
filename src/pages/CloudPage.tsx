@@ -1,9 +1,10 @@
-import { Cloud, CloudOff, LogIn, LogOut, Mail, RefreshCw, ShieldCheck, Trash2, UserPlus, Users } from 'lucide-react';
+import { Cloud, CloudOff, LogOut, Mail, MailCheck, RefreshCw, ShieldCheck, Trash2, UserPlus, Users } from 'lucide-react';
 import { useState } from 'react';
 import {
-  ROLE_LABEL, cancelInvite, createWorkspace, inviteEmail, openWorkspace, refreshLists, removeMember, setMemberRole, signIn,
-  signOutCloud, unlinkDevice, useCloud,
+  ROLE_LABEL, cancelInvite, createWorkspace, inviteEmail, openWorkspace, recheckVerification, refreshLists, removeMember, resendVerification,
+  setMemberRole, signIn, signOutCloud, unlinkDevice, useCloud,
 } from '../cloud/cloudService';
+import { PasswordLogin } from '../components/auth/PasswordLogin';
 import type { Workspace } from '../cloud/types';
 import { menuLabel } from '../services/settingsService';
 import { useFeedback } from '../store/feedback';
@@ -46,7 +47,7 @@ export function CloudPage() {
 
   return (
     <>
-      <PageHeader title={menuLabel(settings, 'cloud')} subtitle="Iniciá sesión con Google para guardar tus datos en la nube y usarlos en todos tus dispositivos." />
+      <PageHeader title={menuLabel(settings, 'cloud')} subtitle="Iniciá sesión para guardar tus datos en la nube y usarlos en todos tus dispositivos." />
       {cloud.provider === 'fake' && <div className="alert alert-demo" style={{ marginBottom: 12 }}>Nube de prueba (en memoria): sólo para pruebas automáticas.</div>}
       {cloud.error && <div className="alert alert-danger" style={{ marginBottom: 12 }}>{cloud.error}</div>}
 
@@ -62,13 +63,14 @@ export function CloudPage() {
 
       {cloud.phase === 'signed_out' && (
         <section className="card card-pad stack">
-          <h2 className="row"><Cloud size={20} aria-hidden /> Sincronizar con Google</h2>
+          <h2 className="row"><Cloud size={20} aria-hidden /> Guardar en la nube</h2>
           <ul className="small muted" style={{ margin: 0, paddingLeft: 18 }}>
             <li>Tus datos quedan guardados en la nube y en este dispositivo.</li>
             <li>Lo que cargás en el celular aparece en la computadora (y al revés).</li>
             <li>Podés invitar a empleados por email. Sin Internet seguís trabajando y se sincroniza al volver.</li>
           </ul>
-          <div><button type="button" className="btn btn-primary" onClick={() => run(signIn)}><LogIn size={18} aria-hidden /> Iniciar sesión con Google</button></div>
+          <PasswordLogin />
+          <button type="button" className="btn btn-ghost btn-sm" onClick={() => run(signIn)}>Entrar con una cuenta de Google</button>
         </section>
       )}
 
@@ -82,6 +84,17 @@ export function CloudPage() {
             </div>
           </div>
           <button type="button" className="btn btn-sm" onClick={() => run(signOutCloud, 'Sesión cerrada. Los datos siguen en este dispositivo.')}><LogOut size={16} aria-hidden /> Cerrar sesión</button>
+        </section>
+      )}
+
+      {cloud.phase === 'no_workspace' && cloud.user?.emailVerified === false && (
+        <section className="card card-pad stack" style={{ marginBottom: 16 }}>
+          <h2 className="row"><MailCheck size={18} aria-hidden /> Verificá tu email</h2>
+          <p className="small muted">Te enviamos un email a <b>{cloud.user.email}</b>. Tocá el link que trae (revisá también spam) y después el botón de abajo. Hace falta para unirte a un espacio al que te invitaron.</p>
+          <div className="row wrap">
+            <button type="button" className="btn btn-primary" onClick={() => run(recheckVerification)}>Ya verifiqué mi email</button>
+            <button type="button" className="btn btn-ghost" onClick={() => run(resendVerification, 'Email reenviado')}>Reenviar email</button>
+          </div>
         </section>
       )}
 
@@ -145,14 +158,14 @@ export function CloudPage() {
           {cloud.workspace && cloud.user && <Members ws={cloud.workspace} me={cloud.user.uid} email={email} setEmail={setEmail} onInvite={async () => {
             const ok = await run(() => inviteEmail(email).then(() => true));
             if (ok) {
-              notify(`Invitación creada para ${email}. Tiene que entrar a la app, iniciar sesión con ese Google y tocar “Unirme”.`);
+              notify(`Invitación creada para ${email}. Tiene que entrar a la app y crear su cuenta con ese mismo email.`);
               setEmail('');
             }
           }} />}
 
           <section className="card card-pad stack">
             <h2 className="row"><ShieldCheck size={18} aria-hidden /> Privacidad</h2>
-            <p className="small muted">Los datos se guardan en tu proyecto de Firebase (Google Cloud). Sólo las cuentas que son miembros del espacio pueden leerlos o modificarlos. La app nunca ve ni guarda tu contraseña de Google.</p>
+            <p className="small muted">Los datos se guardan en tu proyecto de Firebase (Google Cloud). Sólo las cuentas que son miembros del espacio pueden leerlos o modificarlos. Las contraseñas las guarda Firebase Authentication: la app no las almacena.</p>
           </section>
         </div>
       )}
@@ -206,7 +219,7 @@ function Members({ ws, me, email, setEmail, onInvite }: { ws: Workspace; me: str
       )}
       {manage && (
         <form className="row wrap" style={{ alignItems: 'flex-end' }} onSubmit={(e) => { e.preventDefault(); onInvite(); }}>
-          <Field label="Invitar por email (cuenta de Google)" className="grow">
+          <Field label="Invitar por email" className="grow">
             <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="empleado@gmail.com" />
           </Field>
           <button type="submit" className="btn btn-primary" disabled={!email.trim()}><UserPlus size={18} aria-hidden /> Invitar</button>

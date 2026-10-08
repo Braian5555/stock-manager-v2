@@ -1,5 +1,4 @@
-import { useCloud } from '../../cloud/cloudService';
-import { ArrowLeft, Cloud, Lock } from 'lucide-react';
+import { ArrowLeft, Cloud, Lock, LogOut, UserX } from 'lucide-react';
 import { useState } from 'react';
 import { useSession } from '../../store/session';
 import { useSettings } from '../../store/settings';
@@ -10,6 +9,8 @@ import { Field, Input } from '../ui';
 import { PinPad } from './PinPad';
 import { UserAvatar } from './UserAvatar';
 import { CloudPage } from '../../pages/CloudPage';
+import { signOutCloud, useCloud } from '../../cloud/cloudService';
+import { PasswordLogin } from './PasswordLogin';
 
 function Shell({ children, wide }: { children: React.ReactNode; wide?: boolean }) {
   const settings = useSettings();
@@ -65,7 +66,7 @@ export function SetupScreen() {
       </form>
       <hr className="sep" />
       <button type="button" className="btn btn-block" onClick={() => setCloud(true)}><Cloud size={18} aria-hidden /> Ya usamos Stock Manager en la nube</button>
-      <p className="small muted" style={{ textAlign: 'center', marginTop: 8 }}>Iniciá sesión con la cuenta de Google del negocio para traer los datos y los usuarios.</p>
+      <p className="small muted" style={{ textAlign: 'center', marginTop: 8 }}>Iniciá sesión con tu cuenta para traer los datos y los usuarios.</p>
     </Shell>
   );
 }
@@ -127,23 +128,46 @@ export function LockScreen() {
   );
 }
 
-/** Dispositivo vinculado a la nube, todavía sin usuarios: se espera la primera sincronización. */
-export function WaitingCloudScreen() {
-  const { skipCloudWait } = useSession();
+/** Inicio de sesión con la cuenta de la nube (email y contraseña). */
+export function CloudLoginScreen() {
+  const { useLocalOnly, cloudMode } = useSession();
   const cloud = useCloud();
-  const offline = cloud.status.state === 'offline' || cloud.phase === 'signed_out' || cloud.status.state === 'error';
   return (
     <Shell>
-      <h1 style={{ textAlign: 'center' }}>Trayendo los datos de la nube…</h1>
-      <p className="muted small" style={{ textAlign: 'center' }} role="status">
-        {offline
-          ? cloud.phase === 'signed_out'
-            ? 'La sesión de Google se cerró. Volvé a iniciarla para traer los usuarios.'
-            : 'No hay conexión. Conectate a Internet para traer los usuarios de tu negocio.'
-          : 'En unos segundos vas a poder elegir tu usuario y entrar con tu PIN.'}
-      </p>
-      {!offline && <div className="row" style={{ justifyContent: 'center' }}><span className="spin" aria-hidden>⏳</span></div>}
-      <button type="button" className="btn btn-ghost btn-sm" onClick={skipCloudWait}>Es un negocio nuevo: crear el administrador acá</button>
+      <h1 style={{ textAlign: 'center' }}>Iniciar sesión</h1>
+      <p className="muted small" style={{ textAlign: 'center' }}>Entrá con tu email y contraseña: tus datos se guardan en la nube y están en todos tus dispositivos.</p>
+      {cloud.error && <div className="alert alert-danger">{cloud.error}</div>}
+      <PasswordLogin />
+      {!cloudMode && (
+        <>
+          <hr className="sep" />
+          <button type="button" className="btn btn-ghost btn-block btn-sm" onClick={useLocalOnly}>Usar sólo en este dispositivo, sin nube</button>
+        </>
+      )}
+    </Shell>
+  );
+}
+
+/** Sesión iniciada: elegir o crear el espacio de trabajo (o verificar el email). */
+export function CloudWorkspaceScreen() {
+  return (
+    <Shell wide>
+      <CloudPage />
+    </Shell>
+  );
+}
+
+/** La cuenta corresponde a un usuario desactivado en la app. */
+export function CloudDisabledScreen() {
+  const { run } = useFeedback();
+  return (
+    <Shell>
+      <div className="stack" style={{ alignItems: 'center', textAlign: 'center' }}>
+        <UserX size={40} aria-hidden />
+        <h1>Usuario desactivado</h1>
+        <p className="muted small">Tu usuario está desactivado en este negocio. Pedile a un administrador que lo active desde <b>Usuarios</b>.</p>
+        <button type="button" className="btn" onClick={() => run(signOutCloud)}><LogOut size={18} aria-hidden /> Cerrar sesión</button>
+      </div>
     </Shell>
   );
 }

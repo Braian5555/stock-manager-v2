@@ -84,7 +84,11 @@ export interface UserDraft {
   permissions: Permission[];
   active: boolean;
   pin?: string;
+  /** Email de la cuenta de la nube. undefined = no cambiar; '' = quitar. */
+  email?: string;
 }
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 async function activeAdmins(excludeId?: string) {
   return (await db.users.toArray()).filter((u) => u.active && isAdmin(u) && u.id !== excludeId);
@@ -105,6 +109,9 @@ export async function saveUser(d: UserDraft): Promise<AppUser> {
   if (prev && isAdmin(prev) && (!permissions.includes('admin') || !d.active) && !(await activeAdmins(prev.id)).length)
     throw new Error('Tiene que quedar al menos un administrador activo.');
   if (!prev && !d.pin) throw new Error('Definí un PIN para el usuario.');
+  const email = d.email === undefined ? prev?.email : d.email.trim().toLowerCase() || undefined;
+  if (email && !EMAIL_RE.test(email)) throw new Error('El email no es válido.');
+  if (email && all.some((u) => u.id !== d.id && u.email === email)) throw new Error('Ese email ya está asignado a otro usuario.');
   const pin = d.pin ? await hashPin(d.pin) : { hash: prev!.pinHash, salt: prev!.pinSalt };
   const user: AppUser = {
     id: prev?.id ?? uuid(),
@@ -117,9 +124,15 @@ export async function saveUser(d: UserDraft): Promise<AppUser> {
     pinSalt: pin.salt,
     active: d.active,
     color: prev?.color ?? COLORS[all.length % COLORS.length],
+    ...(email ? { email } : {}),
   };
   await db.users.put(user);
   return user;
+}
+
+/** PIN aleatorio para usuarios que entran con la cuenta de la nube (no lo necesitan). */
+export function randomPin(): string {
+  return String(crypto.getRandomValues(new Uint32Array(1))[0] % 1_000_000).padStart(6, '0');
 }
 
 export async function deleteUser(id: string): Promise<void> {

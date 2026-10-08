@@ -27,11 +27,11 @@ export function UsersPage() {
 
   const openNew = () => {
     setIsNew(true);
-    setEditing({ name: '', role: 'staff', permissions: ROLE_PERMISSIONS.staff, active: true, pin: '', pin2: '' });
+    setEditing({ name: '', role: 'staff', permissions: ROLE_PERMISSIONS.staff, active: true, pin: '', pin2: '', email: '' });
   };
   const openEdit = (u: AppUser) => {
     setIsNew(false);
-    setEditing({ id: u.id, name: u.name, role: u.role, permissions: u.permissions, active: u.active });
+    setEditing({ id: u.id, name: u.name, role: u.role, permissions: u.permissions, active: u.active, email: u.email ?? '' });
   };
 
   const save = async () => {
@@ -67,7 +67,7 @@ export function UsersPage() {
             <UserAvatar user={u} />
             <div className="grow">
               <div className="list-title truncate">{u.name} {u.id === me?.id && <Badge>Vos</Badge>} {!u.active && <Badge>Desactivado</Badge>}</div>
-              <div className="list-sub">{ROLE_LABEL[u.role]} · {u.permissions.length} permisos</div>
+              <div className="list-sub">{ROLE_LABEL[u.role]} · {u.permissions.length} permisos{u.email ? ` · ${u.email}` : ''}</div>
             </div>
             <button type="button" className="btn btn-sm btn-ghost icon-btn" aria-label={`Editar ${u.name}`} onClick={() => openEdit(u)}><Pencil size={16} /></button>
             <button type="button" className="btn btn-sm btn-ghost icon-btn btn-danger" aria-label={`Eliminar ${u.name}`} onClick={() => remove(u)}><Trash2 size={16} /></button>
@@ -100,6 +100,10 @@ export function UsersPage() {
                   {(Object.keys(ROLE_LABEL) as UserRole[]).map((r) => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}
                 </Select>
               </Field>
+              <Field label="Email para entrar" hint="opcional: con este email y su contraseña entra desde cualquier dispositivo vinculado a la nube">
+                <Input type="email" autoComplete="off" value={editing.email ?? ''} onChange={(e) => setEditing({ ...editing, email: e.target.value })} maxLength={120} />
+              </Field>
+              <div aria-hidden />
               <Field label={isNew ? 'PIN' : 'PIN nuevo'} hint={isNew ? '4 a 6 números' : 'dejalo vacío para no cambiarlo'}>
                 <Input type="password" inputMode="numeric" autoComplete="new-password" value={editing.pin ?? ''} onChange={(e) => setEditing({ ...editing, pin: e.target.value.replace(/\D/g, '').slice(0, 6) })} />
               </Field>
