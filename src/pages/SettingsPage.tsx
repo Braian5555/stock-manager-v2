@@ -1,9 +1,10 @@
+import { lazyPage } from '../utils/lazyPage';
 import {
   ArrowDown, ArrowLeft, ArrowUp, Boxes, Building2, ChevronRight, Cloud, Copy, Download, Eye, EyeOff, ImageUp, LayoutGrid, Package, Palette, Plug,
   RefreshCw, RotateCcw, ShieldCheck, ShoppingCart, Smartphone, Stethoscope, UserCog, type LucideIcon,
 } from 'lucide-react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from 'react';
+import { Suspense, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, NavLink, useParams } from 'react-router';
 import { CURRENT_DB_VERSION, db } from '../database/db';
 import type { MenuItemSetting, ModuleKey, Settings, ThemeMode } from '../models';
@@ -24,10 +25,10 @@ import { syncView } from '../components/SyncBadge';
 import { fmtDateTime } from '../utils/format';
 import { useSession } from '../store/session';
 
-const UsersPage = lazy(() => import('./UsersPage').then((m) => ({ default: m.UsersPage })));
-const CloudPage = lazy(() => import('./CloudPage').then((m) => ({ default: m.CloudPage })));
-const IntegrationsPage = lazy(() => import('./IntegrationsPage').then((m) => ({ default: m.IntegrationsPage })));
-const ExportPage = lazy(() => import('./ExportPage').then((m) => ({ default: m.ExportPage })));
+const UsersPage = lazyPage(() => import('./UsersPage'), 'UsersPage');
+const CloudPage = lazyPage(() => import('./CloudPage'), 'CloudPage');
+const IntegrationsPage = lazyPage(() => import('./IntegrationsPage'), 'IntegrationsPage');
+const ExportPage = lazyPage(() => import('./ExportPage'), 'ExportPage');
 
 const EMOJIS = ['📦', '🏪', '🍽️', '🍔', '🍕', '☕', '🍺', '🥩', '🥬', '🐟', '🧊', '🧴', '🛒', '🏨', '🏭', '🔧'];
 const COLORS = ['#4f46e5', '#2563eb', '#0891b2', '#059669', '#65a30d', '#d97706', '#dc2626', '#db2777', '#7c3aed', '#334155'];
