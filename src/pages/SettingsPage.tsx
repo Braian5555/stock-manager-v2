@@ -15,7 +15,7 @@ import { imageFileToLogo } from '../pwa/logoIcon';
 import { useFeedback } from '../store/feedback';
 import { useSettings } from '../store/settings';
 import { Logo } from '../components/Logo';
-import { CommitInput, Field, NumberInput, PageHeader, Segmented } from '../components/ui';
+import { CommitInput, Field, NumberInput, PageHeader, Segmented, StatusBadge } from '../components/ui';
 import { readableInk } from '../utils/color';
 import { WipeDataSection } from '../components/WipeDataSection';
 import { MODULE_ICON, MODULE_PATH, navLabel } from '../layouts/modules';
@@ -31,29 +31,38 @@ const IntegrationsPage = lazyPage(() => import('./IntegrationsPage'), 'Integrati
 const ExportPage = lazyPage(() => import('./ExportPage'), 'ExportPage');
 
 const EMOJIS = ['📦', '🏪', '🍽️', '🍔', '🍕', '☕', '🍺', '🥩', '🥬', '🐟', '🧊', '🧴', '🛒', '🏨', '🏭', '🔧'];
-const COLORS = ['#4f46e5', '#2563eb', '#0891b2', '#059669', '#65a30d', '#d97706', '#dc2626', '#db2777', '#7c3aed', '#334155'];
+const COLORS = ['#0e6b67', '#145a7a', '#2e7d57', '#56682c', '#9a610a', '#b84e27', '#9c3346', '#5a4a8a', '#22282b', '#4f46e5'];
 
 interface Section {
   key: string;
+  group: GroupKey;
   title: string;
   description: string;
   icon: LucideIcon;
   render: () => ReactNode;
 }
 
+type GroupKey = 'negocio' | 'inventario' | 'personas' | 'sistema';
+const GROUPS: { key: GroupKey; title: string; description: string }[] = [
+  { key: 'negocio', title: 'Tu negocio', description: 'Identidad y cómo se navega la app.' },
+  { key: 'inventario', title: 'Inventario', description: 'Reglas de stock, catálogo y compras.' },
+  { key: 'personas', title: 'Personas y acceso', description: 'Quién entra, con qué permisos y desde qué cuenta.' },
+  { key: 'sistema', title: 'Datos y sistema', description: 'Conexiones, respaldos y estado técnico.' },
+];
+
 /** Configuración: el centro de administración, organizado por categorías. */
 const SECTIONS: Section[] = [
-  { key: 'empresa', title: 'Empresa y apariencia', description: 'Nombre, subtítulo, logo, colores y tema claro/oscuro.', icon: Building2, render: () => <CompanySection /> },
-  { key: 'navegacion', title: 'Menú y navegación', description: 'Qué módulos se ven, su orden y nombre, y qué va en cada barra.', icon: LayoutGrid, render: () => <NavigationSection /> },
-  { key: 'stock', title: 'Stock', description: 'Alertas y stock crítico; familias, unidades, ubicaciones y puntos.', icon: Boxes, render: () => <StockSection /> },
-  { key: 'productos', title: 'Productos', description: 'Productos, proveedores e importación desde Excel.', icon: Package, render: () => <ProductsSection /> },
-  { key: 'pedidos', title: 'Pedidos y compras', description: 'Cómo se arma el pedido sugerido y la recepción de mercadería.', icon: ShoppingCart, render: () => <OrdersSection /> },
-  { key: 'usuarios', title: 'Usuarios y permisos', description: 'Usuarios, roles, permisos, PIN y bloqueo automático.', icon: UserCog, render: () => <UsersPage /> },
-  { key: 'nube', title: 'Cuenta y nube', description: 'Sesión, espacios de trabajo, miembros, invitaciones y sincronización.', icon: Cloud, render: () => <CloudPage /> },
-  { key: 'integraciones', title: 'Integraciones', description: 'Maxirest, Excel Bridge, gateway, cola y estado de conexión.', icon: Plug, render: () => <IntegrationsPage /> },
-  { key: 'datos', title: 'Importar y exportar', description: 'Excel, CSV, PDF, Word, JSON, backup completo y restauración.', icon: Download, render: () => <ExportPage /> },
-  { key: 'aplicacion', title: 'Aplicación', description: 'Actualizaciones, datos del dispositivo, restablecer y borrar datos.', icon: Smartphone, render: () => <AppSection /> },
-  { key: 'diagnostico', title: 'Diagnóstico', description: 'Estado del sistema, de Firebase y de la sincronización; versión.', icon: Stethoscope, render: () => <DiagnosticsSection /> },
+  { key: 'empresa', group: 'negocio', title: 'Empresa y apariencia', description: 'Nombre, subtítulo, logo, colores y tema claro/oscuro.', icon: Building2, render: () => <CompanySection /> },
+  { key: 'navegacion', group: 'negocio', title: 'Menú y navegación', description: 'Qué módulos se ven, su orden y nombre, y qué va en cada barra.', icon: LayoutGrid, render: () => <NavigationSection /> },
+  { key: 'stock', group: 'inventario', title: 'Stock', description: 'Alertas y stock crítico; familias, unidades, ubicaciones y puntos.', icon: Boxes, render: () => <StockSection /> },
+  { key: 'productos', group: 'inventario', title: 'Productos', description: 'Productos, proveedores e importación desde Excel.', icon: Package, render: () => <ProductsSection /> },
+  { key: 'pedidos', group: 'inventario', title: 'Pedidos y compras', description: 'Cómo se arma el pedido sugerido y la recepción de mercadería.', icon: ShoppingCart, render: () => <OrdersSection /> },
+  { key: 'usuarios', group: 'personas', title: 'Usuarios y permisos', description: 'Usuarios, roles, permisos, PIN y bloqueo automático.', icon: UserCog, render: () => <UsersPage /> },
+  { key: 'nube', group: 'personas', title: 'Cuenta y nube', description: 'Sesión, espacios de trabajo, miembros, invitaciones y sincronización.', icon: Cloud, render: () => <CloudPage /> },
+  { key: 'integraciones', group: 'sistema', title: 'Integraciones', description: 'Maxirest, Excel Bridge, gateway, cola y estado de conexión.', icon: Plug, render: () => <IntegrationsPage /> },
+  { key: 'datos', group: 'sistema', title: 'Importar y exportar', description: 'Excel, CSV, PDF, Word, JSON, backup completo y restauración.', icon: Download, render: () => <ExportPage /> },
+  { key: 'aplicacion', group: 'sistema', title: 'Aplicación', description: 'Actualizaciones, datos del dispositivo, restablecer y borrar datos.', icon: Smartphone, render: () => <AppSection /> },
+  { key: 'diagnostico', group: 'sistema', title: 'Diagnóstico', description: 'Estado del sistema, de Firebase y de la sincronización; versión.', icon: Stethoscope, render: () => <DiagnosticsSection /> },
 ];
 
 export function SettingsPage() {
@@ -64,16 +73,26 @@ export function SettingsPage() {
     return (
       <>
         <PageHeader title="Configuración" subtitle="Todo lo que se configura en la app, en un solo lugar." />
-        <div className="settings-hub">
-          {SECTIONS.map((s) => (
-            <Link key={s.key} to={`/configuracion/${s.key}`} className="card settings-card">
-              <span className="settings-card-icon"><s.icon size={22} aria-hidden /></span>
-              <span className="grow">
-                <span className="settings-card-title">{s.title}</span>
-                <span className="settings-card-desc">{s.description}</span>
-              </span>
-              <ChevronRight size={18} className="muted" aria-hidden />
-            </Link>
+        <div className="settings-groups">
+          {GROUPS.map((g) => (
+            <section key={g.key} className="settings-group" aria-labelledby={`grupo-${g.key}`}>
+              <header className="settings-group-head">
+                <h2 id={`grupo-${g.key}`}>{g.title}</h2>
+                <p>{g.description}</p>
+              </header>
+              <div className="card settings-group-list">
+                {SECTIONS.filter((s) => s.group === g.key).map((s) => (
+                  <Link key={s.key} to={`/configuracion/${s.key}`} className="settings-row">
+                    <span className="settings-card-icon"><s.icon size={19} aria-hidden /></span>
+                    <span className="grow">
+                      <span className="settings-card-title">{s.title}</span>
+                      <span className="settings-card-desc">{s.description}</span>
+                    </span>
+                    <ChevronRight size={18} className="muted" aria-hidden />
+                  </Link>
+                ))}
+              </div>
+            </section>
           ))}
         </div>
       </>
@@ -83,10 +102,15 @@ export function SettingsPage() {
   return (
     <div className="settings-layout">
       <nav className="settings-nav card" aria-label="Secciones de configuración">
-        {SECTIONS.map((s) => (
-          <NavLink key={s.key} to={`/configuracion/${s.key}`} className="settings-nav-link">
-            <s.icon size={18} aria-hidden /> {s.title}
-          </NavLink>
+        {GROUPS.map((g) => (
+          <div key={g.key} className="settings-nav-group">
+            <div className="settings-nav-title">{g.title}</div>
+            {SECTIONS.filter((s) => s.group === g.key).map((s) => (
+              <NavLink key={s.key} to={`/configuracion/${s.key}`} className="settings-nav-link">
+                <s.icon size={17} aria-hidden /> {s.title}
+              </NavLink>
+            ))}
+          </div>
         ))}
       </nav>
       <div className="settings-content">
@@ -279,7 +303,10 @@ function StockSection() {
               <NumberInput value={Math.round(form.criticalRatio * 100)} min={0} max={100} onChange={(v) => v !== undefined && save({ criticalRatio: Math.min(100, Math.max(0, v)) / 100 })} />
             </Field>
           </div>
-          <p className="small muted">🟢 Normal · 🟡 Bajo (≤ mínimo) · 🟠 Crítico (≤ {Math.round(form.criticalRatio * 100)}% del mínimo) · 🔴 Sin stock. El stock mínimo y máximo se define en cada producto.</p>
+          <div className="row wrap small muted">
+            <StatusBadge status="normal" /> <StatusBadge status="bajo" /> hasta el mínimo <StatusBadge status="critico" /> hasta el {Math.round(form.criticalRatio * 100)}% del mínimo <StatusBadge status="sin_stock" />
+          </div>
+          <p className="small muted">El stock mínimo y máximo se define en cada producto.</p>
         </section>
         <section className="stack" aria-label="Catálogos de stock">
           <h2 className="settings-subtitle">Catálogos</h2>

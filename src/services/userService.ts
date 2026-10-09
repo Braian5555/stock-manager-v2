@@ -50,7 +50,7 @@ export function effectivePermissions(u: Pick<AppUser, 'role' | 'permissions'>): 
 
 export const PIN_RE = /^\d{4,6}$/;
 const ITERATIONS = 100_000;
-const COLORS = ['#4f46e5', '#0891b2', '#059669', '#d97706', '#db2777', '#7c3aed', '#dc2626', '#334155'];
+const COLORS = ['#0e6b67', '#0891b2', '#059669', '#d97706', '#db2777', '#7c3aed', '#dc2626', '#334155'];
 
 const toHex = (b: ArrayBuffer | Uint8Array) => [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, '0')).join('');
 const fromHex = (h: string) => new Uint8Array(h.match(/../g)!.map((x) => parseInt(x, 16)));

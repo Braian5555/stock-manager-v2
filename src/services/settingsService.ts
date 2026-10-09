@@ -38,6 +38,12 @@ export const DEFAULT_NAV_TOP: ModuleKey[] = ['dashboard', 'stock', 'products', '
 export const DEFAULT_NAV_BOTTOM: ModuleKey[] = ['dashboard', 'stock', 'orders', 'movements'];
 export const MAX_NAV_BOTTOM = 4;
 
+/** Verde petróleo del logo. */
+export const DEFAULT_PRIMARY = '#0e6b67';
+/** Colores por defecto de versiones anteriores: si nunca se cambiaron, se adopta la identidad nueva. */
+const LEGACY_PRIMARY = ['#4f46e5'];
+const LEGACY_SECONDARY = ['#0ea5e9'];
+
 export const defaultMenu = (): MenuItemSetting[] => MODULES.map((m) => ({ key: m.key, label: m.label, visible: true }));
 
 export function defaultSettings(): Settings {
@@ -49,8 +55,8 @@ export function defaultSettings(): Settings {
     businessName: 'Stock Manager',
     subtitle: 'Control de inventario',
     logo: { kind: 'default' },
-    primaryColor: '#4f46e5',
-    secondaryColor: '#0ea5e9',
+    primaryColor: DEFAULT_PRIMARY,
+    secondaryColor: '#22282b',
     theme: 'system',
     menu: defaultMenu(),
     criticalRatio: 0.5,
@@ -81,6 +87,8 @@ export function normalizeSettings(s: Partial<Settings> | undefined): Settings {
     const at = ordered.findIndex((x) => x.key === prevKey);
     ordered.splice(at >= 0 ? at + 1 : ordered.length, 0, m);
   });
+  if (LEGACY_PRIMARY.includes(String(merged.primaryColor).toLowerCase())) merged.primaryColor = DEFAULT_PRIMARY;
+  if (LEGACY_SECONDARY.includes(String(merged.secondaryColor).toLowerCase())) merged.secondaryColor = base.secondaryColor;
   merged.menu = ordered.map((m) => (MODULES.find((x) => x.key === m.key)?.locked ? { ...m, visible: true } : m));
   merged.navTop = (Array.isArray(s?.navTop) ? s.navTop : DEFAULT_NAV_TOP).filter((k) => known.has(k));
   merged.navBottom = (Array.isArray(s?.navBottom) ? s.navBottom : DEFAULT_NAV_BOTTOM).filter((k) => known.has(k)).slice(0, MAX_NAV_BOTTOM);

@@ -1,8 +1,9 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
-  AlertTriangle, ArrowLeftRight, Boxes, Camera, ChevronRight, ClipboardCheck, Forklift, Lock, LogOut, Package, PackageCheck, PackageX, Plus, Search,
-  ShoppingCart, Truck, TrendingDown, type LucideIcon,
+  AlertTriangle, ArrowLeftRight, Boxes, Camera, ChevronRight, ClipboardCheck, Forklift, Lock, LogOut, Package, PackageCheck, Plus, Search,
+  ShoppingCart, Truck, type LucideIcon,
 } from 'lucide-react';
+import { useMemo } from 'react';
 import { Link } from 'react-router';
 import { db } from '../database/db';
 import { useLookups, useProducts, EMPTY } from '../hooks/useData';
@@ -17,6 +18,10 @@ import { useSettings } from '../store/settings';
 import { EmptyState, PageHeader, StatusBadge } from '../components/ui';
 import { WelcomeCard } from '../components/WelcomeCard';
 import { fmtDate, fmtDateTime, fmtDay, fmtNumber, fmtSigned } from '../utils/format';
+import { StockHealth, type HealthCounts } from '../components/dashboard/StockHealth';
+import { ActivityChart } from '../components/dashboard/ActivityChart';
+
+const DAY = 86_400_000;
 
 /** Datos que comparten las dos versiones del Inicio. */
 function useHomeData() {
@@ -29,7 +34,13 @@ function useHomeData() {
   const low = withStatus.filter((x) => x.s === 'bajo' || x.s === 'critico');
   const out = withStatus.filter((x) => x.s === 'sin_stock');
   const alerts = [...out, ...low.filter((x) => x.s === 'critico'), ...low.filter((x) => x.s === 'bajo')];
-  return { settings, products, active, low, out, alerts, openOrders, pendingTransfers };
+  const health: HealthCounts = { normal: 0, bajo: 0, critico: 0, sin_stock: 0 };
+  for (const x of withStatus) health[x.s]++;
+  // ¿Algún producto activo tuvo alguna vez un movimiento? (los de productos borrados no cuentan)
+  const movedIds = useLiveQuery(() => db.movements.orderBy('productId').uniqueKeys(), []);
+  const activeIds = useMemo(() => new Set(active.map((p) => p.id)), [active]);
+  const hasMovements = movedIds === undefined ? true : movedIds.some((id) => activeIds.has(String(id)));
+  return { settings, products, active, low, out, alerts, openOrders, pendingTransfers, health, hasMovements };
 }
 
 export function DashboardPage() {
@@ -44,32 +55,31 @@ interface Action {
   to: string;
   icon: LucideIcon;
   perms: Permission[];
-  tone: string;
-}
+  }
 
 const ACTIONS: Action[] = [
-  { label: 'Contar stock', to: '/conteo', icon: ClipboardCheck, perms: ['count.do'], tone: 'tone-a' },
-  { label: 'Registrar movimiento', to: '/stock', icon: ArrowLeftRight, perms: ['stock.move'], tone: 'tone-c' },
-  { label: 'Recibir pedido', to: '/pedidos?estado=abiertos', icon: PackageCheck, perms: ['orders.receive', 'orders.manage'], tone: 'tone-b' },
-  { label: 'Nuevo pedido', to: '/pedidos/nuevo', icon: ShoppingCart, perms: ['orders.manage'], tone: 'tone-f' },
-  { label: 'Nuevo remito', to: '/remitos/nuevo', icon: Forklift, perms: ['transfers'], tone: 'tone-e' },
-  { label: 'Foto de factura', to: '/facturas?nueva=1', icon: Camera, perms: ['invoices'], tone: 'tone-d' },
-  { label: 'Buscar producto', to: '', icon: Search, perms: ['stock.view'], tone: 'tone-g' },
-  { label: 'Ver stock', to: '/stock', icon: Boxes, perms: ['stock.view'], tone: 'tone-a' },
+  { label: 'Contar stock', to: '/conteo', icon: ClipboardCheck, perms: ['count.do'] },
+  { label: 'Registrar movimiento', to: '/stock', icon: ArrowLeftRight, perms: ['stock.move'] },
+  { label: 'Recibir pedido', to: '/pedidos?estado=abiertos', icon: PackageCheck, perms: ['orders.receive', 'orders.manage'] },
+  { label: 'Nuevo pedido', to: '/pedidos/nuevo', icon: ShoppingCart, perms: ['orders.manage'] },
+  { label: 'Nuevo remito', to: '/remitos/nuevo', icon: Forklift, perms: ['transfers'] },
+  { label: 'Foto de factura', to: '/facturas?nueva=1', icon: Camera, perms: ['invoices'] },
+  { label: 'Buscar producto', to: '', icon: Search, perms: ['stock.view'] },
+  { label: 'Ver stock', to: '/stock', icon: Boxes, perms: ['stock.view'] },
 ];
 
 function MobileHome() {
   const { user, canAny, can, lock, cloudMode } = useSession();
-  const { products, low, out, alerts, openOrders, pendingTransfers } = useHomeData();
+  const { products, alerts, openOrders, pendingTransfers, health, hasMovements } = useHomeData();
   const lk = useLookups();
+  const noStockLoaded = health.sin_stock > 0 && health.sin_stock === products.filter((p) => p.active).length && !hasMovements;
   const firstName = user?.name.split(' ')[0] ?? '';
   const actions = ACTIONS.filter((a) => canAny(a.perms));
+  // El estado del stock (sin stock / bajo) va en su propia tarjeta; acá quedan los pendientes de gestión.
   const chips = [
-    out.length > 0 && { to: '/stock?estado=sin_stock', cls: 'alert-danger', text: `${out.length} ${out.length === 1 ? 'producto está' : 'productos están'} sin stock` },
-    low.length > 0 && { to: '/stock?estado=bajo', cls: 'alert-warn', text: `${low.length} ${low.length === 1 ? 'producto tiene' : 'productos tienen'} stock bajo` },
-    openOrders.length > 0 && canAny(MODULE_PERMISSIONS.orders) && { to: '/pedidos?estado=abiertos', cls: 'alert-info', text: `${openOrders.length} ${openOrders.length === 1 ? 'pedido abierto' : 'pedidos abiertos'}` },
-    pendingTransfers.length > 0 && can('transfers') && { to: '/remitos', cls: 'alert-info', text: `${pendingTransfers.length} ${pendingTransfers.length === 1 ? 'remito' : 'remitos'} sin cargar en Maxirest` },
-  ].filter(Boolean) as { to: string; cls: string; text: string }[];
+    openOrders.length > 0 && canAny(MODULE_PERMISSIONS.orders) && { to: '/pedidos?estado=abiertos', icon: ShoppingCart, text: `${openOrders.length} ${openOrders.length === 1 ? 'pedido abierto' : 'pedidos abiertos'}` },
+    pendingTransfers.length > 0 && can('transfers') && { to: '/remitos', icon: Forklift, text: `${pendingTransfers.length} ${pendingTransfers.length === 1 ? 'remito' : 'remitos'} sin cargar en Maxirest` },
+  ].filter(Boolean) as { to: string; icon: LucideIcon; text: string }[];
 
   return (
     <div className="home-mobile">
@@ -84,29 +94,29 @@ function MobileHome() {
         <Search size={20} aria-hidden /> Buscar producto, proveedor, pedido…
       </button>
 
-      {chips.length > 0 ? (
+      {canAny(MODULE_PERMISSIONS.stock) && <StockHealth counts={health} canCount={can('count.do')} hasMovements={hasMovements} compact />}
+
+      {chips.length > 0 && (
         <div className="home-chips">
-          {chips.map((c) => <Link key={c.text} to={c.to} className={`alert ${c.cls} home-chip`}>{c.text}</Link>)}
+          {chips.map((c) => <Link key={c.text} to={c.to} className="home-chip"><c.icon size={16} aria-hidden /> {c.text}</Link>)}
         </div>
-      ) : (
-        products.length > 0 && <p className="alert alert-ok small">Todo en orden: no hay productos por debajo del mínimo.</p>
       )}
 
       <nav className="home-actions" aria-label="Acciones rápidas">
-        {actions.map(({ label, to, icon: Icon, tone }) => to ? (
-          <Link key={label} to={to} className={`home-action ${tone}`}>
-            <span className="home-action-icon"><Icon size={26} aria-hidden /></span>
+        {actions.map(({ label, to, icon: Icon }) => to ? (
+          <Link key={label} to={to} className="home-action">
+            <span className="home-action-icon"><Icon size={22} aria-hidden /></span>
             <span>{label}</span>
           </Link>
         ) : (
-          <button key={label} type="button" className={`home-action ${tone}`} onClick={openGlobalSearch}>
-            <span className="home-action-icon"><Icon size={26} aria-hidden /></span>
+          <button key={label} type="button" className="home-action" onClick={openGlobalSearch}>
+            <span className="home-action-icon"><Icon size={22} aria-hidden /></span>
             <span>{label}</span>
           </button>
         ))}
       </nav>
 
-      {alerts.length > 0 && canAny(MODULE_PERMISSIONS.stock) && (
+      {alerts.length > 0 && !noStockLoaded && canAny(MODULE_PERMISSIONS.stock) && (
         <section className="card" aria-labelledby="reponer">
           <div className="card-head">
             <h2 id="reponer" className="row"><AlertTriangle size={18} aria-hidden /> Para reponer</h2>
@@ -143,23 +153,26 @@ function AlertRow({ p, s, unit }: { p: Product; s: StockStatus; unit: string }) 
 function DesktopHome() {
   const { can, canAny } = useSession();
   const allowed = (m: ModuleKey) => canAny(MODULE_PERMISSIONS[m]);
-  const { settings, products, active, low, out, alerts, openOrders, pendingTransfers } = useHomeData();
+  const { settings, products, active, alerts, openOrders, pendingTransfers, health, hasMovements } = useHomeData();
   const lk = useLookups();
   const lastMovements = useLiveQuery(() => db.movements.orderBy('createdAt').reverse().limit(10).toArray(), []) ?? EMPTY;
+  // Ventana del gráfico (14 días) — se consulta por índice, no se recorre todo el historial.
+  const since = useMemo(() => new Date(Date.now() - 15 * DAY).toISOString(), []);
+  const recent = useLiveQuery(() => db.movements.where('createdAt').aboveOrEqual(since).toArray(), [since]) ?? EMPTY;
   const outlets = useLiveQuery(() => db.outlets.toArray(), []) ?? EMPTY;
   const productName = new Map(products.map((p) => [p.id, p.name]));
   const outletName = new Map(outlets.map((o) => [o.id, o.name]));
-  const totalUnits = active.reduce((a, p) => a + Math.max(0, p.stock), 0);
+  const weekAgo = Date.now() - 7 * DAY;
+  const lastWeek = recent.filter((m) => new Date(m.createdAt).getTime() >= weekAgo).length;
+  const categories = new Set(active.map((p) => p.categoryId).filter(Boolean)).size;
 
   const stats = [
-    { label: 'Productos', value: active.length, icon: Package, to: '/productos', m: 'products' as ModuleKey },
-    { label: 'Stock total (unid.)', value: fmtNumber(totalUnits), icon: Boxes, to: '/stock', m: 'stock' as ModuleKey },
-    { label: 'Stock bajo', value: low.length, icon: TrendingDown, to: '/stock?estado=bajo', m: 'stock' as ModuleKey },
-    { label: 'Sin stock', value: out.length, icon: PackageX, to: '/stock?estado=sin_stock', m: 'stock' as ModuleKey },
-    { label: 'Pedidos abiertos', value: openOrders.length, icon: ShoppingCart, to: '/pedidos?estado=abiertos', m: 'orders' as ModuleKey },
-    { label: 'Remitos sin cargar', value: pendingTransfers.length, icon: Forklift, to: '/remitos', m: 'transfers' as ModuleKey },
-    { label: 'Proveedores', value: lk.suppliers.length, icon: Truck, to: '/proveedores', m: 'suppliers' as ModuleKey },
-  ].filter((x) => allowed(x.m)).slice(0, 6);
+    { label: 'Productos activos', value: fmtNumber(active.length), sub: categories ? `${categories} ${categories === 1 ? 'familia' : 'familias'}` : 'Catálogo', icon: Package, to: '/productos', m: 'products' as ModuleKey },
+    { label: 'Movimientos · 7 días', value: fmtNumber(lastWeek), sub: lastWeek ? 'Ingresos, salidas y ajustes' : 'Sin movimientos esta semana', icon: ArrowLeftRight, to: '/movimientos', m: 'movements' as ModuleKey },
+    { label: 'Pedidos abiertos', value: fmtNumber(openOrders.length), sub: openOrders.length ? 'Pendientes de recibir' : 'Nada pendiente', icon: ShoppingCart, to: '/pedidos?estado=abiertos', m: 'orders' as ModuleKey },
+    { label: 'Remitos sin cargar', value: fmtNumber(pendingTransfers.length), sub: pendingTransfers.length ? 'Falta cargarlos en Maxirest' : 'Todo cargado', icon: Forklift, to: '/remitos', m: 'transfers' as ModuleKey },
+    { label: 'Proveedores', value: fmtNumber(lk.suppliers.length), sub: 'Activos en el catálogo', icon: Truck, to: '/proveedores', m: 'suppliers' as ModuleKey },
+  ].filter((x) => allowed(x.m)).slice(0, 4);
 
   return (
     <>
@@ -173,28 +186,23 @@ function DesktopHome() {
         </>}
       />
       {products.length === 0 && can('catalog.manage') && <WelcomeCard />}
-      <div className="grid grid-stats" style={{ marginBottom: 16 }}>
-        {stats.map(({ label, value, icon: Icon, to }) => (
-          <Link key={label} to={to} className="card stat">
-            <span className="stat-icon"><Icon size={18} aria-hidden /></span>
-            <span className="stat-value">{value}</span>
-            <span className="stat-label">{label}</span>
-          </Link>
-        ))}
-      </div>
+      {stats.length > 0 && (
+        <div className="grid home-kpis">
+          {stats.map(({ label, value, sub, icon: Icon, to }) => (
+            <Link key={label} to={to} className="card stat">
+              <span className="stat-icon"><Icon size={17} aria-hidden /></span>
+              <span className="stat-value">{value}</span>
+              <span className="stat-label">{label}</span>
+              <span className="stat-sub">{sub}</span>
+            </Link>
+          ))}
+        </div>
+      )}
 
-      {(low.length > 0 || out.length > 0) && (
-        <div className="stack" style={{ marginBottom: 16 }}>
-          {low.length > 0 && (
-            <Link to="/stock?estado=bajo" className="alert alert-warn">
-              <span aria-hidden>⚠</span> {low.length} {low.length === 1 ? 'producto tiene' : 'productos tienen'} stock bajo
-            </Link>
-          )}
-          {out.length > 0 && (
-            <Link to="/stock?estado=sin_stock" className="alert alert-danger">
-              <span aria-hidden>🔴</span> {out.length} {out.length === 1 ? 'producto está' : 'productos están'} sin stock
-            </Link>
-          )}
+      {allowed('stock') && active.length > 0 && (
+        <div className={`grid home-overview ${recent.length ? '' : 'single'}`}>
+          <StockHealth counts={health} canCount={can('count.do')} hasMovements={hasMovements} />
+          {allowed('movements') && <ActivityChart movements={recent} />}
         </div>
       )}
 

@@ -58,12 +58,11 @@ export function SearchInput({ value, onChange, placeholder = 'Buscar…', label 
   );
 }
 
-const STATUS_EMOJI: Record<StockStatus, string> = { normal: '🟢', bajo: '🟡', critico: '🟠', sin_stock: '🔴' };
 
 export function StatusBadge({ status }: { status: StockStatus }) {
   return (
     <span className={`badge badge-${status}`}>
-      <span aria-hidden>{STATUS_EMOJI[status]}</span>
+      <span className="dot" aria-hidden />
       {STATUS_LABEL[status]}
     </span>
   );

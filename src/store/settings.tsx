@@ -2,7 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { createContext, useContext, useEffect, type ReactNode } from 'react';
 import { db } from '../database/db';
 import type { Settings } from '../models';
-import { defaultSettings, normalizeSettings, SETTINGS_ID } from '../services/settingsService';
+import { DEFAULT_PRIMARY, defaultSettings, normalizeSettings, SETTINGS_ID } from '../services/settingsService';
 import { isHexColor, readableInk } from '../utils/color';
 import { renderLogoPng } from '../pwa/logoIcon';
 
@@ -18,13 +18,14 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     const apply = () => {
       const dark = settings.theme === 'dark' || (settings.theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
       root.dataset.theme = dark ? 'dark' : 'light';
+      // La barra del sistema acompaña al encabezado grafito.
+      document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#101416' : '#22282b');
     };
     apply();
-    const primary = isHexColor(settings.primaryColor) ? settings.primaryColor : '#4f46e5';
+    const primary = isHexColor(settings.primaryColor) ? settings.primaryColor : DEFAULT_PRIMARY;
     root.style.setProperty('--primary', primary);
     root.style.setProperty('--primary-ink', readableInk(primary));
     if (isHexColor(settings.secondaryColor)) root.style.setProperty('--secondary', settings.secondaryColor);
-    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', primary);
     document.title = settings.businessName || 'Stock Manager';
     const mq = window.matchMedia('(prefers-color-scheme: dark)');
     mq.addEventListener('change', apply);
