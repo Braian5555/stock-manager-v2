@@ -79,7 +79,12 @@ export function ExportPage() {
 
   const confirmImport = async () => {
     if (!plan) return;
-    const ok = await confirm({ title: 'Importar productos', message: <p>Se crearán {plan.create} productos y se actualizarán {plan.update} (sin modificar su stock). {plan.skipped > 0 && `${plan.skipped} filas sin nombre se omitirán.`}</p>, confirmLabel: 'Importar' });
+    const ok = await confirm({ title: 'Importar productos', message: (
+        <>
+          <p>Se crearán {plan.create} productos y se actualizarán {plan.update} (sin modificar su stock). {plan.skipped > 0 && `${plan.skipped} filas sin nombre se omitirán.`}</p>
+          {plan.negative > 0 && <p className="small muted">{plan.negative} {plan.negative === 1 ? 'producto nuevo trae' : 'productos nuevos traen'} stock negativo en el archivo: se {plan.negative === 1 ? 'crea' : 'crean'} con stock 0. Corregilo después con un conteo.</p>}
+        </>
+      ), confirmLabel: 'Importar' });
     setPlan(null);
     if (!ok) return;
     const r = await run(plan.run);

@@ -159,3 +159,15 @@ describe('cantidades tipeadas en el celular (coma o punto)', () => {
     expect(parseQuantityInput('1.2.3')).toBeNull();
   });
 });
+
+describe('importar productos con stock negativo (Maxirest)', () => {
+  it('no corta la importación: los negativos se crean en 0', async () => {
+    const plan = await planProductImport({ headers: ['Nombre', 'Código', 'Stock'], rows: [['Limón', 'L1', '-1'], ['Sal', 'S1', '4']] });
+    expect(plan.create).toBe(2);
+    expect(plan.negative).toBe(1);
+    await plan.run();
+    const byName = new Map((await db.products.toArray()).map((p) => [p.name, p.stock]));
+    expect(byName.get('Limón')).toBe(0);
+    expect(byName.get('Sal')).toBe(4);
+  });
+});

@@ -33,6 +33,8 @@ export interface ProductImportPlan {
   create: number;
   update: number;
   skipped: number;
+  /** Productos nuevos que en el archivo traen stock negativo (p. ej. Maxirest con ventas sin stock cargado): se crean en 0. */
+  negative: number;
   run: () => Promise<{ created: number; updated: number }>;
 }
 
@@ -71,6 +73,7 @@ export async function planProductImport(tab: Tabular): Promise<ProductImportPlan
   const seen = new Set<string>();
   let create = 0;
   let update = 0;
+  let negative = 0;
   for (const r of valid) {
     const k = matchOf(r) ? `id:${matchOf(r)!.id}` : key(r);
     const kn = `name:${normalize(r.name)}`;
@@ -78,13 +81,17 @@ export async function planProductImport(tab: Tabular): Promise<ProductImportPlan
     seen.add(k);
     seen.add(kn);
     if (matchOf(r)) update++;
-    else create++;
+    else {
+      create++;
+      if (parseNumber(r.stock) < 0) negative++;
+    }
   }
 
   return {
     create,
     update,
     skipped: rows.length - valid.length,
+    negative,
     run: async () => {
       const cache = new Map<string, string>();
       const ensure = async (kind: 'categories' | 'units' | 'locations' | 'suppliers', name?: string) => {
@@ -113,7 +120,10 @@ export async function planProductImport(tab: Tabular): Promise<ProductImportPlan
           maxStock: r.max !== undefined ? parseNumber(r.max) : (prev?.maxStock ?? 0),
           notes: r.notes ?? prev?.notes,
         };
-        const saved = await saveProduct(draft, prev ? 0 : parseNumber(r.stock));
+        // Stock negativo en el archivo (Maxirest descuenta ventas aunque no haya stock cargado):
+        // no puede ser un stock inicial real, así que el producto se crea en 0.
+        const initial = Math.max(0, parseNumber(r.stock));
+        const saved = await saveProduct(draft, prev ? 0 : initial);
         // Así una fila repetida más abajo actualiza este producto en vez de crear otro.
         index.set(`name:${normalize(saved.name)}`, saved);
         if (saved.sku) index.set(`sku:${normalize(saved.sku)}`, saved);
