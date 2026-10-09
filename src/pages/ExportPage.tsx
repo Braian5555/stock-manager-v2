@@ -9,6 +9,7 @@ import { createBackup, restoreBackup, validateBackup, type BackupFile } from '..
 import { menuLabel } from '../services/settingsService';
 import { readTabularFile } from '../importers/tabular';
 import { planProductImport, type ProductImportPlan } from '../importers/productImport';
+import { planRecipeImport } from '../importers/recipeImport';
 import { useFeedback } from '../store/feedback';
 import { useSettings } from '../store/settings';
 import { PageHeader, Segmented } from '../components/ui';
@@ -27,6 +28,32 @@ export function ExportPage() {
   const restoreRef = useRef<HTMLInputElement>(null);
   const importRef = useRef<HTMLInputElement>(null);
   const [plan, setPlan] = useState<ProductImportPlan | null>(null);
+  const recipeRef = useRef<HTMLInputElement>(null);
+
+  const onRecipeFile = async (file: File) => {
+    const p = await run(async () => planRecipeImport(await readTabularFile(file)));
+    if (!p) return;
+    const ok = await confirm({
+      title: 'Importar recetas',
+      message: (
+        <div className="stack-sm">
+          <p>Se cargarán <strong>{p.recipes.length}</strong> recetas{p.replaced ? ` (${p.replaced} reemplazan a la receta que ya tenían)` : ''}. Al anotar una producción de esos productos se descontarán sus insumos.</p>
+          {p.issues.length > 0 && (
+            <>
+              <p className="small"><strong>{p.issues.length} {p.issues.length === 1 ? 'aviso' : 'avisos'}</strong> — las recetas con un insumo sin resolver no se cargan, para no descontar de menos:</p>
+              <ul className="small muted" style={{ margin: 0, paddingLeft: 18, maxHeight: 200, overflow: 'auto' }}>
+                {p.issues.map((i, n) => <li key={n}><b>{i.product}</b>: {i.detail}</li>)}
+              </ul>
+            </>
+          )}
+        </div>
+      ),
+      confirmLabel: p.recipes.length ? `Cargar ${p.recipes.length} recetas` : 'Cerrar',
+    });
+    if (!ok || !p.recipes.length) return;
+    const n = await run(p.run);
+    if (n !== undefined) notify(`${n} recetas cargadas`);
+  };
   const base = safeFilename(settings.businessName);
 
   const exportAs = async (format: 'pdf' | 'docx' | 'xlsx' | 'json') => {
@@ -122,6 +149,15 @@ export function ExportPage() {
           {can('catalog.manage') ? <button type="button" className="btn" onClick={() => importRef.current?.click()}><FileSpreadsheet size={18} aria-hidden /> Elegir archivo</button> : <span className="small muted">Necesitás permiso para administrar productos.</span>}
           <input ref={importRef} type="file" accept=".xlsx,.csv,text/csv" hidden aria-label="Archivo de productos" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void onImportFile(f); }} />
           {plan && <button type="button" className="btn btn-primary" onClick={confirmImport}>Importar {plan.create + plan.update} productos</button>}
+        </div>
+      </section>
+
+      <section className="card card-pad stack" style={{ marginTop: 16 }} aria-labelledby="imp-rec">
+        <h2 id="imp-rec" className="row"><FileSpreadsheet size={18} aria-hidden /> Importar recetas</h2>
+        <p className="muted small">El Excel de recetas de Maxirest (guardado como .xlsx o .csv). Cada receta se vincula por código con su producto y cada insumo con el suyo; las cantidades se pasan a la unidad de stock (gr → kg, ml → l). Al anotar una producción se descuentan los insumos.</p>
+        <div className="row wrap">
+          {can('catalog.manage') ? <button type="button" className="btn" onClick={() => recipeRef.current?.click()}><Upload size={18} aria-hidden /> Elegir archivo de recetas</button> : <span className="small muted">Necesitás permiso para administrar productos.</span>}
+          <input ref={recipeRef} type="file" accept=".xlsx,.csv,text/csv" hidden aria-label="Archivo de recetas" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void onRecipeFile(f); }} />
         </div>
       </section>
     </>
