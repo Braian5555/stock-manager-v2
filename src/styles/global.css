@@ -727,3 +727,25 @@ hr.sep { border: 0; border-top: 1px solid var(--border); margin: 16px 0; }
   border: 1px solid color-mix(in srgb, var(--primary) 35%, var(--border)); background: var(--primary-soft); color: var(--text); font: inherit; font-size: 0.88rem;
 }
 .load-more { display: flex; justify-content: center; padding: 12px; grid-column: 1 / -1; }
+
+/* Agrupar por familia / ubicación / unidad (Productos y Conteo). */
+.group-bar { display: flex; flex-direction: column; gap: 10px; margin-bottom: 14px; }
+.group-chips { display: flex; gap: 8px; flex-wrap: wrap; }
+@media (max-width: 719px) {
+  .group-chips { flex-wrap: nowrap; overflow-x: auto; margin: 0 -16px; padding: 2px 16px 6px; scrollbar-width: none; }
+  .group-chips::-webkit-scrollbar { display: none; }
+}
+.group-chip {
+  flex: none; display: inline-flex; align-items: center; gap: 7px; min-height: 36px; padding: 0 13px; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--border-strong); background: var(--surface); color: var(--text); font: inherit; font-size: 0.86rem; font-weight: 650; white-space: nowrap;
+}
+.group-chip .num { font-size: 0.78rem; color: var(--text-3); font-weight: 700; }
+.group-chip:hover { border-color: color-mix(in srgb, var(--text-3) 50%, var(--border)); }
+.group-chip[aria-pressed='true'] { background: var(--primary); border-color: var(--primary-strong); color: var(--primary-ink); }
+.group-chip[aria-pressed='true'] .num { color: inherit; opacity: 0.8; }
+.table .group-row th { background: var(--surface-3); color: var(--text); font-size: 0.86rem; font-weight: 750; text-align: left; padding: 9px 12px; position: static; }
+.group-head { padding: 9px 14px; background: var(--surface-3); font-weight: 750; font-size: 0.88rem; border-bottom: 1px solid var(--border); }
+@media (max-width: 719px) {
+  .table.responsive tr.group-row { padding: 0; }
+  .table.responsive tr.group-row th { display: block; }
+}

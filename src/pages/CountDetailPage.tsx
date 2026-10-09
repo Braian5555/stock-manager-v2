@@ -1,7 +1,7 @@
 import { useSession } from '../store/session';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { ArrowLeft, CheckCircle2, FileSpreadsheet, Send } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { db } from '../database/db';
 import { applyCount, discardCount, finishCount, reopenCount, setCounted, summarizeCount, type CountLine } from '../services/countService';
@@ -9,11 +9,16 @@ import { canSyncAdjustments, sendCountToExternal } from '../integrations/integra
 import { exportBridgeWorkbook } from '../integrations/maxirest/excelBridgeExport';
 import { useLookups, useProducts, EMPTY } from '../hooks/useData';
 import { useFeedback } from '../store/feedback';
-import { Badge, EmptyState, PageHeader, SearchInput, Segmented, Select } from '../components/ui';
+import { Badge, EmptyState, PageHeader, SearchInput, Segmented } from '../components/ui';
 import { Stepper } from '../components/Stepper';
 import { fmtNumber, fmtSigned, matches } from '../utils/format';
 import { COUNT_STATUS } from './CountsPage';
 import { useIncremental } from '../hooks/useIncremental';
+import { GroupBar, useProductGroups } from '../components/GroupBar';
+import type { InventoryCountItem as CountItem, Product } from '../models';
+
+type Row = { i: CountItem; p: Product | undefined };
+const prodOf = (r: Row) => r.p;
 
 type Show = 'all' | 'pending' | 'done';
 
@@ -27,7 +32,6 @@ export function CountDetailPage() {
   const { can } = useSession();
   const [q, setQ] = useState('');
   const [show, setShow] = useState<Show>('all');
-  const [cat, setCat] = useState('');
   const [showExpected, setShowExpected] = useState(true);
   const [canSync, setCanSync] = useState(false);
   const byId = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
@@ -38,13 +42,15 @@ export function CountDetailPage() {
     () =>
       items
         .map((i) => ({ i, p: byId.get(i.productId) }))
-        .filter(({ i, p }) => p && matches(q, p.name, p.sku) && (!cat || p.categoryId === cat) && (show === 'all' || (show === 'done') === (i.counted !== undefined)))
+        .filter(({ i, p }) => p && matches(q, p.name, p.sku) && (show === 'all' || (show === 'done') === (i.counted !== undefined)))
         .sort((a, b) => a.p!.name.localeCompare(b.p!.name, 'es')),
-    [items, byId, q, cat, show],
+    [items, byId, q, show],
   );
   const summary = useMemo(() => summarizeCount(items), [items]);
   // Al contar con el filtro "Pendientes" la lista se achica: no se reinicia la tanda por eso.
-  const { visible: shownRows, sentinel } = useIncremental(rows, `${q}|${cat}|${show}`);
+  // Agrupado por familia, ubicación o unidad: se puede contar sólo "Hormas" o sólo una cámara.
+  const g = useProductGroups(rows, prodOf, lk);
+  const { visible: shownRows, sentinel } = useIncremental(g.shown, `${q}|${g.mode}|${g.group}|${show}`);
 
   if (count === undefined) return <p className="muted">Cargando…</p>;
   if (count === null || !count) return <EmptyState title="Conteo no encontrado" action={<Link className="btn" to="/conteo">Volver</Link>} />;
@@ -141,22 +147,25 @@ export function CountDetailPage() {
 
       <div className="toolbar">
         <SearchInput value={q} onChange={setQ} placeholder="Buscar producto" />
-        <Select aria-label="Familia" value={cat} onChange={(e) => setCat(e.target.value)} style={{ maxWidth: 220 }}>
-          <option value="">Todas las familias</option>
-          {lk.categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-        </Select>
         <Segmented label="Mostrar" value={show} onChange={setShow} options={[{ value: 'all', label: 'Todos' }, { value: 'pending', label: 'Pendientes' }, { value: 'done', label: 'Contados' }]} />
         <label className="check small"><input type="checkbox" checked={showExpected} onChange={(e) => setShowExpected(e.target.checked)} /> Ver esperado</label>
       </div>
+
+      <GroupBar mode={g.mode} groups={g.groups} group={g.group} total={rows.length} onMode={g.setMode} onGroup={g.setGroup} />
 
       <div className="card">
         {rows.length === 0 ? (
           <EmptyState title="Nada para mostrar" />
         ) : (
-          <>{shownRows.map(({ i, p }) => {
+          <>{shownRows.map((row, idx) => {
+            const { i, p } = row;
             const diff = i.counted === undefined ? undefined : i.counted - i.expected;
+            const gid = g.groupOf(row);
+            const header = idx === 0 || g.groupOf(shownRows[idx - 1]) !== gid;
             return (
-              <div key={i.id} className={`count-item ${i.counted !== undefined ? 'done' : ''}`}>
+              <Fragment key={i.id}>
+              {header && <div className="group-head">{g.labelOf(gid)} <span className="muted num">{g.groups.find((x) => x.id === gid)?.count}</span></div>}
+              <div className={`count-item ${i.counted !== undefined ? 'done' : ''}`}>
                 <div className="grow" style={{ minWidth: 160 }}>
                   <div className="list-title">{p!.name}</div>
                   <div className="list-sub">
@@ -176,6 +185,7 @@ export function CountDetailPage() {
                   <strong className="num">{fmtNumber(i.counted)}</strong>
                 )}
               </div>
+              </Fragment>
             );
           })}{sentinel}</>
         )}
