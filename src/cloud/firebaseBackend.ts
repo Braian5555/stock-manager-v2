@@ -89,7 +89,6 @@ export class FirebaseBackend implements CloudBackend {
     const { user } = await createUserWithEmailAndPassword(this.auth, email.trim(), password);
     if (name.trim()) await updateProfile(user, { displayName: name.trim() });
     // La verificación hace falta para aceptar invitaciones (reglas de Firestore).
-    await sendEmailVerification(user).catch(() => undefined);
     return toUser(user);
   }
 

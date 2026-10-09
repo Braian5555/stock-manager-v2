@@ -1,7 +1,7 @@
-import { Cloud, CloudOff, LogOut, Mail, MailCheck, RefreshCw, ShieldCheck, Trash2, UserPlus, Users } from 'lucide-react';
+import { Cloud, CloudOff, LogOut, Mail, RefreshCw, ShieldCheck, Trash2, UserPlus, Users } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import {
-  ROLE_LABEL, cancelInvite, createWorkspace, deleteWorkspace, inviteEmail, openWorkspace, recheckVerification, refreshLists, removeMember, resendVerification,
+  ROLE_LABEL, cancelInvite, createWorkspace, deleteWorkspace, inviteEmail, openWorkspace, refreshLists, removeMember,
   setMemberRole, signIn, signOutCloud, unlinkDevice, useCloud,
 } from '../cloud/cloudService';
 import { PasswordLogin } from '../components/auth/PasswordLogin';
@@ -103,17 +103,6 @@ export function CloudPage() {
             </div>
           </div>
           <button type="button" className="btn btn-sm" onClick={() => run(signOutCloud, 'Sesión cerrada. Los datos siguen en este dispositivo.')}><LogOut size={16} aria-hidden /> Cerrar sesión</button>
-        </section>
-      )}
-
-      {cloud.phase === 'no_workspace' && cloud.user?.emailVerified === false && (
-        <section className="card card-pad stack" style={{ marginBottom: 16 }}>
-          <h2 className="row"><MailCheck size={18} aria-hidden /> Verificá tu email</h2>
-          <p className="small muted">Te enviamos un email a <b>{cloud.user.email}</b>. Tocá el link que trae (revisá también spam) y después el botón de abajo. Hace falta para unirte a un espacio al que te invitaron.</p>
-          <div className="row wrap">
-            <button type="button" className="btn btn-primary" onClick={() => run(recheckVerification)}>Ya verifiqué mi email</button>
-            <button type="button" className="btn btn-ghost" onClick={() => run(resendVerification, 'Email reenviado')}>Reenviar email</button>
-          </div>
         </section>
       )}
 

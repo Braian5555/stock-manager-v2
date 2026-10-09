@@ -150,7 +150,6 @@ export class FakeBackend implements CloudBackend {
   async joinWorkspace(u: CloudUser, ws: Workspace) {
     const cur = this.store.workspaces.get(ws.id);
     if (!cur || !cur.inviteEmails.includes(u.email)) throw new Error('No tenés una invitación para este espacio.');
-    if (u.emailVerified === false) throw Object.assign(new Error('Email sin verificar'), { code: 'permission-denied' });
     this.store.saveWorkspace({
       ...cur,
       memberUids: [...cur.memberUids, u.uid],

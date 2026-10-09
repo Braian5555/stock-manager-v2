@@ -16,9 +16,6 @@ service cloud.firestore {
     function myEmail() {
       return request.auth.token.email.lower();
     }
-    function verified() {
-      return request.auth.token.email_verified == true;
-    }
     function wsData(wsId) {
       return get(/databases/$(database)/documents/workspaces/$(wsId)).data;
     }
@@ -32,9 +29,12 @@ service cloud.firestore {
 
     match /workspaces/{wsId} {
       // Leer: miembros, o personas invitadas (para poder ver y aceptar la invitación).
+      // No se exige email verificado: el dueño decidió que el personal entre sin confirmar el
+      // email (cuentas de producción sin casilla propia). La invitación por email sigue siendo
+      // obligatoria: sólo entra quien el dueño invitó.
       allow read: if signedIn() && (
         request.auth.uid in resource.data.memberUids ||
-        (verified() && myEmail() in resource.data.inviteEmails)
+        myEmail() in resource.data.inviteEmails
       );
 
       // Crear: sólo como dueño y único miembro.
@@ -62,8 +62,7 @@ service cloud.firestore {
         // Persona invitada aceptando: sólo se agrega a sí misma como "member"
         // y quita su propio email de las invitaciones.
         (
-          verified()
-          && myEmail() in resource.data.inviteEmails
+          myEmail() in resource.data.inviteEmails
           && !(request.auth.uid in resource.data.memberUids)
           && request.resource.data.diff(resource.data).affectedKeys()
                .hasOnly(['memberUids', 'roles', 'memberInfo', 'inviteEmails'])

@@ -397,9 +397,7 @@ export function friendly(e: unknown): string {
     'auth/weak-password': 'La contraseña es muy débil: usá al menos 6 caracteres.',
     'auth/too-many-requests': 'Demasiados intentos. Esperá unos minutos o restablecé la contraseña.',
     'auth/user-disabled': 'Esta cuenta está desactivada.',
-    'permission-denied': state.user?.emailVerified === false
-      ? 'Primero verificá tu email: tocá el link que te llegó y después “Ya verifiqué mi email”.'
-      : 'No tenés permiso para esta acción (revisá las reglas de Firestore o tu invitación).',
+    'permission-denied': 'No tenés permiso para esta acción. Pedile al dueño que te invite con este mismo email (y que las reglas de Firestore estén actualizadas).',
     unavailable: 'Sin conexión con la nube. Los cambios se guardan y se envían al volver.',
   };
   if (map[code]) return map[code];
