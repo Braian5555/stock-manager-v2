@@ -70,6 +70,9 @@ function cloudStatus(cloud: CloudState, users: AppUser[]): { status: SessionStat
   if (cloud.phase === 'loading') return { status: 'loading' };
   if (cloud.phase === 'signed_out' || cloud.phase === 'unconfigured') return { status: 'cloud_login' };
   if (cloud.phase === 'no_workspace' || !cloud.user) return { status: 'cloud_workspace' };
+  // Dispositivo recién vinculado: se espera a que bajen todos los datos antes de entrar
+  // (si no, por unos segundos se vería la app vacía o a medias).
+  if (cloud.firstDownload && !cloud.initialSynced) return { status: 'loading', text: 'Descargando tus datos…' };
   const email = cloud.user.email;
   const mine = users.find((u) => u.email === email);
   if (mine) return mine.active ? { status: 'unlocked', user: mine } : { status: 'cloud_disabled' };

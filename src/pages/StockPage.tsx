@@ -12,6 +12,7 @@ import { useSettings } from '../store/settings';
 import { EmptyState, PageHeader, SearchInput, Select, StatusBadge } from '../components/ui';
 import { MovementModal } from '../components/MovementModal';
 import { fmtNumber, matches, normalize } from '../utils/format';
+import { useIncremental } from '../hooks/useIncremental';
 
 type SortKey = 'name' | 'qty' | 'category' | 'location';
 
@@ -58,6 +59,7 @@ export function StockPage() {
     );
     return list;
   }, [products, settings, q, f.familia, f.ubicacion, f.proveedor, f.estado, sort, lk]);
+  const { visible: shown, sentinel } = useIncremental(rows, `${q}|${f.familia}|${f.ubicacion}|${f.proveedor}|${f.estado}|${sort}`);
 
   return (
     <>
@@ -114,7 +116,7 @@ export function StockPage() {
         </div>
       ) : (
         <div className="product-cards">
-          {rows.map(({ p, s }) => {
+          {shown.map(({ p, s }) => {
             const unit = lk.unit(p.unitId);
             const pct = p.maxStock > 0 ? Math.min(100, (Math.max(0, p.stock) / p.maxStock) * 100) : undefined;
             const ext = p.externalSystems?.maxirest ? extStock.get(p.externalSystems.maxirest.id) : undefined;
@@ -147,6 +149,7 @@ export function StockPage() {
               </article>
             );
           })}
+          {sentinel}
         </div>
       )}
       {moving && <MovementModal product={products.find((x) => x.id === moving.id) ?? null} onClose={() => setMoving(null)} />}

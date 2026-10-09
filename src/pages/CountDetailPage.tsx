@@ -13,6 +13,7 @@ import { Badge, EmptyState, PageHeader, SearchInput, Segmented, Select } from '.
 import { Stepper } from '../components/Stepper';
 import { fmtNumber, fmtSigned, matches } from '../utils/format';
 import { COUNT_STATUS } from './CountsPage';
+import { useIncremental } from '../hooks/useIncremental';
 
 type Show = 'all' | 'pending' | 'done';
 
@@ -42,6 +43,8 @@ export function CountDetailPage() {
     [items, byId, q, cat, show],
   );
   const summary = useMemo(() => summarizeCount(items), [items]);
+  // Al contar con el filtro "Pendientes" la lista se achica: no se reinicia la tanda por eso.
+  const { visible: shownRows, sentinel } = useIncremental(rows, `${q}|${cat}|${show}`);
 
   if (count === undefined) return <p className="muted">Cargando…</p>;
   if (count === null || !count) return <EmptyState title="Conteo no encontrado" action={<Link className="btn" to="/conteo">Volver</Link>} />;
@@ -150,7 +153,7 @@ export function CountDetailPage() {
         {rows.length === 0 ? (
           <EmptyState title="Nada para mostrar" />
         ) : (
-          rows.map(({ i, p }) => {
+          <>{shownRows.map(({ i, p }) => {
             const diff = i.counted === undefined ? undefined : i.counted - i.expected;
             return (
               <div key={i.id} className={`count-item ${i.counted !== undefined ? 'done' : ''}`}>
@@ -174,7 +177,7 @@ export function CountDetailPage() {
                 )}
               </div>
             );
-          })
+          })}{sentinel}</>
         )}
       </div>
     </>

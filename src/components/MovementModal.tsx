@@ -44,6 +44,8 @@ export function MovementModal({ product, onClose }: { product: Product | null; o
 
   const submit = async () => {
     if (newQty === undefined || qty === undefined || qty < 0) return notify('Ingresá una cantidad válida.', { tone: 'error' });
+    if (!isAdjust && qty === 0) return notify('La cantidad tiene que ser mayor a 0.', { tone: 'error' });
+    if (isAdjust && newQty === product.stock) return notify('El stock ya tiene esa cantidad: no hay nada que ajustar.', { tone: 'error' });
     if (isAdjust && mode === 'sync') {
       const ok = await confirm({
         title: '¿Confirmar ajuste sincronizado?',
@@ -119,6 +121,11 @@ export function MovementModal({ product, onClose }: { product: Product | null; o
               <p className="small muted">Maxirest es la fuente principal: un ajuste local se reemplazará en la próxima sincronización.</p>
             )}
           </fieldset>
+        )}
+        {newQty !== undefined && newQty < 0 && (
+          <div className="alert alert-warn" role="status">
+            <span>El stock va a quedar <strong>en negativo</strong>: estás sacando más de lo que figura. Se puede registrar igual; después conviene revisarlo con un conteo.</span>
+          </div>
         )}
         <div className="alert">
           <span>Stock actual <strong className="num">{fmtNumber(product.stock)}</strong> → nuevo <strong className="num">{fmtNumber(newQty)}</strong> {unit}

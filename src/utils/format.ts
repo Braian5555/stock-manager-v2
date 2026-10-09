@@ -53,3 +53,29 @@ export function localYmd(d: Date | string = new Date()): string {
   const x = typeof d === 'string' ? new Date(d) : d;
   return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`;
 }
+
+/**
+ * Lee lo que se está tipeando en un campo de cantidad (teclado del celular con coma o punto).
+ * - '' → undefined (campo vacío)
+ * - '1,' / '1.' → 1 (se está por escribir el decimal; el campo conserva el texto)
+ * - '1,5' / '1.5' → 1.5 · '1.234,5' / '1,234.5' → 1234.5
+ * - texto que no es un número → null (no se cambia el valor)
+ */
+export function parseQuantityInput(text: string): number | undefined | null {
+  const t = text.trim().replace(/\s/g, '');
+  if (t === '') return undefined;
+  if (!/^-?[\d.,]*$/.test(t) || !/\d/.test(t)) return null;
+  const lastComma = t.lastIndexOf(','), lastDot = t.lastIndexOf('.');
+  let n: string;
+  if (lastComma >= 0 && lastDot >= 0) {
+    const dec = lastComma > lastDot ? ',' : '.';
+    const thou = dec === ',' ? '.' : ',';
+    n = t.split(thou).join('').replace(dec, '.');
+  } else n = t.replace(',', '.');
+  if ((n.match(/\./g) ?? []).length > 1) return null;
+  const v = Number(n.endsWith('.') ? n.slice(0, -1) : n);
+  return Number.isFinite(v) ? v : null;
+}
+
+/** Texto inicial de un campo de cantidad, con coma decimal (1.5 → "1,5"). */
+export const quantityText = (n: number | undefined): string => (n === undefined ? '' : String(n).replace('.', ','));

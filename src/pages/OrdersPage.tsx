@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { useSession } from '../store/session';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Lightbulb, Plus, ShoppingCart } from 'lucide-react';
@@ -14,6 +15,8 @@ import { fmtDate } from '../utils/format';
 
 export const ORDER_TONE: Record<OrderStatus, string> = { borrador: '', pendiente: 'warn', enviado: 'info', recibido: 'ok', cancelado: 'error' };
 
+import { useIncremental } from '../hooks/useIncremental';
+
 export function OrdersPage() {
   const settings = useSettings();
   const { can } = useSession();
@@ -24,6 +27,8 @@ export function OrdersPage() {
   const orders = useLiveQuery(() => db.orders.orderBy('number').reverse().toArray(), []) ?? EMPTY;
   const items = useLiveQuery(() => db.orderItems.toArray(), []) ?? EMPTY;
   const list = orders.filter((o) => !filter || (filter === 'abiertos' ? OPEN_ORDER_STATUSES.includes(o.status) : o.status === filter));
+  const itemCount = useMemo(() => { const c = new Map<string, number>(); for (const i of items) c.set(i.orderId, (c.get(i.orderId) ?? 0) + 1); return c; }, [items]);
+  const { visible, sentinel } = useIncremental(list, filter);
 
   const setParam = (k: string, v: string) => {
     const n = new URLSearchParams(params);
@@ -55,8 +60,8 @@ export function OrdersPage() {
           <EmptyState icon={<ShoppingCart size={40} />} title="Sin pedidos">Creá un pedido o usá el pedido sugerido para reponer lo que falta.</EmptyState>
         ) : (
           <div className="list">
-            {list.map((o) => {
-              const n = items.filter((i) => i.orderId === o.id).length;
+            {visible.map((o) => {
+              const n = itemCount.get(o.id) ?? 0;
               return (
                 <Link key={o.id} to={`/pedidos/${o.id}`} className="list-item">
                   <span className="stat-icon" aria-hidden><ShoppingCart size={16} /></span>
@@ -68,6 +73,7 @@ export function OrdersPage() {
                 </Link>
               );
             })}
+            {sentinel}
           </div>
         )}
       </div>

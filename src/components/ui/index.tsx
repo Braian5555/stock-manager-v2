@@ -2,6 +2,7 @@ import { Search } from 'lucide-react';
 import { cloneElement, isValidElement, useEffect, useId, useState, type InputHTMLAttributes, type ReactElement, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react';
 import type { StockStatus } from '../../models';
 import { STATUS_LABEL } from '../../services/stockService';
+import { parseQuantityInput, quantityText } from '../../utils/format';
 
 export function PageHeader({ title, subtitle, actions }: { title: string; subtitle?: ReactNode; actions?: ReactNode }) {
   return (
@@ -96,17 +97,32 @@ export function Segmented<T extends string>({ value, options, onChange, label }:
 }
 
 /** Input numérico que acepta coma decimal. */
-export function NumberInput({ value, onChange, min, step = 'any', ...rest }: Omit<InputHTMLAttributes<HTMLInputElement>, 'value' | 'onChange'> & { value: number | undefined; onChange: (v: number | undefined) => void }) {
+export function NumberInput({ value, onChange, min, step: _step, ...rest }: Omit<InputHTMLAttributes<HTMLInputElement>, 'value' | 'onChange'> & { value: number | undefined; onChange: (v: number | undefined) => void }) {
+  // Campo de texto con teclado decimal (no type="number"): en celulares en español el teclado
+  // trae coma, y el campo numérico del navegador la rechaza y borra lo escrito.
+  void _step;
+  const [text, setText] = useState(quantityText(value));
+  useEffect(() => {
+    // Sólo se reescribe si el valor cambió desde afuera (no mientras se tipea "1,").
+    setText((t) => (parseQuantityInput(t) === value ? t : quantityText(value)));
+  }, [value]);
+  const allowNegative = min === undefined || Number(min) < 0;
   return (
     <input
       {...rest}
       className={`input num ${rest.className ?? ''}`}
-      type="number"
+      type="text"
       inputMode="decimal"
-      min={min}
-      step={step}
-      value={value ?? ''}
-      onChange={(e) => onChange(e.target.value === '' ? undefined : Number(e.target.value))}
+      autoComplete="off"
+      value={text}
+      onChange={(e) => {
+        const t = e.target.value;
+        if (!allowNegative && t.includes('-')) return;
+        if (!/^-?[\d.,\s]*$/.test(t)) return;
+        setText(t);
+        const n = parseQuantityInput(t);
+        if (n !== null) onChange(n);
+      }}
     />
   );
 }

@@ -589,3 +589,4 @@ hr.sep { border: 0; border-top: 1px solid var(--border); margin: 16px 0; }
   display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 6px 12px; border-radius: 999px; cursor: pointer;
   border: 1px solid color-mix(in srgb, var(--primary) 35%, var(--border)); background: var(--primary-soft); color: var(--text); font: inherit; font-size: 0.88rem;
 }
+.load-more { display: flex; justify-content: center; padding: 12px; grid-column: 1 / -1; }

@@ -27,6 +27,8 @@ export interface CloudState {
   status: SyncStatus;
   /** true cuando terminó la primera descarga completa del espacio en este arranque. */
   initialSynced?: boolean;
+  /** Primera descarga de un espacio en este dispositivo (los datos locales se reemplazaron y todavía no llegaron). */
+  firstDownload?: boolean;
   error?: string;
 }
 
@@ -149,7 +151,7 @@ async function startEngine(wsId: string, opts: { pushAll?: boolean } = {}) {
   engine = new SyncEngine(backend, wsId);
   currentWsId = wsId;
   set({ initialSynced: false });
-  engine.onStatus((status) => set(status.state === 'synced' && !state.initialSynced ? { status, initialSynced: true } : { status }));
+  engine.onStatus((status) => set(status.state === 'synced' && !state.initialSynced ? { status, initialSynced: true, firstDownload: false } : { status }));
   stopWatchWs = backend.watchWorkspace(wsId, (ws, gone) => {
     if (ws) set({ workspace: ws, phase: 'linked', error: undefined });
     else if (gone) {
@@ -311,6 +313,7 @@ export async function openWorkspace(ws: Workspace) {
     await db.invoiceImages.clear();
     await db.tombstones.clear();
   });
+  set({ firstDownload: true });
   await db.meta.put({ key: LINK_KEY, value: { wsId: ws.id, uid: user.uid } satisfies Link });
   await startEngine(ws.id);
   void refreshLists();

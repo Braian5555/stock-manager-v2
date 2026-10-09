@@ -23,6 +23,8 @@ import { fmtDateTime, fmtDay, fmtNumber } from '../utils/format';
 type Tab = 'remitos' | 'stock' | 'puntos';
 const MX_TONE: Record<Transfer['maxirest'], string> = { pendiente: 'warn', cargado: 'ok', no_aplica: '' };
 
+import { useIncremental } from '../hooks/useIncremental';
+
 export function TransfersPage() {
   const settings = useSettings();
   const [params, setParams] = useSearchParams();
@@ -63,6 +65,7 @@ function TransferList({ viewId, setView }: { viewId?: string; setView: (id?: str
 
   const list = transfers.filter((t) => (!outletId || t.outletId === outletId) && (!mx || t.maxirest === mx) && (!month || t.date.startsWith(month)));
   const pending = transfers.filter((t) => t.maxirest === 'pendiente');
+  const { visible: shownList, sentinel } = useIncremental(list, `${outletId}|${mx}|${month}`);
 
   const exportPending = async () => {
     const rows = await maxirestRows(pending);
@@ -119,7 +122,7 @@ function TransferList({ viewId, setView }: { viewId?: string; setView: (id?: str
           </EmptyState>
         ) : (
           <div className="list">
-            {list.map((t) => (
+            {shownList.map((t) => (
               <button key={t.id} type="button" className="list-item invoice-item" onClick={() => setView(t.id)} aria-label={`Remito ${transferCode(t.number)} a ${outletName.get(t.outletId) ?? ''}`}>
                 <span className="stat-icon" aria-hidden><Forklift size={16} /></span>
                 <div className="grow">
@@ -132,6 +135,7 @@ function TransferList({ viewId, setView }: { viewId?: string; setView: (id?: str
                 </div>
               </button>
             ))}
+            {sentinel}
           </div>
         )}
       </div>

@@ -10,6 +10,7 @@ import { useSettings } from '../store/settings';
 import { Badge, EmptyState, PageHeader, SearchInput, StatusBadge } from '../components/ui';
 import { ProductForm } from '../components/ProductForm';
 import { fmtNumber, matches } from '../utils/format';
+import { useIncremental } from '../hooks/useIncremental';
 
 export function ProductsPage() {
   const settings = useSettings();
@@ -27,6 +28,7 @@ export function ProductsPage() {
     () => products.filter((p) => matches(q, p.name, p.sku, lk.category(p.categoryId), lk.supplier(p.supplierId))).sort((a, b) => a.name.localeCompare(b.name, 'es')),
     [products, q, lk],
   );
+  const { visible, sentinel } = useIncremental(list, q);
 
   const remove = async (id: string, name: string) => {
     const ok = await confirm({ title: 'Eliminar producto', message: <p>¿Eliminar <strong>{name}</strong>? El historial de movimientos se conserva.</p>, confirmLabel: 'Eliminar', danger: true });
@@ -55,7 +57,7 @@ export function ProductsPage() {
                 <tr><th>Producto</th><th>Código</th><th>Familia</th><th>Ubicación</th><th>Proveedor</th><th className="num">Stock</th><th>Estado</th><th><span className="sr-only">Acciones</span></th></tr>
               </thead>
               <tbody>
-                {list.map((p) => (
+                {visible.map((p) => (
                   <tr key={p.id}>
                     <td className="cell-title">
                       {p.name} {!p.active && <Badge>Inactivo</Badge>} {p.externalSystems?.maxirest && <Badge tone="info">Maxirest</Badge>}
@@ -78,6 +80,7 @@ export function ProductsPage() {
                 ))}
               </tbody>
             </table>
+            {sentinel}
           </div>
         )}
       </div>

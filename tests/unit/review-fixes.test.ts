@@ -136,3 +136,26 @@ describe('formatos', () => {
     expect(localYmd(late)).toBe('2026-10-08');
   });
 });
+
+import { parseQuantityInput } from '../../src/utils/format';
+
+describe('cantidades tipeadas en el celular (coma o punto)', () => {
+  it('acepta coma y punto como decimal, y miles con ambos', () => {
+    expect(parseQuantityInput('')).toBeUndefined();
+    expect(parseQuantityInput('1,5')).toBe(1.5);
+    expect(parseQuantityInput('1.5')).toBe(1.5);
+    expect(parseQuantityInput('0,25')).toBe(0.25);
+    expect(parseQuantityInput('1.234,5')).toBe(1234.5);
+    expect(parseQuantityInput('1,234.5')).toBe(1234.5);
+    expect(parseQuantityInput('12')).toBe(12);
+  });
+  it('mientras se escribe el decimal ("1,") no se pierde el número', () => {
+    expect(parseQuantityInput('1,')).toBe(1);
+    expect(parseQuantityInput('1.')).toBe(1);
+  });
+  it('texto inválido no cambia el valor', () => {
+    expect(parseQuantityInput('abc')).toBeNull();
+    expect(parseQuantityInput(',')).toBeNull();
+    expect(parseQuantityInput('1.2.3')).toBeNull();
+  });
+});
