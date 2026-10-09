@@ -73,6 +73,20 @@ export interface Product extends BaseEntity {
   notes?: string;
   active: boolean;
   externalSystems?: ExternalSystems;
+  /** Receta: al anotar una producción de este producto se descuentan estos insumos. */
+  recipe?: Recipe;
+}
+
+/** Un insumo de la receta: cantidad (en su unidad de stock) por cada tanda. */
+export interface RecipeItem {
+  productId: ID;
+  quantity: number;
+}
+
+/** Receta por tanda: con `items` se obtienen `yield` unidades del producto. */
+export interface Recipe {
+  yield: number;
+  items: RecipeItem[];
 }
 
 export const MOVEMENT_TYPES = ['ingreso', 'salida', 'ajuste', 'conteo', 'devolucion', 'perdida', 'consumo', 'produccion'] as const;

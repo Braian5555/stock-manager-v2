@@ -55,3 +55,41 @@ test('producción: usuario panadero ve sólo Producción, anota con dos toques y
   await page.goto('./#/stock');
   await expect(page).toHaveURL(/#\/produccion$/);
 });
+
+test('producción con receta: al anotar se descuentan los insumos del stock', async ({ page }) => {
+  await loadDemo(page);
+  const stockOf = (name: string) => page.evaluate(async (n) => {
+    const open = indexedDB.open('stock-manager');
+    const dbi: IDBDatabase = await new Promise((r) => { open.onsuccess = () => r(open.result); });
+    const all: { name: string; stock: number }[] = await new Promise((r) => { const q = dbi.transaction('products').objectStore('products').getAll(); q.onsuccess = () => r(q.result); });
+    return all.find((p) => p.name === n)!.stock;
+  }, name);
+  const before = await stockOf('Harina 000');
+
+  // Receta: una tanda de 2 "Sal fina" lleva 1 kg de Harina 000
+  await go(page, '/productos');
+  await page.getByRole('button', { name: 'Editar Sal fina' }).click();
+  const f = dialog(page);
+  await f.getByLabel('Agregar insumo').fill('Harina 000');
+  await f.getByLabel('Rinde').fill('2');
+  await f.getByLabel('Cantidad de Harina 000').fill('1');
+  await f.getByRole('button', { name: 'Guardar' }).click();
+  await expect(f).toBeHidden();
+
+  await go(page, '/produccion');
+  await page.getByLabel('Buscar producto').fill('Sal fina');
+  await page.getByRole('listitem').filter({ hasText: 'Sal fina' }).click();
+  const m = dialog(page);
+  await expect(m).toContainText('Harina 000');
+  await m.getByLabel(/^Cantidad contada de/).fill('4');
+  await expect(m).toContainText('Se descuenta del stock:');
+  await expect(m.locator('.production-uses')).toContainText('2 kg');
+  await m.getByRole('button', { name: /^Anotar 4/ }).click();
+  await expect(page.getByText(/se descontaron 1 insumo/)).toBeVisible();
+  await expect.poll(() => stockOf('Harina 000')).toBe(before - 2);
+
+  // Deshacer devuelve la harina
+  const today = page.locator('section', { has: page.getByRole('heading', { name: 'Anotado hoy' }) });
+  await today.getByRole('button', { name: /^Deshacer/ }).click();
+  await expect.poll(() => stockOf('Harina 000')).toBe(before);
+});

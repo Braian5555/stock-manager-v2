@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import { db } from '../database/db';
 import { EMPTY, useLookups, useProducts } from '../hooks/useData';
 import type { Product, StockMovement } from '../models';
-import { applyMovement, revertMovement } from '../services/stockService';
+import { recipeConsumption, registerProduction, undoProduction } from '../services/productionService';
 import { useFeedback } from '../store/feedback';
 import { PageHeader } from '../components/ui';
 import { Modal } from '../components/ui/Modal';
@@ -71,20 +71,22 @@ export function ProductionPage() {
     setQty(undefined);
   };
   const unitOf = (p: Product) => lk.unit(p.unitId) || 'u';
+  const byId = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
 
   const save = async () => {
     if (!picked || !qty || qty <= 0) return;
     const p = picked;
     const amount = round3(qty);
-    const r = await run(() => applyMovement({ productId: p.id, type: 'produccion', delta: amount, origin: 'manual', reason: 'Producción' }));
+    const r = await run(() => registerProduction(p.id, amount));
     if (!r) return;
     setPicked(null);
-    notify(`Anotado: ${fmtNumber(amount)} ${unitOf(p)} de ${p.name}`, { undo: () => void revertMovement(r.movement) });
+    const extra = r.consumed.length ? ` · se descontaron ${r.consumed.length} ${r.consumed.length === 1 ? 'insumo' : 'insumos'}` : '';
+    notify(`Anotado: ${fmtNumber(amount)} ${unitOf(p)} de ${p.name}${extra}`, { undo: () => void undoProduction(r.movement) });
   };
 
   const undo = async (m: StockMovement) => {
-    const r = await run(() => revertMovement(m));
-    if (r) notify('Producción deshecha');
+    const r = await run(() => undoProduction(m).then(() => true));
+    if (r) notify('Producción deshecha: se devolvieron los insumos');
   };
 
   return (
@@ -173,6 +175,19 @@ export function ProductionPage() {
                 <button key={n} type="button" className="btn" onClick={() => setQty(round3((qty ?? 0) + n))}>+{fmtNumber(n)}</button>
               ))}
             </div>
+            {picked.recipe?.items.length ? (
+              <div className="production-uses" aria-live="polite">
+                <div className="small muted">{qty ? 'Se descuenta del stock:' : 'Según la receta se descuenta:'}</div>
+                <ul>
+                  {(qty ? recipeConsumption(picked, qty, byId) : picked.recipe.items.map((i) => ({ productId: i.productId, name: byId.get(i.productId)?.name ?? '?', quantity: i.quantity }))).map((c) => (
+                    <li key={c.productId}><span className="grow">{c.name}</span> <b className="num">{fmtNumber(c.quantity)} {lk.unit(byId.get(c.productId)?.unitId)}</b></li>
+                  ))}
+                </ul>
+                {!qty && <div className="small muted">(por tanda de {fmtNumber(picked.recipe.yield)} {unitOf(picked)})</div>}
+              </div>
+            ) : (
+              <p className="small muted">Este producto no tiene receta: sólo se suma lo producido.</p>
+            )}
           </div>
         )}
       </Modal>

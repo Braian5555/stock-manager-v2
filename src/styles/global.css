@@ -779,3 +779,16 @@ hr.sep { border: 0; border-top: 1px solid var(--border); margin: 16px 0; }
 .production-quick .btn { min-width: 64px; min-height: 48px; font-size: 1rem; }
 .production-save { min-height: 54px; font-size: 1.05rem; }
 .production-undone .list-title, .production-undone .num { text-decoration: line-through; color: var(--text-3); }
+.production-uses { width: 100%; max-width: 420px; padding: 12px 14px; border-radius: var(--radius-sm); background: var(--surface-2); border: 1px solid var(--border); }
+.production-uses ul { list-style: none; margin: 6px 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.production-uses li { display: flex; gap: 8px; font-size: 0.92rem; }
+
+/* Receta en el formulario de producto */
+.recipe { border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px 14px; margin: 0; display: flex; flex-direction: column; gap: 10px; }
+.recipe legend { font-weight: 700; padding: 0 6px; }
+.recipe-yield { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.recipe-items { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.recipe-items li { display: flex; align-items: center; gap: 8px; }
+.recipe-unit { min-width: 34px; }
+.recipe-add { display: flex; gap: 8px; }
+.recipe-add .input { flex: 1; }

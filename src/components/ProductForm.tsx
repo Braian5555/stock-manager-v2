@@ -3,13 +3,15 @@ import type { Product } from '../models';
 import { emptyProduct, saveProduct } from '../services/productService';
 import type { Draft } from '../services/entityService';
 import { unlink } from '../integrations/core/linking';
-import { useLookups } from '../hooks/useData';
+import { useLookups, useProducts } from '../hooks/useData';
+import { RecipeEditor } from './RecipeEditor';
 import { useFeedback } from '../store/feedback';
 import { Modal } from './ui/Modal';
 import { Field, Input, NumberInput, Select, Textarea } from './ui';
 
 export function ProductForm({ product, open, onClose }: { product?: Product; open: boolean; onClose: (saved?: Product) => void }) {
   const lk = useLookups();
+  const products = useProducts();
   const { run, notify } = useFeedback();
   const [d, setD] = useState<Draft<Product>>(emptyProduct());
   const [initial, setInitial] = useState<number | undefined>();
@@ -119,6 +121,7 @@ export function ProductForm({ product, open, onClose }: { product?: Product; ope
             </div>
           </fieldset>
         )}
+        <RecipeEditor value={d.recipe} onChange={(r) => set('recipe', r)} products={products} lk={lk} selfId={product?.id} unit={lk.unit(d.unitId)} />
         <Field label="Observaciones" className="span-all">
           <Textarea value={d.notes ?? ''} onChange={(e) => set('notes', e.target.value)} />
         </Field>
