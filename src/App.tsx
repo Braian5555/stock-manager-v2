@@ -13,6 +13,7 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { DashboardPage } from './pages/DashboardPage';
 import { StockPage } from './pages/StockPage';
 const CountsPage = lazyPage(() => import('./pages/CountsPage'), 'CountsPage');
+const ProductionPage = lazyPage(() => import('./pages/ProductionPage'), 'ProductionPage');
 const OrdersPage = lazyPage(() => import('./pages/OrdersPage'), 'OrdersPage');
 const InvoicesPage = lazyPage(() => import('./pages/InvoicesPage'), 'InvoicesPage');
 const TransfersPage = lazyPage(() => import('./pages/TransfersPage'), 'TransfersPage');
@@ -85,6 +86,7 @@ export function App() {
                 <Route path="proveedores" element={<Guard module="suppliers"><CatalogPage key="supplier" kind="supplier" /></Guard>} />
                 <Route path="conteo" element={<Guard module="count"><CountsPage /></Guard>} />
                 <Route path="conteo/:id" element={<Guard module="count"><CountDetailPage /></Guard>} />
+                <Route path="produccion" element={<Guard module="production"><ProductionPage /></Guard>} />
                 <Route path="pedidos" element={<Guard module="orders"><OrdersPage /></Guard>} />
                 <Route path="pedidos/:id" element={<Guard module="orders"><OrderEditorPage /></Guard>} />
                 <Route path="remitos" element={<Guard module="transfers"><TransfersPage /></Guard>} />

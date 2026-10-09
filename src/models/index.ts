@@ -75,7 +75,7 @@ export interface Product extends BaseEntity {
   externalSystems?: ExternalSystems;
 }
 
-export const MOVEMENT_TYPES = ['ingreso', 'salida', 'ajuste', 'conteo', 'devolucion', 'perdida', 'consumo'] as const;
+export const MOVEMENT_TYPES = ['ingreso', 'salida', 'ajuste', 'conteo', 'devolucion', 'perdida', 'consumo', 'produccion'] as const;
 export type MovementType = (typeof MOVEMENT_TYPES)[number];
 
 export type MovementOrigin = 'manual' | 'conteo' | 'pedido' | 'importacion' | 'sincronizacion' | 'deshacer' | 'alta' | 'remito';
@@ -171,7 +171,7 @@ export type LogoKind = 'default' | 'emoji' | 'image';
 export type ModuleKey =
   | 'dashboard' | 'stock' | 'count' | 'orders' | 'products' | 'suppliers' | 'locations' | 'categories'
   | 'units' | 'movements' | 'reconciliation' | 'export' | 'settings' | 'integrations' | 'cloud' | 'users' | 'invoices' | 'transfers'
-  | 'reports';
+  | 'reports' | 'production';
 
 export interface MenuItemSetting {
   key: ModuleKey;
@@ -262,11 +262,11 @@ export type StockStatus = 'normal' | 'bajo' | 'critico' | 'sin_stock';
 
 export const PERMISSIONS = [
   'stock.view', 'stock.move', 'count.do', 'count.apply', 'orders.manage', 'orders.receive', 'catalog.manage',
-  'movements.view', 'export', 'admin', 'invoices', 'transfers',
+  'movements.view', 'export', 'admin', 'invoices', 'transfers', 'production',
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];
 
-export type UserRole = 'admin' | 'manager' | 'staff' | 'custom';
+export type UserRole = 'admin' | 'manager' | 'staff' | 'production' | 'custom';
 
 /**
  * Usuario interno de la app (nombre + PIN), creado por un administrador.

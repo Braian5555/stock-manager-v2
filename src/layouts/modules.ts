@@ -1,6 +1,6 @@
 import {
   ArrowLeftRight, BarChart3, Boxes, ClipboardCheck, Cloud, Download, Forklift, Home, MapPin, Package, Plug, Receipt, Ruler, Scale, Settings as SettingsIcon,
-  ShoppingCart, Tags, Truck, UserCog,
+  ShoppingCart, Tags, Truck, UserCog, ChefHat,
   type LucideIcon,
 } from 'lucide-react';
 import type { ModuleKey, Permission, Settings } from '../models';
@@ -21,6 +21,7 @@ export const MODULE_PATH: Record<ModuleKey, string> = {
   movements: '/movimientos',
   reconciliation: '/conciliacion',
   reports: '/reportes',
+  production: '/produccion',
   export: '/exportar',
   integrations: '/integraciones',
   cloud: '/nube',
@@ -43,6 +44,7 @@ export const MODULE_ICON: Record<ModuleKey, LucideIcon> = {
   movements: ArrowLeftRight,
   reconciliation: Scale,
   reports: BarChart3,
+  production: ChefHat,
   export: Download,
   integrations: Plug,
   cloud: Cloud,
@@ -60,7 +62,7 @@ const SHORT_LABEL: Partial<Record<ModuleKey, string>> = {
 
 /** Grupos para "Más" (celular y computadora). */
 export const MODULE_GROUPS: { title: string; keys: ModuleKey[] }[] = [
-  { title: 'Operación diaria', keys: ['dashboard', 'stock', 'count', 'orders', 'movements', 'transfers', 'invoices'] },
+  { title: 'Operación diaria', keys: ['dashboard', 'stock', 'count', 'production', 'orders', 'movements', 'transfers', 'invoices'] },
   { title: 'Catálogo', keys: ['products', 'suppliers', 'categories', 'units', 'locations'] },
   { title: 'Reportes y control', keys: ['reports', 'reconciliation', 'export'] },
   { title: 'Administración', keys: ['cloud', 'users', 'integrations', 'settings'] },
@@ -82,6 +84,7 @@ export const MODULE_PERMISSIONS: Record<ModuleKey, Permission[]> = {
   movements: ['movements.view'],
   reconciliation: ['admin'],
   reports: ['movements.view', 'export'],
+  production: ['production'],
   export: ['export'],
   integrations: ['admin'],
   cloud: ['admin'],
@@ -108,12 +111,15 @@ export function visibleModules(settings: Settings, canAny: (p: Permission[]) => 
 /** Barra superior (computadora): los fijados, en el orden del menú; el resto queda en "Más". */
 export function topNavModules(settings: Settings, visible: ModuleKey[]) {
   const pinned = new Set(settings.navTop ?? []);
-  const top = visible.filter((k) => pinned.has(k));
-  return { top, more: visible.filter((k) => !pinned.has(k) && k !== 'settings') };
+  let top = visible.filter((k) => pinned.has(k));
+  // Usuarios con pocas secciones (p. ej. sólo Producción): se muestran directo en la barra.
+  if (!top.length) top = visible.filter((k) => k !== 'settings').slice(0, 8);
+  return { top, more: visible.filter((k) => !top.includes(k) && k !== 'settings') };
 }
 
 /** Barra inferior (celular): hasta 4 módulos + "Más". */
 export function bottomNavModules(settings: Settings, visible: ModuleKey[]): ModuleKey[] {
   const allowed = new Set(visible);
-  return (settings.navBottom ?? []).filter((k) => allowed.has(k)).slice(0, 4);
+  const list = (settings.navBottom ?? []).filter((k) => allowed.has(k)).slice(0, 4);
+  return list.length ? list : visible.filter((k) => k !== 'settings').slice(0, 4);
 }

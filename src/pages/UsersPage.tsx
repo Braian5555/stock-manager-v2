@@ -11,6 +11,7 @@ import { Badge, Field, Input, PageHeader, Select } from '../components/ui';
 import { UserAvatar } from '../components/auth/UserAvatar';
 
 const ROLE_HELP: Record<UserRole, string> = {
+  production: 'Sólo anota lo que produce. Ve una única pantalla con botones grandes.',
   admin: 'Todo, incluidos usuarios, configuración, nube e integraciones.',
   manager: 'Todo el trabajo diario (stock, conteos, pedidos, productos, exportar). Sin administración.',
   staff: 'Ver stock, hacer conteos y recibir pedidos.',

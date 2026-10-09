@@ -1,6 +1,6 @@
 import { ChevronDown, CloudOff, LayoutGrid, Search, Settings as SettingsIcon, UploadCloud } from 'lucide-react';
 import { Suspense, useEffect, useRef, useState } from 'react';
-import { Link, NavLink, Outlet, useLocation } from 'react-router';
+import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router';
 import { GlobalSearch } from '../components/GlobalSearch';
 import { Logo } from '../components/Logo';
 import { useIntegration, useOnline, usePendingJobs } from '../hooks/useData';
@@ -53,8 +53,15 @@ export function AppLayout() {
     window.scrollTo(0, 0);
   }, [location.pathname]);
 
-  const { canAny, can } = useSession();
+  const { canAny, can, user } = useSession();
   const visible = visibleModules(settings, canAny);
+  const navigate = useNavigate();
+  // Al entrar alguien que usa una sola sección (p. ej. el panadero), se abre directo esa.
+  const single = visible.filter((k) => k !== 'settings').length === 1 ? visible.find((k) => k !== 'settings') : undefined;
+  useEffect(() => {
+    if (single && location.pathname !== MODULE_PATH[single]) navigate(MODULE_PATH[single], { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- sólo al cambiar de usuario
+  }, [user?.id, single]);
   const { top, more } = topNavModules(settings, visible);
   const bottom = bottomNavModules(settings, visible);
   const connected = integration && integration.mode !== 'disabled' && integration.mode !== 'excel' && integration.status !== 'desconectado';
@@ -78,11 +85,13 @@ export function AppLayout() {
         </nav>
 
         <span className="grow topbar-spacer" />
-        <button type="button" className="search-trigger" onClick={() => setSearchOpen(true)} aria-label="Buscar (Ctrl+K)">
-          <Search size={18} aria-hidden />
-          <span className="search-trigger-text">Buscar…</span>
-          <kbd className="search-trigger-kbd">Ctrl K</kbd>
-        </button>
+        {can('stock.view') && (
+          <button type="button" className="search-trigger" onClick={() => setSearchOpen(true)} aria-label="Buscar (Ctrl+K)">
+            <Search size={18} aria-hidden />
+            <span className="search-trigger-text">Buscar…</span>
+            <kbd className="search-trigger-kbd">Ctrl K</kbd>
+          </button>
+        )}
         <SyncBadge compact />
         {can('admin') && (
           <NavLink to="/configuracion" className="btn btn-ghost icon-btn topbar-settings" aria-label="Configuración" title="Configuración">

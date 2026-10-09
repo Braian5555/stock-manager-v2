@@ -13,7 +13,7 @@ export const STATUS_LABEL: Record<StockStatus, string> = {
 
 /** Grupos que usan Reportes y el filtro de Movimientos. */
 export const MOVEMENT_GROUPS = {
-  ingresos: { label: 'Ingresos', types: ['ingreso', 'devolucion'] },
+  ingresos: { label: 'Ingresos', types: ['ingreso', 'devolucion', 'produccion'] },
   salidas: { label: 'Salidas y consumos', types: ['salida', 'consumo'] },
   perdidas: { label: 'Pérdidas', types: ['perdida'] },
   ajustes: { label: 'Ajustes y conteos', types: ['ajuste', 'conteo'] },
@@ -28,6 +28,7 @@ export const MOVEMENT_LABEL: Record<MovementType, string> = {
   devolucion: 'Devolución',
   perdida: 'Pérdida',
   consumo: 'Consumo',
+  produccion: 'Producción',
 };
 
 /** Tipos que restan stock cuando se cargan como cantidad positiva. */

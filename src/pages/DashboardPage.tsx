@@ -1,6 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
-  AlertTriangle, ArrowLeftRight, Boxes, Camera, ChevronRight, ClipboardCheck, Forklift, Lock, LogOut, Package, PackageCheck, Plus, Search,
+  AlertTriangle, ArrowLeftRight, Boxes, Camera, ChefHat, ChevronRight, ClipboardCheck, Forklift, Lock, LogOut, Package, PackageCheck, Plus, Search,
   ShoppingCart, Truck, type LucideIcon,
 } from 'lucide-react';
 import { useMemo } from 'react';
@@ -60,6 +60,7 @@ interface Action {
 const ACTIONS: Action[] = [
   { label: 'Contar stock', to: '/conteo', icon: ClipboardCheck, perms: ['count.do'] },
   { label: 'Registrar movimiento', to: '/stock', icon: ArrowLeftRight, perms: ['stock.move'] },
+  { label: 'Anotar producción', to: '/produccion', icon: ChefHat, perms: ['production'] },
   { label: 'Recibir pedido', to: '/pedidos?estado=abiertos', icon: PackageCheck, perms: ['orders.receive', 'orders.manage'] },
   { label: 'Nuevo pedido', to: '/pedidos/nuevo', icon: ShoppingCart, perms: ['orders.manage'] },
   { label: 'Nuevo remito', to: '/remitos/nuevo', icon: Forklift, perms: ['transfers'] },

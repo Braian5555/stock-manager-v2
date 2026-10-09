@@ -10,6 +10,7 @@ export const MODULES: { key: ModuleKey; label: string; primary?: boolean; locked
   { key: 'stock', label: 'Stock', primary: true },
   { key: 'products', label: 'Productos' },
   { key: 'count', label: 'Conteo', primary: true },
+  { key: 'production', label: 'Producción' },
   { key: 'orders', label: 'Pedidos', primary: true },
   { key: 'movements', label: 'Movimientos' },
   { key: 'transfers', label: 'Remitos internos' },

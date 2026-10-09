@@ -115,7 +115,7 @@ export function ReportsPage() {
       </div>
 
       <p className="small muted" style={{ marginTop: 16 }}>
-        Tipos incluidos: {(['ingreso', 'devolucion', 'salida', 'consumo', 'perdida', 'ajuste', 'conteo'] as MovementType[]).map((t) => MOVEMENT_LABEL[t]).join(', ')}.
+        Tipos incluidos: {(['ingreso', 'produccion', 'devolucion', 'salida', 'consumo', 'perdida', 'ajuste', 'conteo'] as MovementType[]).map((t) => MOVEMENT_LABEL[t]).join(', ')}.
         Para el detalle completo, usá Movimientos o exportá a Excel.
       </p>
     </>
