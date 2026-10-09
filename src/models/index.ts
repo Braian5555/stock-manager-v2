@@ -105,6 +105,8 @@ export interface StockMovement extends BaseEntity {
   absolute?: boolean;
   /** Usuario que registró el movimiento (copia del nombre para el historial). */
   performedBy?: Actor;
+  /** Nombre del producto al momento del movimiento (para el historial si después se elimina). */
+  productName?: string;
   /**
    * Punto gastronómico donde ocurre el movimiento. Si falta, es el Depósito Central
    * (el stock de `Product.stock`). El stock de cada punto se calcula con sus movimientos.

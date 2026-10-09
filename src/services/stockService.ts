@@ -11,6 +11,15 @@ export const STATUS_LABEL: Record<StockStatus, string> = {
   sin_stock: 'Sin stock',
 };
 
+/** Grupos que usan Reportes y el filtro de Movimientos. */
+export const MOVEMENT_GROUPS = {
+  ingresos: { label: 'Ingresos', types: ['ingreso', 'devolucion'] },
+  salidas: { label: 'Salidas y consumos', types: ['salida', 'consumo'] },
+  perdidas: { label: 'Pérdidas', types: ['perdida'] },
+  ajustes: { label: 'Ajustes y conteos', types: ['ajuste', 'conteo'] },
+} as const satisfies Record<string, { label: string; types: readonly MovementType[] }>;
+export type MovementGroup = keyof typeof MOVEMENT_GROUPS;
+
 export const MOVEMENT_LABEL: Record<MovementType, string> = {
   ingreso: 'Ingreso',
   salida: 'Salida',
@@ -95,6 +104,7 @@ export async function applyMovement(input: MovementInput): Promise<MovementResul
       createdAt: t,
       updatedAt: t,
       productId: product.id,
+      productName: product.name,
       type: input.type,
       quantityBefore: before,
       quantityAfter: after,

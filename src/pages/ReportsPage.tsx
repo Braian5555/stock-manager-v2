@@ -5,11 +5,11 @@ import { Link } from 'react-router';
 import { db } from '../database/db';
 import { EMPTY, useLookups, useProducts } from '../hooks/useData';
 import type { MovementType } from '../models';
-import { MOVEMENT_LABEL, OUTGOING_TYPES, statusOf } from '../services/stockService';
+import { MOVEMENT_GROUPS, MOVEMENT_LABEL, OUTGOING_TYPES, statusOf, type MovementGroup } from '../services/stockService';
 import { useSession } from '../store/session';
 import { useSettings } from '../store/settings';
 import { EmptyState, PageHeader, Segmented } from '../components/ui';
-import { fmtNumber } from '../utils/format';
+import { fmtNumber, localYmd } from '../utils/format';
 import { menuLabel } from '../services/settingsService';
 
 const PERIODS = [
@@ -28,7 +28,13 @@ export function ReportsPage() {
   const lk = useLookups();
   const products = useProducts();
   const [days, setDays] = useState('30');
-  const since = useMemo(() => new Date(Date.now() - Number(days) * 86_400_000).toISOString(), [days]);
+  // Días completos (desde las 0 h): coincide con el filtro "Desde" de Movimientos.
+  const since = useMemo(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    d.setDate(d.getDate() - (Number(days) - 1));
+    return d.toISOString();
+  }, [days]);
   const movements = useLiveQuery(() => db.movements.where('createdAt').aboveOrEqual(since).toArray(), [since]) ?? EMPTY;
 
   const byType = useMemo(() => {
@@ -48,6 +54,12 @@ export function ReportsPage() {
     for (const x of movements) if ((x.type === 'ingreso' || x.type === 'devolucion') && x.delta > 0) inn.set(x.productId, (inn.get(x.productId) ?? 0) + x.delta);
     return [...inn.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10);
   }, [movements]);
+
+  // Nombre guardado en el movimiento, para productos que después se eliminaron.
+  const savedName = useMemo(() => new Map(movements.filter((m) => m.productName).map((m) => [m.productId, m.productName!])), [movements]);
+  const sinceYmd = localYmd(since);
+  const movLink = (extra: Record<string, string>) => `/movimientos?${new URLSearchParams({ desde: sinceYmd, ...extra })}`;
+  const countGroup = (g: MovementGroup) => (MOVEMENT_GROUPS[g].types as readonly MovementType[]).reduce((a, t) => a + (byType.get(t) ?? 0), 0);
 
   const active = products.filter((p) => p.active);
   const productById = new Map(products.map((p) => [p.id, p]));
@@ -83,17 +95,18 @@ export function ReportsPage() {
       </div>
 
       <div className="grid grid-stats" style={{ marginBottom: 16 }}>
-        <div className="card stat"><span className="stat-icon"><ArrowUpRight size={18} aria-hidden /></span><span className="stat-value">{fmtNumber((byType.get('ingreso') ?? 0) + (byType.get('devolucion') ?? 0))}</span><span className="stat-label">Ingresos registrados</span></div>
-        <div className="card stat"><span className="stat-icon"><ArrowDownRight size={18} aria-hidden /></span><span className="stat-value">{fmtNumber((byType.get('salida') ?? 0) + (byType.get('consumo') ?? 0))}</span><span className="stat-label">Salidas y consumos</span></div>
-        <div className="card stat"><span className="stat-icon"><TrendingDown size={18} aria-hidden /></span><span className="stat-value">{fmtNumber(byType.get('perdida') ?? 0)}</span><span className="stat-label">Pérdidas</span></div>
-        <div className="card stat"><span className="stat-icon"><Scale size={18} aria-hidden /></span><span className="stat-value">{fmtNumber((byType.get('ajuste') ?? 0) + (byType.get('conteo') ?? 0))}</span><span className="stat-label">Ajustes y conteos</span></div>
-        <div className="card stat"><span className="stat-icon"><PackageX size={18} aria-hidden /></span><span className="stat-value">{fmtNumber(active.filter((p) => statusOf(p, settings) === 'sin_stock').length)}</span><span className="stat-label">Sin stock hoy</span></div>
-        <div className="card stat"><span className="stat-icon"><Tags size={18} aria-hidden /></span><span className="stat-value">{fmtNumber(movements.length)}</span><span className="stat-label">Movimientos en total</span></div>
+        <Tile to={movLink({ tipo: 'grupo:ingresos' })} icon={<ArrowUpRight size={18} aria-hidden />} value={countGroup('ingresos')} label="Ingresos registrados" />
+        <Tile to={movLink({ tipo: 'grupo:salidas' })} icon={<ArrowDownRight size={18} aria-hidden />} value={countGroup('salidas')} label="Salidas y consumos" />
+        <Tile to={movLink({ tipo: 'grupo:perdidas' })} icon={<TrendingDown size={18} aria-hidden />} value={countGroup('perdidas')} label="Pérdidas" />
+        <Tile to={movLink({ tipo: 'grupo:ajustes' })} icon={<Scale size={18} aria-hidden />} value={countGroup('ajustes')} label="Ajustes y conteos" />
+        <Tile to="/stock?estado=sin_stock" icon={<PackageX size={18} aria-hidden />} value={active.filter((p) => statusOf(p, settings) === 'sin_stock').length} label="Sin stock hoy" />
+        <Tile to={movLink({})} icon={<Tags size={18} aria-hidden />} value={movements.length} label="Movimientos en total" />
       </div>
+      <p className="small muted" style={{ margin: '-6px 0 16px' }}>Tocá un recuadro o un producto para ver el detalle de los movimientos.</p>
 
       <div className="grid grid-2" style={{ marginBottom: 16 }}>
-        <TopList title="Lo que más salió" rows={topOut} productById={productById} unit={lk.unit} sign="-" empty="No hubo salidas, consumos ni pérdidas en el período." />
-        <TopList title="Lo que más ingresó" rows={topIn} productById={productById} unit={lk.unit} sign="+" empty="No hubo ingresos en el período." />
+        <TopList title="Lo que más salió" rows={topOut} productById={productById} savedName={savedName} unit={lk.unit} sign="-" empty="No hubo salidas, consumos ni pérdidas en el período." link={(id) => movLink({ producto: id })} />
+        <TopList title="Lo que más ingresó" rows={topIn} productById={productById} savedName={savedName} unit={lk.unit} sign="+" empty="No hubo ingresos en el período." link={(id) => movLink({ producto: id, tipo: 'grupo:ingresos' })} />
       </div>
 
       <div className="grid grid-2">
@@ -109,8 +122,19 @@ export function ReportsPage() {
   );
 }
 
-function TopList({ title, rows, productById, unit, sign, empty }: {
-  title: string; rows: [string, number][]; productById: Map<string, { name: string; unitId?: string }>; unit: (id?: string) => string; sign: string; empty: string;
+function Tile({ to, icon, value, label }: { to: string; icon: React.ReactNode; value: number; label: string }) {
+  return (
+    <Link to={to} className="card stat" aria-label={`${label}: ${value}. Ver detalle`}>
+      <span className="stat-icon">{icon}</span>
+      <span className="stat-value">{fmtNumber(value)}</span>
+      <span className="stat-label">{label}</span>
+    </Link>
+  );
+}
+
+function TopList({ title, rows, productById, savedName, unit, sign, empty, link }: {
+  title: string; rows: [string, number][]; productById: Map<string, { name: string; unitId?: string }>; savedName: Map<string, string>;
+  unit: (id?: string) => string; sign: string; empty: string; link: (productId: string) => string;
 }) {
   return (
     <section className="card" aria-label={title}>
@@ -120,11 +144,11 @@ function TopList({ title, rows, productById, unit, sign, empty }: {
           {rows.map(([id, qty], i) => {
             const p = productById.get(id);
             return (
-              <div key={id} className="list-item">
+              <Link key={id} to={link(id)} className="list-item">
                 <span className="rank" aria-hidden>{i + 1}</span>
-                <div className="grow list-title truncate">{p?.name ?? '(producto eliminado)'}</div>
+                <div className="grow list-title truncate">{p?.name ?? (savedName.get(id) ? `${savedName.get(id)} (eliminado)` : '(producto eliminado)')}</div>
                 <strong className={`num ${sign === '+' ? 'pos' : 'neg'}`}>{sign}{fmtNumber(qty)} {unit(p?.unitId)}</strong>
-              </div>
+              </Link>
             );
           })}
         </div>
