@@ -1,11 +1,11 @@
 import { useLiveQuery } from 'dexie-react-hooks';
-import { ChevronRight, MapPin, Mail, Pencil, Phone, Plus, Ruler, Tags, Trash2, Truck } from 'lucide-react';
+import { ChevronRight, ListPlus, MapPin, Mail, Pencil, Phone, Plus, Ruler, Tags, Trash2, Truck } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import type { Table } from 'dexie';
 import { db } from '../database/db';
 import type { BaseEntity, ModuleKey } from '../models';
-import { countProductsUsing, deleteCatalogItem, saveEntity, type Draft } from '../services/entityService';
+import { bulkAddSuppliers, countProductsUsing, deleteCatalogItem, parseSupplierLines, saveEntity, type Draft } from '../services/entityService';
 import { menuLabel } from '../services/settingsService';
 import { useFeedback } from '../store/feedback';
 import { useSettings } from '../store/settings';
@@ -57,6 +57,7 @@ export function CatalogPage({ kind }: { kind: Kind }) {
   const [q, setQ] = useState('');
   const [params, setParams] = useSearchParams();
   const [editing, setEditing] = useState<Partial<Row> | null>(null);
+  const [bulkText, setBulkText] = useState<string | null>(null);
   const Icon = cfg.icon;
 
   useEffect(() => {
@@ -108,6 +109,16 @@ export function CatalogPage({ kind }: { kind: Kind }) {
     if (ok) setEditing(null);
   };
 
+  const bulkLines = bulkText === null ? [] : parseSupplierLines(bulkText);
+  const saveBulk = async () => {
+    if (!bulkLines.length) return notify('Pegá al menos un proveedor.', { tone: 'error' });
+    const res = await run(() => bulkAddSuppliers(bulkLines));
+    if (!res) return;
+    setBulkText(null);
+    const msg = `${res.added} ${res.added === 1 ? 'proveedor agregado' : 'proveedores agregados'}`;
+    notify(res.skipped.length ? `${msg}. ${res.skipped.length} ya existían y no se tocaron.` : msg);
+  };
+
   const remove = async (r: Row) => {
     const n = await countProductsUsing(kind, r.id);
     const ok = await confirm({
@@ -131,7 +142,12 @@ export function CatalogPage({ kind }: { kind: Kind }) {
       <PageHeader
         title={menuLabel(settings, cfg.module)}
         subtitle={cfg.help}
-        actions={<button type="button" className="btn btn-primary" onClick={() => setEditing({})}><Plus size={18} aria-hidden /> {cfg.male ? 'Nuevo' : 'Nueva'} {cfg.singular}</button>}
+        actions={
+          <>
+            {kind === 'supplier' && <button type="button" className="btn" onClick={() => setBulkText('')}><ListPlus size={18} aria-hidden /> Cargar varios</button>}
+            <button type="button" className="btn btn-primary" onClick={() => setEditing({})}><Plus size={18} aria-hidden /> {cfg.male ? 'Nuevo' : 'Nueva'} {cfg.singular}</button>
+          </>
+        }
       />
       <div className="toolbar"><SearchInput value={q} onChange={setQ} /></div>
       <div className="card">
@@ -187,6 +203,19 @@ export function CatalogPage({ kind }: { kind: Kind }) {
           ))}
         </form>
       </Modal>
+      {kind === 'supplier' && (
+        <Modal
+          open={bulkText !== null}
+          title="Cargar varios proveedores"
+          onClose={() => setBulkText(null)}
+          footer={<><button type="button" className="btn" onClick={() => setBulkText(null)}>Cancelar</button><button type="button" className="btn btn-primary" onClick={() => void saveBulk()} disabled={!bulkLines.length}>Agregar {bulkLines.length || ''}</button></>}
+        >
+          <Field label="Un proveedor por línea" hint="opcional: “Nombre ; nota” para guardar el rubro u otro dato en Notas">
+            <Textarea rows={12} value={bulkText ?? ''} data-autofocus placeholder={'Distribuidora Ejemplo ; Almacén\nFrigorífico Ejemplo ; Carnes'} onChange={(e) => setBulkText(e.target.value)} />
+          </Field>
+          <p className="small muted">{bulkLines.length} {bulkLines.length === 1 ? 'proveedor' : 'proveedores'} para agregar. Los que ya estén cargados con el mismo nombre se saltean.</p>
+        </Modal>
+      )}
     </>
   );
 }

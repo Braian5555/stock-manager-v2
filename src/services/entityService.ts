@@ -2,6 +2,7 @@ import type { Table } from 'dexie';
 import { db } from '../database/db';
 import type { BaseEntity, Category, Location, Product, Supplier, Unit } from '../models';
 import { nowIso, uuid } from '../utils/id';
+import { normalize } from '../utils/format';
 
 export type Draft<T extends BaseEntity> = Omit<T, 'id' | 'createdAt' | 'updatedAt'> & { id?: string };
 
@@ -78,5 +79,48 @@ export async function deleteCatalogItem(kind: CatalogKind, id: string): Promise<
         });
       },
     };
+  });
+}
+
+/** Una línea de la carga masiva de proveedores: "Nombre" o "Nombre ; Notas". */
+export interface SupplierLine { name: string; notes?: string }
+
+/**
+ * Interpreta texto pegado (una línea por proveedor). El nombre y las notas se separan
+ * con punto y coma, tabulación o barra vertical. Ignora líneas vacías y repetidas.
+ */
+export function parseSupplierLines(text: string): SupplierLine[] {
+  const seen = new Set<string>();
+  const out: SupplierLine[] = [];
+  for (const raw of text.split(/\r?\n/)) {
+    const [name, ...rest] = raw.split(/[;\t|]/).map((s) => s.trim());
+    if (!name) continue;
+    const key = normalize(name);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const notes = rest.filter(Boolean).join(' · ');
+    out.push(notes ? { name, notes } : { name });
+  }
+  return out;
+}
+
+/**
+ * Agrega varios proveedores de una vez. No duplica: si ya existe uno con el mismo nombre
+ * (sin distinguir mayúsculas ni tildes) lo saltea y no toca sus datos.
+ */
+export async function bulkAddSuppliers(lines: SupplierLine[]): Promise<{ added: number; skipped: string[] }> {
+  return db.transaction('rw', db.suppliers, async () => {
+    const existing = new Set((await db.suppliers.toArray()).map((s) => normalize(s.name)));
+    const t = nowIso();
+    const toAdd: Supplier[] = [];
+    const skipped: string[] = [];
+    for (const l of lines) {
+      const key = normalize(l.name);
+      if (existing.has(key)) { skipped.push(l.name); continue; }
+      existing.add(key);
+      toAdd.push({ id: uuid(), createdAt: t, updatedAt: t, name: l.name, ...(l.notes ? { notes: l.notes } : {}) });
+    }
+    if (toAdd.length) await db.suppliers.bulkAdd(toAdd);
+    return { added: toAdd.length, skipped };
   });
 }
