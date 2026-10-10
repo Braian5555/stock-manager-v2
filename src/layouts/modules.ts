@@ -123,3 +123,55 @@ export function bottomNavModules(settings: Settings, visible: ModuleKey[]): Modu
   const list = (settings.navBottom ?? []).filter((k) => allowed.has(k)).slice(0, 4);
   return list.length ? list : visible.filter((k) => k !== 'settings').slice(0, 4);
 }
+
+// ───────────── Secciones (barra lateral de la computadora + pestañas) ─────────────
+
+export interface Section {
+  key: string;
+  icon: LucideIcon;
+  /** Nombre fijo; si falta se usa el nombre (personalizable) del primer módulo. */
+  label?: string;
+  modules: ModuleKey[];
+  /** Va abajo en la barra lateral (configuración). */
+  bottom?: boolean;
+}
+
+/** Cada sección agrupa módulos relacionados, que se muestran como pestañas arriba. */
+export const SECTIONS: Section[] = [
+  { key: 'inicio', icon: Home, modules: ['dashboard'] },
+  { key: 'stock', icon: Boxes, modules: ['stock', 'movements', 'count', 'reconciliation'] },
+  { key: 'produccion', icon: ChefHat, modules: ['production'] },
+  { key: 'productos', icon: Package, modules: ['products', 'categories', 'units', 'locations'] },
+  { key: 'compras', icon: ShoppingCart, label: 'Compras', modules: ['orders', 'suppliers', 'invoices'] },
+  { key: 'remitos', icon: Forklift, modules: ['transfers'] },
+  { key: 'reportes', icon: BarChart3, modules: ['reports', 'export'] },
+  { key: 'config', icon: SettingsIcon, modules: ['settings', 'users', 'cloud', 'integrations'], bottom: true },
+];
+
+export interface VisibleSection extends Section {
+  label: string;
+  /** Módulos de la sección que esta persona puede ver, en el orden del menú configurado. */
+  tabs: ModuleKey[];
+}
+
+/** Secciones con al menos un módulo visible para esta persona. */
+export function visibleSections(settings: Settings, visible: ModuleKey[]): VisibleSection[] {
+  const order = new Map(visible.map((k, i) => [k, i]));
+  return SECTIONS.map((s) => {
+    const tabs = s.modules.filter((k) => order.has(k)).sort((a, b) => order.get(a)! - order.get(b)!);
+    // Configuración siempre primero dentro de su sección.
+    if (s.key === 'config') tabs.sort((a, b) => Number(b === 'settings') - Number(a === 'settings'));
+    const first = s.modules.find((k) => order.has(k)) ?? s.modules[0];
+    return { ...s, tabs, label: s.label ?? navLabel(settings, first) };
+  }).filter((s) => s.tabs.length > 0);
+}
+
+/** Módulo de la ruta actual (la ruta más específica que coincide). */
+export function moduleOfPath(pathname: string): ModuleKey | undefined {
+  let best: ModuleKey | undefined;
+  for (const [k, path] of Object.entries(MODULE_PATH) as [ModuleKey, string][]) {
+    const hit = path === '/' ? pathname === '/' : pathname === path || pathname.startsWith(`${path}/`);
+    if (hit && (!best || path.length > MODULE_PATH[best].length)) best = k;
+  }
+  return best;
+}

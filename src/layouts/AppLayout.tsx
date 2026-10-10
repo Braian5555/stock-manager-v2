@@ -1,5 +1,5 @@
-import { ChevronDown, CloudOff, LayoutGrid, Search, Settings as SettingsIcon, UploadCloud } from 'lucide-react';
-import { Suspense, useEffect, useRef, useState } from 'react';
+import { ChevronLeft, ChevronRight, CloudOff, HelpCircle, LayoutGrid, Search, UploadCloud } from 'lucide-react';
+import { Suspense, useEffect, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router';
 import { GlobalSearch } from '../components/GlobalSearch';
 import { Logo } from '../components/Logo';
@@ -8,7 +8,7 @@ import { syncPending } from '../integrations/integrationService';
 import { UpdatePrompt } from '../pwa/UpdatePrompt';
 import { useFeedback } from '../store/feedback';
 import { useSettings } from '../store/settings';
-import { MODULE_GROUPS, MODULE_ICON, MODULE_PATH, bottomNavModules, navLabel, topNavModules, visibleModules } from './modules';
+import { MODULE_ICON, MODULE_PATH, bottomNavModules, moduleOfPath, navLabel, visibleModules, visibleSections, type VisibleSection } from './modules';
 import { useAutoSync } from '../hooks/useAutoSync';
 import { SyncBadge } from '../components/SyncBadge';
 import { QuickAdd } from '../components/QuickAdd';
@@ -18,9 +18,9 @@ import type { ModuleKey } from '../models';
 
 /**
  * Estructura de la app:
- * - Computadora (≥ 1024 px): barra superior con los módulos principales, "Más", buscador,
- *   estado de sincronización, configuración y usuario.
- * - Celular/tablet: encabezado compacto + barra inferior fija (4 módulos + "Más").
+ * - Computadora (≥ 1024 px): barra lateral con las secciones (se puede achicar), encabezado
+ *   claro con buscador, sincronización y usuario, y pestañas con los módulos de la sección.
+ * - Celular/tablet: encabezado compacto, pestañas de la sección y barra inferior fija (4 módulos + "Más").
  */
 export function AppLayout() {
   const settings = useSettings();
@@ -63,13 +63,16 @@ export function AppLayout() {
     if (single && location.pathname !== MODULE_PATH[single]) navigate(MODULE_PATH[single], { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- sólo al cambiar de usuario
   }, [user?.id, single]);
-  const { top, more } = topNavModules(settings, visible);
+  const sections = visibleSections(settings, visible);
+  const current = moduleOfPath(location.pathname);
+  const section = sections.find((sec) => current && sec.tabs.includes(current));
   const bottom = bottomNavModules(settings, visible);
+  const [collapsed, setCollapsed] = useState(() => readCollapsed());
+  const toggleSidebar = () => setCollapsed((c) => { writeCollapsed(!c); return !c; });
   const connected = integration && integration.mode !== 'disabled' && integration.mode !== 'excel' && integration.status !== 'desconectado';
-  const moreActive = more.some((k) => k !== 'dashboard' && location.pathname.startsWith(MODULE_PATH[k]));
 
   return (
-    <div className="app">
+    <div className={`app ${collapsed ? 'side-collapsed' : ''}`}>
       <a href="#contenido" className="skip-link" onClick={(e) => { e.preventDefault(); document.getElementById('contenido')?.focus(); }}>Saltar al contenido</a>
       <header className="topbar">
         <Link to="/" className="brand" aria-label={`${settings.businessName} — Inicio`}>
@@ -80,11 +83,7 @@ export function AppLayout() {
           </span>
         </Link>
 
-        <nav className="topnav" aria-label="Navegación principal">
-          {top.map((k) => <TopLink key={k} k={k} label={navLabel(settings, k)} />)}
-          {more.length > 0 && <MoreMenu keys={more} active={moreActive} />}
-        </nav>
-
+        {section && <span className="topbar-title truncate">{section.label}</span>}
         <span className="grow topbar-spacer" />
         {can('stock.view') && (
           <button type="button" className="search-trigger" onClick={() => setSearchOpen(true)} aria-label="Buscar (Ctrl+K)">
@@ -94,13 +93,11 @@ export function AppLayout() {
           </button>
         )}
         <SyncBadge compact />
-        {can('admin') && (
-          <NavLink to="/configuracion" className="btn btn-ghost icon-btn topbar-settings" aria-label="Configuración" title="Configuración">
-            <SettingsIcon size={20} aria-hidden />
-          </NavLink>
-        )}
         <UserMenu />
       </header>
+
+      <Sidebar sections={sections} active={section?.key ?? (/^\/(ayuda|acerca)/.test(location.pathname) ? 'ayuda' : undefined)} collapsed={collapsed} onToggle={toggleSidebar} />
+      {section && section.tabs.length > 1 && <SectionTabs tabs={section.tabs} label={section.label} />}
 
       <UpdatePrompt />
       {!online && (
@@ -145,65 +142,68 @@ export function AppLayout() {
   );
 }
 
-function TopLink({ k, label }: { k: ModuleKey; label: string }) {
-  const Icon = MODULE_ICON[k];
+const SIDE_KEY = 'sm:sidebar-collapsed';
+function readCollapsed(): boolean {
+  try {
+    return localStorage.getItem(SIDE_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+function writeCollapsed(v: boolean) {
+  try {
+    localStorage.setItem(SIDE_KEY, v ? '1' : '0');
+  } catch {
+    /* sin almacenamiento: queda sólo en esta sesión */
+  }
+}
+
+/** Barra lateral (computadora): una entrada por sección; abajo, Configuración y Ayuda. */
+function Sidebar({ sections, active, collapsed, onToggle }: { sections: VisibleSection[]; active?: string; collapsed: boolean; onToggle: () => void }) {
+  const settings = useSettings();
+  const item = (sec: VisibleSection) => {
+    const Icon = sec.icon;
+    return (
+      <Link key={sec.key} to={MODULE_PATH[sec.tabs[0]]} className={`side-item ${active === sec.key ? 'active' : ''}`} aria-current={active === sec.key ? 'page' : undefined} title={collapsed ? sec.label : undefined}>
+        <Icon size={20} aria-hidden />
+        <span className="side-label">{sec.label}</span>
+      </Link>
+    );
+  };
   return (
-    <NavLink to={MODULE_PATH[k]} end={k === 'dashboard'} className="topnav-item" title={label}>
-      <Icon size={19} aria-hidden />
-      <span className="topnav-label">{label}</span>
-    </NavLink>
+    <aside className="sidebar">
+      <div className="side-head">
+        <Link to="/" className="side-brand" aria-label={`${settings.businessName} — Inicio`}>
+          <Logo size={32} />
+          <span className="side-label side-brand-name truncate">{settings.businessName}</span>
+        </Link>
+        <button type="button" className="side-toggle" onClick={onToggle} aria-label={collapsed ? 'Agrandar menú' : 'Achicar menú'} aria-expanded={!collapsed}>
+          {collapsed ? <ChevronRight size={18} aria-hidden /> : <ChevronLeft size={18} aria-hidden />}
+        </button>
+      </div>
+      <nav className="side-nav" aria-label="Navegación principal">
+        {sections.filter((s) => !s.bottom).map(item)}
+        <span className="grow" />
+        {sections.filter((s) => s.bottom).map(item)}
+        <Link to="/ayuda" className={`side-item ${active === 'ayuda' ? 'active' : ''}`} title={collapsed ? 'Ayuda' : undefined}>
+          <HelpCircle size={20} aria-hidden />
+          <span className="side-label">Ayuda</span>
+        </Link>
+      </nav>
+    </aside>
   );
 }
 
-/** "Más" de la barra superior: el resto de los módulos, agrupados. */
-function MoreMenu({ keys, active }: { keys: ModuleKey[]; active: boolean }) {
+/** Pestañas con los módulos de la sección actual (p. ej. Productos · Familias · Unidades · Ubicaciones). */
+function SectionTabs({ tabs, label }: { tabs: ModuleKey[]; label: string }) {
   const settings = useSettings();
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  const { pathname } = useLocation();
-  // Al cambiar de página (atrás/adelante, un link, el buscador) el panel se cierra.
-  useEffect(() => setOpen(false), [pathname]);
-  useEffect(() => {
-    if (!open) return;
-    const close = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && setOpen(false);
-    const esc = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false);
-    document.addEventListener('mousedown', close);
-    document.addEventListener('keydown', esc);
-    return () => {
-      document.removeEventListener('mousedown', close);
-      document.removeEventListener('keydown', esc);
-    };
-  }, [open]);
-  const set = new Set(keys);
-  const groups = MODULE_GROUPS.map((g) => ({ ...g, keys: g.keys.filter((k) => set.has(k)) })).filter((g) => g.keys.length);
   return (
-    <div ref={ref} className="topnav-more">
-      <button type="button" className={`topnav-item ${active ? 'active' : ''}`} aria-haspopup="true" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
-        <LayoutGrid size={19} aria-hidden />
-        <span className="topnav-label">Más <ChevronDown size={13} aria-hidden /></span>
-      </button>
-      {open && (
-        <div className="more-panel card" role="region" aria-label="Más secciones">
-          {groups.map((g) => (
-            <div key={g.title} className="more-group">
-              <div className="more-group-title">{g.title}</div>
-              {g.keys.map((k) => {
-                const Icon = MODULE_ICON[k];
-                return (
-                  <NavLink key={k} to={MODULE_PATH[k]} className="more-link" onClick={() => setOpen(false)}>
-                    <Icon size={18} aria-hidden /> {navLabel(settings, k)}
-                  </NavLink>
-                );
-              })}
-            </div>
-          ))}
-          <div className="more-group">
-            <div className="more-group-title">Ayuda</div>
-            <NavLink to="/ayuda" className="more-link" onClick={() => setOpen(false)}>Ayuda y guía rápida</NavLink>
-            <NavLink to="/acerca" className="more-link" onClick={() => setOpen(false)}>Información de la aplicación</NavLink>
-          </div>
-        </div>
-      )}
-    </div>
+    <nav className="section-tabs" aria-label={`Pestañas de ${label}`}>
+      {tabs.map((k) => (
+        <NavLink key={k} to={MODULE_PATH[k]} end={k === 'dashboard'} className="section-tab">
+          {navLabel(settings, k)}
+        </NavLink>
+      ))}
+    </nav>
   );
 }

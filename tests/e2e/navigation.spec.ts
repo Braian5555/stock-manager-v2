@@ -50,23 +50,30 @@ test('configuración: qué módulos van en cada barra', async ({ page, isMobile 
     await expect(bottom.getByRole('link', { name: 'Conteo' })).toBeVisible();
     await expect(bottom.getByRole('link', { name: 'Movimientos' })).toHaveCount(0);
   } else {
-    await page.getByLabel('Reportes en la barra de la computadora').click();
-    await expect(page.getByLabel('Reportes en la barra de la computadora')).not.toBeChecked();
+    // En la computadora las secciones están todas en la barra lateral: ocultar un módulo lo saca.
     const top = page.getByRole('navigation', { name: 'Navegación principal' });
-    await expect(top.getByRole('link', { name: 'Reportes' })).toHaveCount(0);
-    await top.getByRole('button', { name: /Más/ }).click();
-    await expect(page.getByRole('region', { name: 'Más secciones' }).getByRole('link', { name: 'Reportes' })).toBeVisible();
+    await expect(top.getByRole('link', { name: 'Remitos' })).toBeVisible();
+    await page.getByRole('button', { name: /^Ocultar Remitos/ }).click();
+    await expect(top.getByRole('link', { name: 'Remitos' })).toHaveCount(0);
+    await page.getByRole('button', { name: /^Mostrar Remitos/ }).click();
+    await expect(top.getByRole('link', { name: 'Remitos' })).toBeVisible();
   }
 });
 
-test('computadora: el panel "Más" se cierra al cambiar de página', async ({ page, isMobile }) => {
+test('computadora: la sección activa y sus pestañas siguen a la página', async ({ page, isMobile }) => {
   test.skip(isMobile, 'sólo computadora');
   await loadDemo(page);
-  const top = page.getByRole('navigation', { name: 'Navegación principal' });
-  await top.getByRole('button', { name: /Más/ }).click();
-  const panel = page.getByRole('region', { name: 'Más secciones' });
-  await expect(panel).toBeVisible();
-  await go(page, '/stock');
-  await expect(panel).toHaveCount(0);
-  await expect(top.getByRole('link', { name: 'Stock' })).toHaveClass(/active/);
+  const side = page.getByRole('navigation', { name: 'Navegación principal' });
+  await go(page, '/movimientos');
+  await expect(side.getByRole('link', { name: 'Stock' })).toHaveClass(/active/);
+  const tabs = page.getByRole('navigation', { name: /^Pestañas de / });
+  await expect(tabs.getByRole('link', { name: 'Movimientos' })).toHaveClass(/active/);
+  await tabs.getByRole('link', { name: 'Conteo' }).click();
+  await expect(page).toHaveURL(/#\/conteo$/);
+  await expect(side.getByRole('link', { name: 'Stock' })).toHaveClass(/active/);
+  // Sin scroll horizontal en ningún ancho de computadora
+  for (const width of [1024, 1280, 1366, 1920]) {
+    await page.setViewportSize({ width, height: 760 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), `ancho ${width}`).toBeLessThanOrEqual(0);
+  }
 });

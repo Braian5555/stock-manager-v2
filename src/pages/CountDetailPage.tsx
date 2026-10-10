@@ -187,8 +187,7 @@ export function CountDetailPage() {
         <label className="check small"><input type="checkbox" checked={showExpected} onChange={(e) => setShowExpected(e.target.checked)} /> Ver esperado</label>
       </div>
 
-      <GroupBar mode={g.mode} groups={g.groups} group={g.group} total={rows.length} onMode={g.setMode} onGroup={g.setGroup} />
-
+      <GroupBar mode={g.mode} groups={g.groups} group={g.group} total={rows.length} onMode={g.setMode} onGroup={g.setGroup}>
       <div className="card">
         {rows.length === 0 ? (
           <EmptyState title="Nada para mostrar" />
@@ -227,6 +226,7 @@ export function CountDetailPage() {
           })}{sentinel}</>
         )}
       </div>
+      </GroupBar>
     </>
   );
 }

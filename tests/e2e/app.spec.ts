@@ -194,13 +194,22 @@ test('22-23 · navegación adaptada al dispositivo', async ({ page, isMobile }) 
     const top = page.getByRole('navigation', { name: 'Navegación principal' });
     await expect(top).toBeVisible();
     await expect(page.getByRole('navigation', { name: 'Navegación inferior' })).toBeHidden();
-    for (const l of ['Inicio', 'Stock', 'Productos', 'Conteo', 'Pedidos', 'Movimientos', 'Remitos', 'Proveedores', 'Facturas', 'Reportes']) await expect(top.getByRole('link', { name: l })).toBeVisible();
+    // Barra lateral con las secciones; cada sección muestra sus módulos como pestañas.
+    for (const l of ['Inicio', 'Stock', 'Producción', 'Productos', 'Compras', 'Remitos', 'Reportes', 'Configuración', 'Ayuda']) await expect(top.getByRole('link', { name: l })).toBeVisible();
     await expect(top.getByRole('link', { name: 'Inicio' })).toHaveClass(/active/);
-    // "Más" abre el resto agrupado
-    await top.getByRole('button', { name: /Más/ }).click();
-    await expect(page.getByRole('region', { name: 'Más secciones' }).getByRole('link', { name: 'Familias' })).toBeVisible();
-    await page.keyboard.press('Escape');
-    await page.getByRole('link', { name: 'Configuración' }).first().click();
+    await top.getByRole('link', { name: 'Productos' }).click();
+    const tabs = page.getByRole('navigation', { name: 'Pestañas de Productos' });
+    for (const l of ['Productos', 'Familias', 'Unidades', 'Ubicaciones']) await expect(tabs.getByRole('link', { name: l })).toBeVisible();
+    await tabs.getByRole('link', { name: 'Familias' }).click();
+    await expect(page.getByRole('heading', { name: 'Familias', level: 1 })).toBeVisible();
+    await expect(top.getByRole('link', { name: 'Productos' })).toHaveClass(/active/);
+    await top.getByRole('link', { name: 'Compras' }).click();
+    for (const l of ['Pedidos', 'Proveedores', 'Facturas']) await expect(page.getByRole('navigation', { name: 'Pestañas de Compras' }).getByRole('link', { name: l })).toBeVisible();
+    // La barra se puede achicar (sólo íconos) y volver a agrandar.
+    await page.getByRole('button', { name: 'Achicar menú' }).click();
+    await expect(top.getByRole('link', { name: 'Productos' })).toHaveAttribute('title', 'Productos');
+    await page.getByRole('button', { name: 'Agrandar menú' }).click();
+    await top.getByRole('link', { name: 'Configuración' }).click();
   }
   await expect(page.getByRole('heading', { name: 'Configuración', level: 1 })).toBeVisible();
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);

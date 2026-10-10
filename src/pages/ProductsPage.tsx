@@ -85,7 +85,7 @@ export function ProductsPage() {
           <span className="small muted">Estos productos no avisan cuando se están acabando. Elegilos y cargales el mínimo en lote.</span>
         </div>
       )}
-      {products.length > 0 && <GroupBar mode={g.mode} groups={g.groups} group={g.group} total={list.length} onMode={g.setMode} onGroup={g.setGroup} />}
+      <GroupBar mode={g.mode} groups={g.groups} group={g.group} total={list.length} onMode={g.setMode} onGroup={g.setGroup} hideBar={!products.length}>
       <div className="card">
         {list.length === 0 ? (
           <EmptyState icon={<Package size={40} />} title={products.length ? 'Sin resultados' : 'Sin productos'}>
@@ -95,13 +95,13 @@ export function ProductsPage() {
           <div className="table-wrap">
             <table className="table responsive">
               <thead>
-                <tr>{selecting && <th className="col-check"><input type="checkbox" checked={allShown} onChange={(e) => toggleAll(e.target.checked)} aria-label={`Elegir los ${g.shown.length} productos de la lista`} /></th>}<th>Producto</th><th>Código</th><th>Familia</th><th>Ubicación</th><th>Proveedor</th><th className="num">Stock</th><th>Estado</th><th><span className="sr-only">Acciones</span></th></tr>
+                <tr>{selecting && <th className="col-check"><input type="checkbox" checked={allShown} onChange={(e) => toggleAll(e.target.checked)} aria-label={`Elegir los ${g.shown.length} productos de la lista`} /></th>}<th>Producto</th><th>Código</th>{g.mode !== 'familia' && <th>Familia</th>}{g.mode !== 'ubicacion' && <th>Ubicación</th>}<th>Proveedor</th><th className="num">Stock</th><th>Estado</th><th><span className="sr-only">Acciones</span></th></tr>
               </thead>
               <tbody>
                 {visible.map((p, i) => (
                   <Fragment key={p.id}>
                   {(i === 0 || g.groupOf(visible[i - 1]) !== g.groupOf(p)) && (
-                    <tr className="group-row"><th colSpan={selecting ? 9 : 8} scope="rowgroup">{g.labelOf(g.groupOf(p))} <span className="muted num">{g.groups.find((x) => x.id === g.groupOf(p))?.count}</span></th></tr>
+                    <tr className="group-row"><th colSpan={(selecting ? 9 : 8) - (g.mode === 'unidad' ? 0 : 1)} scope="rowgroup">{g.labelOf(g.groupOf(p))} <span className="muted num">{g.groups.find((x) => x.id === g.groupOf(p))?.count}</span></th></tr>
                   )}
                   <tr className={selected.has(p.id) ? 'row-selected' : undefined}>
                     {selecting && <td className="col-check"><input type="checkbox" checked={selected.has(p.id)} onChange={(e) => toggle(p.id, e.target.checked)} aria-label={`Elegir ${p.name}`} /></td>}
@@ -109,9 +109,9 @@ export function ProductsPage() {
                       {p.name} {!p.active && <Badge>Inactivo</Badge>} {p.externalSystems?.maxirest && <Badge tone="info">Maxirest</Badge>}
                       <span className="cell-sub only-mobile">{[p.sku, lk.category(p.categoryId), lk.location(p.locationId), lk.supplier(p.supplierId)].filter(Boolean).join(' · ')}</span>
                     </td>
-                    <td data-label="Código" className="hide-mobile">{p.sku || '—'}</td>
-                    <td data-label="Familia" className="hide-mobile">{lk.category(p.categoryId) || '—'}</td>
-                    <td data-label="Ubicación" className="hide-mobile">{lk.location(p.locationId) || '—'}</td>
+                    <td data-label="Código" className="hide-mobile nowrap">{p.sku || '—'}</td>
+                    {g.mode !== 'familia' && <td data-label="Familia" className="hide-mobile">{lk.category(p.categoryId) || '—'}</td>}
+                    {g.mode !== 'ubicacion' && <td data-label="Ubicación" className="hide-mobile">{lk.location(p.locationId) || '—'}</td>}
                     <td data-label="Proveedor" className="hide-mobile">{lk.supplier(p.supplierId) || '—'}</td>
                     <td data-label="Stock" className="num">{fmtNumber(p.stock)} {lk.unit(p.unitId)}</td>
                     <td data-label="Estado"><StatusBadge status={statusOf(p, settings)} /></td>
@@ -131,6 +131,7 @@ export function ProductsPage() {
           </div>
         )}
       </div>
+      </GroupBar>
       <ProductForm open={creating || !!editing} product={editing} onClose={close} />
       {selecting && (
         <div className="bulk-bar" role="region" aria-label="Productos elegidos">

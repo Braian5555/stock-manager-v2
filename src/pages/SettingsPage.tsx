@@ -230,9 +230,7 @@ function NavigationSection() {
     save({ menu });
   };
   const patchMenu = (idx: number, patch: Partial<MenuItemSetting>) => save({ menu: form.menu.map((m, i) => (i === idx ? { ...m, ...patch } : m)) });
-  const top = new Set(form.navTop ?? []);
   const bottom = form.navBottom ?? [];
-  const toggleTop = (k: ModuleKey) => save({ navTop: top.has(k) ? [...top].filter((x) => x !== k) : [...top, k] });
   const toggleBottom = (k: ModuleKey) => {
     if (bottom.includes(k)) return save({ navBottom: bottom.filter((x) => x !== k) });
     if (bottom.length >= MAX_NAV_BOTTOM) return;
@@ -250,10 +248,10 @@ function NavigationSection() {
             <h2 id="menu">Módulos</h2>
             <button type="button" className="btn btn-sm" onClick={() => save({ menu: defaultMenu(), navTop: [...DEFAULT_NAV_TOP], navBottom: [...DEFAULT_NAV_BOTTOM] })}><RotateCcw size={14} aria-hidden /> Restablecer</button>
           </div>
-          <p className="small muted">Cambiá nombres (p. ej. “Stock” → “Inventario”, “Pedidos” → “Compras”), el orden y qué módulos se muestran. Marcá qué módulos van fijos en la barra superior de la computadora y en la barra inferior del celular (hasta {MAX_NAV_BOTTOM}); el resto queda en “Más”.</p>
+          <p className="small muted">Cambiá nombres (p. ej. “Stock” → “Inventario”, “Pedidos” → “Compras”), el orden y qué módulos se muestran. En la computadora, los módulos se agrupan en secciones en la barra lateral, con pestañas arriba. En el celular, marcá cuáles van fijos en la barra de abajo (hasta {MAX_NAV_BOTTOM}); el resto queda en “Más”.</p>
           <div className="nav-config">
             <div className="nav-config-head" aria-hidden>
-              <span>Nombre</span><span>Visible</span><span>Barra PC</span><span>Barra celular</span><span>Orden</span>
+              <span>Nombre</span><span>Visible</span><span>Barra celular</span><span>Orden</span>
             </div>
             {form.menu.map((m, i) => {
               const locked = MODULES.find((x) => x.key === m.key)?.locked;
@@ -264,10 +262,6 @@ function NavigationSection() {
                   <button type="button" className="btn btn-ghost icon-btn" aria-label={m.visible ? `Ocultar ${m.label}` : `Mostrar ${m.label}`} disabled={locked} onClick={() => patchMenu(i, { visible: !m.visible })}>
                     {m.visible ? <Eye size={18} /> : <EyeOff size={18} />}
                   </button>
-                  <label className="check nav-config-check">
-                    <input type="checkbox" checked={top.has(m.key)} disabled={!m.visible || isSettings} onChange={() => toggleTop(m.key)} aria-label={`${m.label} en la barra de la computadora`} />
-                    <span className="nav-config-mobile-label">PC</span>
-                  </label>
                   <label className="check nav-config-check">
                     <input type="checkbox" checked={bottom.includes(m.key)} disabled={!m.visible || isSettings || (!bottom.includes(m.key) && bottom.length >= MAX_NAV_BOTTOM)} onChange={() => toggleBottom(m.key)} aria-label={`${m.label} en la barra del celular`} />
                     <span className="nav-config-mobile-label">Celular</span>
@@ -280,7 +274,7 @@ function NavigationSection() {
               );
             })}
           </div>
-          <p className="small muted">Configuración siempre se abre desde el engranaje (computadora) o desde “Más” (celular).</p>
+          <p className="small muted">Configuración siempre está abajo en la barra lateral (computadora) y en “Más” (celular).</p>
         </section>
       </div>
     </>

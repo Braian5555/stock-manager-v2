@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { useMemo } from 'react';
 import { useSearchParams } from 'react-router';
 import type { Lookups } from '../hooks/useData';
@@ -90,20 +91,33 @@ export function useProductGroups<T>(rows: T[], productOf: (r: T) => Product | un
   };
 }
 
-export function GroupBar({ mode, groups, group, total, onMode, onGroup }: {
+/**
+ * Agrupar por familia, ubicación o unidad. Con `children`, en la computadora los grupos van en
+ * una columna a la izquierda de la lista (como un menú de categorías); en el celular, como
+ * botones deslizables arriba de la lista.
+ */
+export function GroupBar({ mode, groups, group, total, onMode, onGroup, children, hideBar }: {
   mode: GroupMode; groups: Group[]; group: string; total: number; onMode: (m: GroupMode) => void; onGroup: (g: string) => void;
+  children?: ReactNode; hideBar?: boolean;
 }) {
-  return (
+  const bar = hideBar ? null : (
     <div className="group-bar">
       <Segmented label="Agrupar por" value={mode} onChange={onMode} options={MODES} />
       <div className="group-chips" role="group" aria-label="Grupos">
-        <button type="button" className="group-chip" aria-pressed={!group} onClick={() => onGroup('')}>Todos <span className="num">{total}</span></button>
+        <button type="button" className="group-chip" aria-pressed={!group} onClick={() => onGroup('')}><span className="group-chip-label">Todos</span> <span className="num">{total}</span></button>
         {groups.map((g) => (
           <button key={g.id} type="button" className="group-chip" aria-pressed={group === g.id} onClick={() => onGroup(group === g.id ? '' : g.id)}>
-            {g.label} <span className="num">{g.count}</span>
+            <span className="group-chip-label">{g.label}</span> <span className="num">{g.count}</span>
           </button>
         ))}
       </div>
+    </div>
+  );
+  if (children === undefined) return bar;
+  return (
+    <div className={`grouped ${bar ? 'with-side' : ''}`}>
+      {bar}
+      <div className="grouped-main">{children}</div>
     </div>
   );
 }

@@ -10,12 +10,15 @@ import { STATUS_LABEL, statusOf } from '../services/stockService';
 import { menuLabel } from '../services/settingsService';
 import { useSettings } from '../store/settings';
 import { ScanButton } from '../components/scanner/ScanButton';
+import { GroupBar, useProductGroups } from '../components/GroupBar';
 import { EmptyState, PageHeader, SearchInput, Select, StatusBadge } from '../components/ui';
 import { MovementModal } from '../components/MovementModal';
 import { fmtNumber, matches, normalize } from '../utils/format';
 import { useIncremental } from '../hooks/useIncremental';
 
 type SortKey = 'name' | 'qty' | 'category' | 'location';
+
+const rowProduct = (r: { p: Product }) => r.p;
 
 export function StockPage() {
   const settings = useSettings();
@@ -73,7 +76,10 @@ export function StockPage() {
     );
     return list;
   }, [products, settings, q, f.familia, f.ubicacion, f.proveedor, f.estado, sort, lk]);
-  const { visible: shown, sentinel } = useIncremental(rows, `${q}|${f.familia}|${f.ubicacion}|${f.proveedor}|${f.estado}|${sort}`);
+  // Columna de familias (o ubicaciones/unidades): filtra sin cambiar el orden elegido.
+  const g = useProductGroups(rows, rowProduct, lk);
+  const grouped = useMemo(() => (g.group ? rows.filter((r) => g.groupOf(r) === g.group) : rows), [rows, g]);
+  const { visible: shown, sentinel } = useIncremental(grouped, `${q}|${f.familia}|${f.ubicacion}|${f.proveedor}|${f.estado}|${sort}|${g.mode}|${g.group}`);
 
   return (
     <>
@@ -141,7 +147,8 @@ export function StockPage() {
         </Select>
       </div>
 
-      {rows.length === 0 ? (
+      <GroupBar mode={g.mode} groups={g.groups} group={g.group} total={rows.length} onMode={g.setMode} onGroup={g.setGroup} hideBar={!products.length}>
+      {grouped.length === 0 ? (
         <div className="card">
           <EmptyState icon={<Boxes size={40} />} title={products.length ? 'Sin resultados' : 'Todavía no hay productos'}
             action={!products.length && can('catalog.manage') && <Link to="/productos?nuevo=1" className="btn btn-primary">Crear producto</Link>}>
@@ -186,6 +193,7 @@ export function StockPage() {
           {sentinel}
         </div>
       )}
+      </GroupBar>
       {moving && <MovementModal product={products.find((x) => x.id === moving.id) ?? null} onClose={() => setMoving(null)} />}
     </>
   );
