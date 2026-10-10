@@ -1,5 +1,5 @@
 import { ChevronDown, CloudOff, LayoutGrid, Search, Settings as SettingsIcon, UploadCloud } from 'lucide-react';
-import { Suspense, useEffect, useRef, useState } from 'react';
+import { Suspense, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router';
 import { GlobalSearch } from '../components/GlobalSearch';
 import { Logo } from '../components/Logo';
@@ -163,6 +163,22 @@ function MoreMenu({ keys, active }: { keys: ModuleKey[]; active: boolean }) {
   const { pathname } = useLocation();
   // Al cambiar de página (atrás/adelante, un link, el buscador) el panel se cierra.
   useEffect(() => setOpen(false), [pathname]);
+  // Ubica el panel debajo del botón, alineado a su borde derecho, sin salirse de la pantalla.
+  const [pos, setPos] = useState<{ top: number; right: number }>({ top: 64, right: 16 });
+  useLayoutEffect(() => {
+    if (!open) return;
+    const place = () => {
+      const btn = ref.current?.getBoundingClientRect();
+      if (!btn) return;
+      const vw = document.documentElement.clientWidth;
+      const width = Math.min(540, vw - 32);
+      const right = Math.max(16, Math.min(vw - btn.right, vw - 16 - width));
+      setPos({ top: btn.bottom + 6, right });
+    };
+    place();
+    window.addEventListener('resize', place);
+    return () => window.removeEventListener('resize', place);
+  }, [open]);
   useEffect(() => {
     if (!open) return;
     const close = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && setOpen(false);
@@ -178,12 +194,12 @@ function MoreMenu({ keys, active }: { keys: ModuleKey[]; active: boolean }) {
   const groups = MODULE_GROUPS.map((g) => ({ ...g, keys: g.keys.filter((k) => set.has(k)) })).filter((g) => g.keys.length);
   return (
     <div ref={ref} className="topnav-more">
-      <button type="button" className={`topnav-item ${active ? 'active' : ''}`} aria-haspopup="true" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+      <button type="button" className={`topnav-item ${active ? 'active' : ''}`} title="Más" aria-label="Más" aria-haspopup="true" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
         <LayoutGrid size={19} aria-hidden />
         <span className="topnav-label">Más <ChevronDown size={13} aria-hidden /></span>
       </button>
       {open && (
-        <div className="more-panel card" role="region" aria-label="Más secciones">
+        <div className="more-panel card" role="region" aria-label="Más secciones" style={{ '--more-top': `${pos.top}px`, '--more-right': `${pos.right}px` } as CSSProperties}>
           {groups.map((g) => (
             <div key={g.title} className="more-group">
               <div className="more-group-title">{g.title}</div>

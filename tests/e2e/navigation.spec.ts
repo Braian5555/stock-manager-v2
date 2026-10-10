@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { go, loadDemo } from './helpers';
+import { go, loadDemo, open } from './helpers';
 
 const ROUTES: [string, RegExp][] = [
   ['/', /^(Inicio|Hola)/], ['/stock', /Stock/], ['/productos', /Productos/], ['/conteo', /Conteo/], ['/pedidos', /Pedidos/],
@@ -69,4 +69,24 @@ test('computadora: el panel "Más" se cierra al cambiar de página', async ({ pa
   await go(page, '/stock');
   await expect(panel).toHaveCount(0);
   await expect(top.getByRole('link', { name: 'Stock' })).toHaveClass(/active/);
+});
+
+test('computadora: el panel "Más" entra entero en la pantalla en cualquier ancho y se puede elegir', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'el panel es de la barra de computadora');
+  await open(page);
+  for (const width of [1024, 1180, 1366, 1600, 1920]) {
+    await page.setViewportSize({ width, height: 760 });
+    await page.getByRole('banner').getByRole('button', { name: /Más/ }).click();
+    const panel = page.getByRole('region', { name: 'Más secciones' });
+    await expect(panel).toBeVisible();
+    const box = (await panel.boundingBox())!;
+    expect(box.x, `ancho ${width}`).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width, `ancho ${width}`).toBeLessThanOrEqual(width);
+    // Sin scroll horizontal en la página
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), `ancho ${width}`).toBeLessThanOrEqual(0);
+    await page.keyboard.press('Escape');
+  }
+  await page.getByRole('banner').getByRole('button', { name: /Más/ }).click();
+  await page.getByRole('region', { name: 'Más secciones' }).getByRole('link', { name: 'Información de la aplicación' }).click();
+  await expect(page).toHaveURL(/#\/acerca$/);
 });
