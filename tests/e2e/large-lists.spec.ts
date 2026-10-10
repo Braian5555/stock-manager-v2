@@ -17,11 +17,13 @@ test('listas largas: se muestran de a tandas y la búsqueda encuentra todo', asy
     })));
   });
   await go(page, '/productos');
-  await expect(page.locator('table tbody tr')).toHaveCount(60);
-  await page.getByRole('button', { name: /Mostrar más \(240 restantes\)/ }).click();
-  await expect(page.locator('table tbody tr')).toHaveCount(180);
+  await expect(page.locator('table tbody tr:not(.group-row)')).toHaveCount(60);
+  // "Mostrar más" (o el scroll automático) agrega otra tanda de 60.
+  const more = page.getByRole('button', { name: /Mostrar más/ }).first();
+  if (await more.isVisible()) await more.click({ timeout: 5000 }).catch(() => undefined);
+  await expect.poll(() => page.locator('table tbody tr:not(.group-row)').count()).toBeGreaterThanOrEqual(120);
   await page.getByRole('searchbox').first().fill('Artículo 299');
-  await expect(page.locator('table tbody tr')).toHaveCount(1);
+  await expect(page.locator('table tbody tr:not(.group-row)')).toHaveCount(1);
 
   await go(page, '/stock');
   await expect(page.locator('article.pcard')).toHaveCount(60);

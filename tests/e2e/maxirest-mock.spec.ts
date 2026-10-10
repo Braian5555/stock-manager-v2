@@ -83,7 +83,7 @@ test('Maxirest simulado: error comprensible, cola, reintento sin duplicar y desc
   await dialog(page).getByRole('button', { name: 'Desconectar' }).click();
   await expect(page.getByText('Desconectado').first()).toBeVisible();
   await go(page, '/productos');
-  await expect(page.locator('tbody tr')).toHaveCount(15);
+  await expect(page.locator('tbody tr:not(.group-row)')).toHaveCount(15);
   await expect(page.getByText('Maxirest').first()).toBeVisible();
 });
 

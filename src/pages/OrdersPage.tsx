@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { useSession } from '../store/session';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Lightbulb, Plus, ShoppingCart } from 'lucide-react';
+import { Lightbulb, MessageCircle, Plus, ShoppingCart } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router';
 import { db } from '../database/db';
 import type { OrderStatus } from '../models';
@@ -11,6 +11,7 @@ import { useLookups, EMPTY } from '../hooks/useData';
 import { useSettings } from '../store/settings';
 import { Badge, EmptyState, PageHeader, Select } from '../components/ui';
 import { SuggestedOrdersModal } from '../components/SuggestedOrdersModal';
+import { SupplierOrderModal } from '../components/SupplierOrderModal';
 import { fmtDate } from '../utils/format';
 
 export const ORDER_TONE: Record<OrderStatus, string> = { borrador: '', pendiente: 'warn', enviado: 'info', recibido: 'ok', cancelado: 'error' };
@@ -43,6 +44,7 @@ export function OrdersPage() {
         title={menuLabel(settings, 'orders')}
         actions={
           can('orders.manage') && <>
+            <button type="button" className="btn btn-primary" onClick={() => setParam('pedir', '1')}><MessageCircle size={18} aria-hidden /> Pedir a proveedor</button>
             <button type="button" className="btn" onClick={() => setParam('sugerido', '1')}><Lightbulb size={18} aria-hidden /> Pedido sugerido</button>
             <Link to="/pedidos/nuevo" className="btn btn-primary"><Plus size={18} aria-hidden /> Nuevo pedido</Link>
           </>
@@ -78,6 +80,7 @@ export function OrdersPage() {
         )}
       </div>
       <SuggestedOrdersModal open={suggestOpen} onClose={() => setParam('sugerido', '')} />
+      <SupplierOrderModal open={params.get('pedir') === '1'} onClose={() => setParam('pedir', '')} />
     </>
   );
 }

@@ -12,11 +12,11 @@ import { Field, NumberInput, Select, Input } from './ui';
 
 const TYPES: MovementType[] = ['ingreso', 'salida', 'ajuste', 'consumo', 'perdida', 'devolucion'];
 
-export function MovementModal({ product, onClose }: { product: Product | null; onClose: () => void }) {
+export function MovementModal({ product, onClose, initialType = 'ingreso' }: { product: Product | null; onClose: () => void; initialType?: MovementType }) {
   const lk = useLookups();
   const { run, notify, confirm } = useFeedback();
   const integration = useIntegration();
-  const [type, setType] = useState<MovementType>('ingreso');
+  const [type, setType] = useState<MovementType>(initialType);
   const [qty, setQty] = useState<number | undefined>();
   const [reason, setReason] = useState('');
   const [mode, setMode] = useState<'local' | 'sync'>('local');
@@ -29,7 +29,7 @@ export function MovementModal({ product, onClose }: { product: Product | null; o
 
   useEffect(() => {
     if (!product) return;
-    setType('ingreso');
+    setType(initialType);
     setQty(undefined);
     setReason('');
     setMode('local');

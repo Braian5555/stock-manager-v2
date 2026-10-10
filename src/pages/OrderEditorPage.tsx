@@ -1,6 +1,8 @@
 import { useSession } from '../store/session';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { ArrowLeft, Camera, ClipboardCopy, Copy, PackageCheck, Plus, Trash2, X } from 'lucide-react';
+import { ArrowLeft, Camera, ClipboardCopy, Copy, MessageCircle, PackageCheck, Plus, Trash2, X } from 'lucide-react';
+import { orderText, whatsappUrl } from '../utils/orderText';
+import { useSettings } from '../store/settings';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { db } from '../database/db';
@@ -35,6 +37,7 @@ export function OrderEditorPage() {
   const isNew = !id || id === 'nuevo';
   const navigate = useNavigate();
   const products = useProducts();
+  const settingsBiz = useSettings();
   const lk = useLookups();
   const { run, confirm, notify } = useFeedback();
   const { can } = useSession();
@@ -108,13 +111,23 @@ export function OrderEditorPage() {
     }
   };
 
-  const copyText = async () => {
-    const lines = d.items.filter((l) => l.productId).map((l) => {
-      const p = byId.get(l.productId);
-      return `• ${p?.name ?? '?'}: ${fmtNumber(l.quantity)} ${lk.unit(p?.purchaseUnitId) || lk.unit(p?.unitId)}`;
+  const buildText = () =>
+    orderText({
+      number: order?.number,
+      supplier: d.supplierId ? lk.supplier(d.supplierId) : undefined,
+      business: settingsBiz.businessName,
+      notes: d.notes,
+      lines: d.items.filter((l) => l.productId).map((l) => {
+        const p = byId.get(l.productId);
+        return { name: p?.name ?? '?', quantity: l.quantity, unit: lk.unit(p?.purchaseUnitId) || lk.unit(p?.unitId) };
+      }),
     });
-    const text = [`Pedido${order ? ` #${order.number}` : ''}${d.supplierId ? ` — ${lk.supplier(d.supplierId)}` : ''}`, ...lines, d.notes && `Obs.: ${d.notes}`].filter(Boolean).join('\n');
-    await run(() => navigator.clipboard.writeText(text), 'Pedido copiado al portapapeles');
+  const copyText = async () => {
+    await run(() => navigator.clipboard.writeText(buildText()), 'Pedido copiado al portapapeles');
+  };
+  const sendWhatsapp = () => {
+    const phone = lk.suppliers.find((s) => s.id === d.supplierId)?.phone;
+    window.open(whatsappUrl(buildText(), phone), '_blank', 'noopener');
   };
 
   return (
@@ -126,6 +139,7 @@ export function OrderEditorPage() {
         actions={
           !isNew && (
             <>
+              <button type="button" className="btn" onClick={sendWhatsapp}><MessageCircle size={16} aria-hidden /> WhatsApp</button>
               <button type="button" className="btn" onClick={copyText}><ClipboardCopy size={16} aria-hidden /> Copiar texto</button>
               {can('orders.manage') && <button type="button" className="btn" onClick={async () => { const c = await run(() => duplicateOrder(id!), 'Pedido duplicado'); if (c) navigate(`/pedidos/${c.id}`); }}><Copy size={16} aria-hidden /> Duplicar</button>}
               {order!.status !== 'recibido' && order!.status !== 'cancelado' && can('orders.receive') && <button type="button" className="btn btn-primary" onClick={openReceive}><PackageCheck size={16} aria-hidden /> Recibir</button>}

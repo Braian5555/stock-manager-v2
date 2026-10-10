@@ -24,7 +24,7 @@ test('11-12 · los datos sobreviven al cierre completo del navegador', async ({ 
     await ensureSession(page); // la sesión sigue abierta: no pide PIN
     await expect(page.getByRole('heading', { name: '¿Quién sos?' })).toHaveCount(0);
     await expect(page.locator('td.cell-title', { hasText: 'Harina 000' })).toBeVisible();
-    await expect(page.locator('tbody tr')).toHaveCount(15);
+    await expect(page.locator('tbody tr:not(.group-row)')).toHaveCount(15);
     await ctx.close();
   } finally {
     rmSync(dir, { recursive: true, force: true });
