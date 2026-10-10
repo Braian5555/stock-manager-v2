@@ -1,4 +1,4 @@
-import { Copy, Package, Pencil, Plus, Trash2 } from 'lucide-react';
+import { Copy, Package, Pencil, Plus, Tag, Trash2 } from 'lucide-react';
 import { Fragment, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router';
 import { useLookups, useProducts } from '../hooks/useData';
@@ -7,6 +7,8 @@ import { menuLabel } from '../services/settingsService';
 import { statusOf } from '../services/stockService';
 import { useFeedback } from '../store/feedback';
 import { useSettings } from '../store/settings';
+import { ScanButton } from '../components/scanner/ScanButton';
+import { LabelsModal } from '../components/scanner/LabelsModal';
 import { Badge, EmptyState, PageHeader, SearchInput, StatusBadge } from '../components/ui';
 import { ProductForm } from '../components/ProductForm';
 import { fmtNumber, matches } from '../utils/format';
@@ -23,6 +25,7 @@ export function ProductsPage() {
   const { run, confirm, notify } = useFeedback();
   const [params, setParams] = useSearchParams();
   const [q, setQ] = useState('');
+  const [labels, setLabels] = useState(false);
   const editingId = params.get('editar');
   const creating = params.get('nuevo') === '1';
   const editing = editingId ? products.find((p) => p.id === editingId) : undefined;
@@ -40,7 +43,7 @@ export function ProductsPage() {
     setParams(next);
   };
   const list = useMemo(
-    () => products.filter((p) => matches(q, p.name, p.sku, lk.category(p.categoryId), lk.supplier(p.supplierId))).sort((a, b) => a.name.localeCompare(b.name, 'es')),
+    () => products.filter((p) => matches(q, p.name, p.sku, p.barcode, lk.category(p.categoryId), lk.supplier(p.supplierId))).sort((a, b) => a.name.localeCompare(b.name, 'es')),
     [products, q, lk],
   );
   const g = useProductGroups(list, self, lk);
@@ -58,7 +61,7 @@ export function ProductsPage() {
       <PageHeader
         title={menuLabel(settings, 'products')}
         subtitle={`${products.length} productos`}
-        actions={<button type="button" className="btn btn-primary" onClick={() => open({ nuevo: '1' })}><Plus size={18} aria-hidden /> Nuevo producto</button>}
+        actions={<><ScanButton /><button type="button" className="btn" onClick={() => setLabels(true)}><Tag size={18} aria-hidden /> Etiquetas</button><button type="button" className="btn btn-primary" onClick={() => open({ nuevo: '1' })}><Plus size={18} aria-hidden /> Nuevo producto</button></>}
       />
       <div className="toolbar"><SearchInput value={q} onChange={setQ} placeholder="Buscar producto, código o familia" /></div>
       {products.length > 0 && <GroupBar mode={g.mode} groups={g.groups} group={g.group} total={list.length} onMode={g.setMode} onGroup={g.setGroup} />}
@@ -107,6 +110,7 @@ export function ProductsPage() {
         )}
       </div>
       <ProductForm open={creating || !!editing} product={editing} onClose={close} />
+      <LabelsModal open={labels} products={g.shown} scope={g.group ? 'del grupo elegido' : q ? 'de la búsqueda' : 'de la lista'} onClose={() => setLabels(false)} />
     </>
   );
 }

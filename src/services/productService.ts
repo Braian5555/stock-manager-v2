@@ -1,6 +1,7 @@
 import { db } from '../database/db';
 import type { Product } from '../models';
 import { nowIso, uuid } from '../utils/id';
+import { barcodeKeys, normalizeBarcode, sameBarcode, validateBarcode } from '../utils/barcode';
 import { saveEntity, type Draft, type UndoSnapshot } from './entityService';
 import { applyMovement, recomputeStock, stockByOutlet } from './stockService';
 
@@ -28,12 +29,21 @@ export async function saveProduct(draft: Draft<Product>, initialStock = 0): Prom
     ...draft,
     name: draft.name.trim(),
     sku: draft.sku?.trim() || undefined,
+    barcode: draft.barcode ? normalizeBarcode(draft.barcode) || undefined : undefined,
     purchaseFactor: draft.purchaseFactor > 0 ? draft.purchaseFactor : 1,
     minStock: Math.max(0, draft.minStock || 0),
     maxStock: Math.max(0, draft.maxStock || 0),
     alternativeSupplierIds: (draft.alternativeSupplierIds ?? []).filter((s) => s && s !== draft.supplierId),
   };
   if (!clean.name) throw new Error('El nombre es obligatorio.');
+  // Sólo se valida si el código cambió: un duplicado que llegó por sincronización no bloquea otras ediciones.
+  const prevBarcode = draft.id ? (await db.products.get(draft.id))?.barcode : undefined;
+  if (clean.barcode && !sameBarcode(clean.barcode, prevBarcode)) {
+    const check = validateBarcode(clean.barcode);
+    if (!check.ok) throw new Error(check.error);
+    const owner = await barcodeOwner(clean.barcode, draft.id);
+    if (owner) throw new Error(`El código ${clean.barcode} ya es de “${owner.name}”. Cada código puede estar en un solo producto.`);
+  }
   if (draft.id) {
     const prev = await db.products.get(draft.id);
     return saveEntity(db.products, { ...clean, stock: prev?.stock ?? clean.stock });
@@ -62,6 +72,7 @@ export async function duplicateProduct(id: string): Promise<Product> {
     id: uuid(),
     name: `${p.name} (copia)`,
     sku: p.sku ? `${p.sku}-COPIA` : undefined,
+    barcode: undefined, // el código de barras es único: la copia queda sin código
     stock: 0,
     externalSystems: undefined,
     createdAt: t,
@@ -92,4 +103,23 @@ export async function deleteProduct(id: string): Promise<UndoSnapshot> {
       });
     },
   };
+}
+
+/** Producto (distinto de `exceptId`) que ya tiene ese código de barras, incluidos los inactivos. */
+export async function barcodeOwner(code: string, exceptId?: string): Promise<Product | undefined> {
+  return (await db.products.toArray()).find((p) => p.id !== exceptId && sameBarcode(p.barcode, code));
+}
+
+/**
+ * Productos para un código escaneado o tipeado: primero por código de barras; si no hay,
+ * por código/SKU exacto (las etiquetas viejas o internas pueden tener el SKU).
+ * Puede devolver más de uno si dos dispositivos cargaron el mismo código sin conexión.
+ */
+export async function findByCode(raw: string): Promise<Product[]> {
+  const keys = new Set(barcodeKeys(raw));
+  if (!keys.size) return [];
+  const all = await db.products.toArray();
+  const byBarcode = all.filter((p) => p.barcode && barcodeKeys(p.barcode).some((k) => keys.has(k)));
+  if (byBarcode.length) return byBarcode;
+  return all.filter((p) => p.sku && keys.has(normalizeBarcode(p.sku).toUpperCase()));
 }

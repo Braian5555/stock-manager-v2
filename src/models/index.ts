@@ -57,6 +57,8 @@ export interface Supplier extends BaseEntity {
 export interface Product extends BaseEntity {
   name: string;
   sku?: string;
+  /** Código de barras (EAN-13, EAN-8, UPC-A o Code 128 / código interno). Único entre productos. */
+  barcode?: string;
   categoryId?: ID;
   /** Unidad en la que se controla el stock. */
   unitId?: ID;

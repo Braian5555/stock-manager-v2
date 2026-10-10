@@ -4,10 +4,12 @@ import { normalize, parseNumber } from '../utils/format';
 import { saveEntity } from '../services/entityService';
 import { saveProduct, emptyProduct } from '../services/productService';
 import type { Tabular } from './tabular';
+import { sameBarcode, validateBarcode } from '../utils/barcode';
 
 const COLS = {
   name: ['nombre', 'producto', 'descripcion', 'articulo', 'insumo'],
   sku: ['codigo', 'sku', 'cod', 'codigo/sku'],
+  barcode: ['codigo de barras', 'codigo barras', 'cod barras', 'barcode', 'ean', 'ean13'],
   category: ['familia', 'categoria', 'rubro'],
   unit: ['unidad', 'unidad de medida', 'medida'],
   location: ['ubicacion', 'deposito'],
@@ -36,6 +38,8 @@ export interface ProductImportPlan {
   skipped: number;
   /** Productos nuevos que en el archivo traen stock negativo (p. ej. Maxirest con ventas sin stock cargado): se crean en 0. */
   negative: number;
+  /** Códigos de barras que no se cargan porque ya los tiene otro producto o se repiten en el archivo. */
+  barcodeConflicts: number;
   run: () => Promise<{ created: number; updated: number }>;
 }
 
@@ -59,6 +63,7 @@ export async function planProductImport(tab: Tabular): Promise<ProductImportPlan
   const rows = tab.rows.map((r) => ({
     name: str(get(r, 'name')),
     sku: str(get(r, 'sku')),
+    barcode: str(get(r, 'barcode')),
     category: str(get(r, 'category')),
     unit: str(get(r, 'unit')),
     location: str(get(r, 'location')),
@@ -89,9 +94,24 @@ export async function planProductImport(tab: Tabular): Promise<ProductImportPlan
     }
   }
 
+  // Códigos de barras: se descartan los inválidos, los que ya tiene otro producto y los repetidos en el archivo.
+  const barcodeFor = new Map<(typeof valid)[number], string | undefined>();
+  const claimed: { code: string; owner: string }[] = existing.filter((p) => p.barcode).map((p) => ({ code: p.barcode!, owner: p.id }));
+  let barcodeConflicts = 0;
+  for (const r of valid) {
+    if (!r.barcode) continue;
+    const check = validateBarcode(r.barcode);
+    const self = matchOf(r)?.id ?? `row:${normalize(r.sku ?? r.name)}`;
+    const taken = check.ok && claimed.find((c) => c.owner !== self && sameBarcode(c.code, check.code));
+    if (!check.ok || taken) { barcodeConflicts++; continue; }
+    claimed.push({ code: check.code, owner: self });
+    barcodeFor.set(r, check.code);
+  }
+
   return {
     create,
     update,
+    barcodeConflicts,
     skipped: rows.length - valid.length,
     negative,
     run: async () => {
@@ -114,6 +134,7 @@ export async function planProductImport(tab: Tabular): Promise<ProductImportPlan
           ...(prev ?? emptyProduct()),
           name: r.name,
           sku: r.sku ?? prev?.sku,
+          barcode: barcodeFor.get(r) ?? prev?.barcode,
           categoryId: (await ensure('categories', r.category)) ?? prev?.categoryId,
           unitId: (await ensure('units', r.unit)) ?? prev?.unitId,
           locationId: (await ensure('locations', r.location)) ?? prev?.locationId,

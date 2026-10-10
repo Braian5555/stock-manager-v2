@@ -9,6 +9,7 @@ import type { Product, StockStatus } from '../models';
 import { STATUS_LABEL, statusOf } from '../services/stockService';
 import { menuLabel } from '../services/settingsService';
 import { useSettings } from '../store/settings';
+import { ScanButton } from '../components/scanner/ScanButton';
 import { EmptyState, PageHeader, SearchInput, Select, StatusBadge } from '../components/ui';
 import { MovementModal } from '../components/MovementModal';
 import { fmtNumber, matches, normalize } from '../utils/format';
@@ -44,7 +45,7 @@ export function StockPage() {
       .filter((p) => p.active)
       .map((p) => ({ p, s: statusOf(p, settings) }))
       .filter(({ p, s }) =>
-        matches(q, p.name, p.sku) &&
+        matches(q, p.name, p.sku, p.barcode) &&
         (!f.familia || p.categoryId === f.familia) &&
         (!f.ubicacion || p.locationId === f.ubicacion) &&
         (!f.proveedor || p.supplierId === f.proveedor || p.alternativeSupplierIds.includes(f.proveedor)) &&
@@ -66,7 +67,7 @@ export function StockPage() {
       <PageHeader
         title={menuLabel(settings, 'stock')}
         subtitle={`${rows.length} productos`}
-        actions={can('catalog.manage') ? <Link to="/productos?nuevo=1" className="btn btn-primary"><Plus size={18} aria-hidden /> Producto</Link> : undefined}
+        actions={<><ScanButton />{can('catalog.manage') && <Link to="/productos?nuevo=1" className="btn btn-primary"><Plus size={18} aria-hidden /> Producto</Link>}</>}
       />
       <div className="toolbar">
         <SearchInput value={q} onChange={setQ} placeholder="Buscar producto o código" label="Buscar productos" />

@@ -1,4 +1,4 @@
-import { ArrowDownToLine, ArrowUpFromLine, Camera, ChefHat, ClipboardCheck, Forklift, MessageCircle, Plus, Search, X, type LucideIcon } from 'lucide-react';
+import { ScanBarcode, ArrowDownToLine, ArrowUpFromLine, Camera, ChefHat, ClipboardCheck, Forklift, MessageCircle, Plus, Search, X, type LucideIcon } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import { useLookups, useProducts } from '../hooks/useData';
@@ -7,6 +7,7 @@ import { useSession } from '../store/session';
 import { fmtNumber, matches } from '../utils/format';
 import { MovementModal } from './MovementModal';
 import { SupplierOrderModal } from './SupplierOrderModal';
+import { ScanFlow } from './scanner/ScanFlow';
 import { Modal } from './ui/Modal';
 
 interface QuickAction {
@@ -17,9 +18,11 @@ interface QuickAction {
   to?: string;
   move?: MovementType;
   supplierOrder?: boolean;
+  scan?: boolean;
 }
 
 const ACTIONS: QuickAction[] = [
+  { key: 'scan', label: 'Escanear código', icon: ScanBarcode, perms: ['stock.view'], scan: true },
   { key: 'in', label: 'Ingreso', icon: ArrowDownToLine, perms: ['stock.move'], move: 'ingreso' },
   { key: 'out', label: 'Salida', icon: ArrowUpFromLine, perms: ['stock.move'], move: 'salida' },
   { key: 'order', label: 'Pedir a proveedor', icon: MessageCircle, perms: ['orders.manage'], supplierOrder: true },
@@ -41,7 +44,10 @@ export function QuickAdd() {
   const [moveType, setMoveType] = useState<MovementType | null>(null);
   const [product, setProduct] = useState<Product | null>(null);
   const [ordering, setOrdering] = useState(false);
+  const [scanning, setScanning] = useState(false);
   const actions = ACTIONS.filter((a) => canAny(a.perms));
+  // "Escanear" solo no alcanza para mostrar el botón: cuenta como acción extra.
+  const mainActions = actions.filter((a) => !a.scan);
 
   useEffect(() => setOpen(false), [pathname]);
   useEffect(() => {
@@ -52,12 +58,13 @@ export function QuickAdd() {
   }, [open]);
 
   // Quien tiene una sola acción (p. ej. el panadero) ya tiene su pantalla: no hace falta el botón.
-  if (actions.length < 2) return null;
+  if (mainActions.length < 2) return null;
 
   const choose = (a: QuickAction) => {
     setOpen(false);
     if (a.move) setMoveType(a.move);
     else if (a.supplierOrder) setOrdering(true);
+    else if (a.scan) setScanning(true);
     else if (a.to) navigate(a.to);
   };
 
@@ -88,6 +95,7 @@ export function QuickAdd() {
       />
       <MovementModal product={product} initialType={moveType ?? 'ingreso'} onClose={() => { setProduct(null); setMoveType(null); }} />
       <SupplierOrderModal open={ordering} onClose={() => setOrdering(false)} />
+      <ScanFlow open={scanning} onClose={() => setScanning(false)} />
     </>
   );
 }

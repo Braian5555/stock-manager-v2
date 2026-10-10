@@ -13,6 +13,8 @@ import {
 import { useLookups, useProducts } from '../hooks/useData';
 import { useFeedback } from '../store/feedback';
 import { Modal } from '../components/ui/Modal';
+import { ScanButton } from '../components/scanner/ScanButton';
+import { findByCode } from '../services/productService';
 import { Badge, Field, Input, NumberInput, PageHeader, Select, Textarea } from '../components/ui';
 import { fmtNumber, localYmd } from '../utils/format';
 import { ORDER_TONE } from './OrdersPage';
@@ -47,6 +49,7 @@ export function OrderEditorPage() {
   const [dirty, setDirty] = useState(false);
   const [receiving, setReceiving] = useState(false);
   const [received, setReceived] = useState<Record<string, number | undefined>>({});
+  const [recvHit, setRecvHit] = useState<string | null>(null);
   const byId = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
   const invoices = useLiveQuery(() => (isNew ? [] : db.invoices.where('orderId').equals(id!).toArray()), [id]);
   const [invoiceEdit, setInvoiceEdit] = useState<Invoice | 'new'>();
@@ -99,6 +102,21 @@ export function OrderEditorPage() {
     if (dirty) return notify('Guardá los cambios antes de recibir el pedido.', { tone: 'error' });
     setReceived(Object.fromEntries((orderItems ?? []).map((i) => [i.id, i.quantity])));
     setReceiving(true);
+  };
+
+  // Escanear al recibir: marca el renglón del producto y deja el cursor en su cantidad.
+  const onReceiveScan = async (code: string) => {
+    const found = await findByCode(code);
+    const line = (orderItems ?? []).find((i) => found.some((p) => p.id === i.productId));
+    if (!found.length) return notify(`No hay ningún producto con el código ${code}.`, { tone: 'error' });
+    if (!line) return notify(`“${found[0].name}” no está en este pedido.`, { tone: 'error' });
+    setRecvHit(line.id);
+    setTimeout(() => {
+      const input = document.querySelector<HTMLInputElement>(`[data-receive-item="${line.id}"] input`);
+      input?.scrollIntoView({ block: 'center' });
+      input?.focus();
+      input?.select();
+    }, 80);
   };
 
   const confirmReceive = async () => {
@@ -227,12 +245,15 @@ export function OrderEditorPage() {
       <Modal open={receiving} wide title={`Recibir pedido #${order?.number ?? ''}`} onClose={() => setReceiving(false)}
         footer={<><button type="button" className="btn" onClick={() => setReceiving(false)}>Cancelar</button><button type="button" className="btn btn-primary" onClick={confirmReceive}>Confirmar recepción</button></>}>
         <div className="stack">
-          <p className="small muted">Ajustá la cantidad si llegó distinto a lo pedido. Se sumará al stock y quedará registrado como movimiento de ingreso.</p>
+          <div className="row" style={{ alignItems: 'flex-start', flexWrap: 'nowrap' }}>
+            <p className="small muted grow" style={{ margin: 0 }}>Ajustá la cantidad si llegó distinto a lo pedido. Se sumará al stock y quedará registrado como movimiento de ingreso.</p>
+            <ScanButton onCode={onReceiveScan} title="Escanear lo que llegó" />
+          </div>
           {(orderItems ?? []).map((i) => {
             const p = byId.get(i.productId);
             const add = (received[i.id] ?? 0) * i.factor;
             return (
-              <div key={i.id} className="count-item">
+              <div key={i.id} className={`count-item ${recvHit === i.id ? 'scan-hit' : ''}`} data-receive-item={i.id}>
                 <div className="grow" style={{ minWidth: 160 }}>
                   <div className="list-title">{p?.name ?? '(producto eliminado)'}</div>
                   {p && <div className="list-sub num">Stock anterior: {fmtNumber(p.stock)} · Pedido recibido: +{fmtNumber(add)} · Stock nuevo: <b>{fmtNumber(p.stock + add)}</b> {lk.unit(p.unitId)}</div>}

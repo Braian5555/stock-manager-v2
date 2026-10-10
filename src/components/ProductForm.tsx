@@ -8,8 +8,9 @@ import { RecipeEditor } from './RecipeEditor';
 import { useFeedback } from '../store/feedback';
 import { Modal } from './ui/Modal';
 import { Field, Input, NumberInput, Select, Textarea } from './ui';
+import { nextInternalCode, sameBarcode, validateBarcode } from '../utils/barcode';
 
-export function ProductForm({ product, open, onClose }: { product?: Product; open: boolean; onClose: (saved?: Product) => void }) {
+export function ProductForm({ product, open, onClose, preset }: { product?: Product; open: boolean; onClose: (saved?: Product) => void; preset?: Partial<Draft<Product>> }) {
   const lk = useLookups();
   const products = useProducts();
   const { run, notify } = useFeedback();
@@ -21,9 +22,11 @@ export function ProductForm({ product, open, onClose }: { product?: Product; ope
   // si no, un movimiento sincronizado desde otro dispositivo borraría lo que se está escribiendo.
   const productRef = useRef(product);
   productRef.current = product;
+  const presetRef = useRef(preset);
+  presetRef.current = preset;
   useEffect(() => {
     if (open) {
-      setD(productRef.current ? { ...productRef.current } : emptyProduct());
+      setD(productRef.current ? { ...productRef.current } : { ...emptyProduct(), ...presetRef.current });
       setInitial(undefined);
     }
   }, [open, product?.id]);
@@ -38,6 +41,14 @@ export function ProductForm({ product, open, onClose }: { product?: Product; ope
   };
 
   const alt = new Set(d.alternativeSupplierIds);
+  const barcodeMsg = (() => {
+    if (!d.barcode?.trim()) return null;
+    const check = validateBarcode(d.barcode);
+    if (!check.ok) return { error: true, text: check.error! };
+    const owner = !sameBarcode(d.barcode, product?.barcode) && products.find((p) => p.id !== product?.id && sameBarcode(p.barcode, d.barcode));
+    if (owner) return { error: true, text: `Ya lo tiene “${owner.name}”.` };
+    return check.warning ? { error: false, text: check.warning } : null;
+  })();
   const link = product?.externalSystems?.maxirest;
 
   return (
@@ -59,6 +70,15 @@ export function ProductForm({ product, open, onClose }: { product?: Product; ope
         </Field>
         <Field label="Código / SKU" hint="opcional">
           <Input value={d.sku ?? ''} onChange={(e) => set('sku', e.target.value)} />
+        </Field>
+        <Field label="Código de barras" hint="opcional · EAN, UPC o interno">
+          <div className="row" style={{ flexWrap: 'nowrap' }}>
+            <Input value={d.barcode ?? ''} onChange={(e) => set('barcode', e.target.value)} inputMode="text" autoComplete="off" aria-label="Código de barras" className="grow" />
+            {!d.barcode && (
+              <button type="button" className="btn" title="Generar un código interno para imprimir etiqueta" onClick={() => set('barcode', nextInternalCode(products.map((p) => p.barcode)))}>Generar</button>
+            )}
+          </div>
+          {barcodeMsg && <span className="small" style={{ color: barcodeMsg.error ? 'var(--out)' : 'var(--text-2)' }}>{barcodeMsg.text}</span>}
         </Field>
         <Field label="Familia">
           <Select value={d.categoryId ?? ''} onChange={(e) => set('categoryId', e.target.value || undefined)}>

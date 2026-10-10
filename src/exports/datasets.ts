@@ -51,8 +51,8 @@ export async function buildDatasets(scope: ExportScope): Promise<{ title: string
   if (want('products'))
     out.push({
       title: 'Productos',
-      columns: ['Nombre', 'Código', 'Familia', 'Unidad', 'Unidad de compra', 'Factor compra', 'Ubicación', 'Proveedor', 'Proveedores alternativos', 'Mínimo', 'Máximo', 'Activo', 'Observaciones', 'Código Maxirest'],
-      rows: sorted.map((p) => [p.name, p.sku ?? '', cat(p.categoryId), un(p.unitId), un(p.purchaseUnitId), p.purchaseFactor, loc(p.locationId), sup(p.supplierId), p.alternativeSupplierIds.map(sup).join(', '), p.minStock, p.maxStock, p.active ? 'Sí' : 'No', p.notes ?? '', p.externalSystems?.maxirest?.code ?? '']),
+      columns: ['Nombre', 'Código', 'Código de barras', 'Familia', 'Unidad', 'Unidad de compra', 'Factor compra', 'Ubicación', 'Proveedor', 'Proveedores alternativos', 'Mínimo', 'Máximo', 'Activo', 'Observaciones', 'Código Maxirest'],
+      rows: sorted.map((p) => [p.name, p.sku ?? '', p.barcode ?? '', cat(p.categoryId), un(p.unitId), un(p.purchaseUnitId), p.purchaseFactor, loc(p.locationId), sup(p.supplierId), p.alternativeSupplierIds.map(sup).join(', '), p.minStock, p.maxStock, p.active ? 'Sí' : 'No', p.notes ?? '', p.externalSystems?.maxirest?.code ?? '']),
     });
   if (want('suppliers'))
     out.push({

@@ -110,6 +110,7 @@ export function ExportPage() {
         <>
           <p>Se crearán {plan.create} productos y se actualizarán {plan.update} (sin modificar su stock). {plan.skipped > 0 && `${plan.skipped} filas sin nombre se omitirán.`}</p>
           {plan.negative > 0 && <p className="small muted">{plan.negative} {plan.negative === 1 ? 'producto nuevo trae' : 'productos nuevos traen'} stock negativo en el archivo: se {plan.negative === 1 ? 'crea' : 'crean'} con stock 0. Corregilo después con un conteo.</p>}
+          {plan.barcodeConflicts > 0 && <p className="small muted">{plan.barcodeConflicts} {plan.barcodeConflicts === 1 ? 'código de barras no se carga' : 'códigos de barras no se cargan'}: no son válidos, ya los tiene otro producto o se repiten en el archivo.</p>}
         </>
       ), confirmLabel: 'Importar' });
     setPlan(null);

@@ -817,3 +817,40 @@ hr.sep { border: 0; border-top: 1px solid var(--border); margin: 16px 0; }
 .main { padding-bottom: calc(var(--bottom-h) + var(--safe-bottom) + 96px); }
 @media (min-width: 1024px) { .main { padding-bottom: 110px; } }
 @media (max-width: 1023px) { .toasts { right: calc(88px + var(--safe-right)); } }
+
+/* ───────────────────────── Escáner ───────────────────────── */
+.scanner-view { position: relative; aspect-ratio: 4 / 3; border-radius: var(--radius); overflow: hidden; background: #15191b; color: #e8eceb; }
+.scanner-view video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; }
+.scanner-view.on video { opacity: 1; }
+.scanner-frame { position: absolute; left: 10%; right: 10%; top: 32%; bottom: 32%; border: 2px solid rgba(255, 255, 255, 0.9); border-radius: 10px; box-shadow: 0 0 0 999px rgba(0, 0, 0, 0.35); }
+.scanner-frame::after { content: ''; position: absolute; left: 6px; right: 6px; top: 50%; height: 2px; background: var(--bar-accent, #5cc8bd); }
+@media (prefers-reduced-motion: no-preference) { .scanner-frame::after { animation: scan-line 1.6s ease-in-out infinite alternate; } }
+@keyframes scan-line { from { top: 12%; } to { top: 88%; } }
+.scanner-idle { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 20px; text-align: center; }
+.scanner-idle p { margin: 0; max-width: 32ch; color: #c9d0ce; }
+.scanner-manual { display: flex; flex-direction: column; gap: 6px; }
+.scanner-manual label { display: inline-flex; align-items: center; gap: 6px; color: var(--text-2); }
+.scan-card { display: flex; gap: 18px; align-items: center; padding: 14px; border-radius: var(--radius); background: var(--surface-2); }
+.scan-stock { display: flex; flex-direction: column; align-items: center; min-width: 88px; }
+.scan-stock-num { font-size: 2.2rem; font-weight: 750; line-height: 1.05; }
+.scan-actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; }
+.scan-actions .btn { min-height: 48px; justify-content: center; }
+.scan-hit { outline: 3px solid var(--bar-accent, #5cc8bd); outline-offset: -3px; transition: outline-color 1.2s; }
+
+/* ───────────────────────── Etiquetas ───────────────────────── */
+.labels-pick { max-height: 46vh; overflow: auto; }
+.print-labels { display: none; }
+@media print {
+  html.printing-labels body > *:not(.print-labels) { display: none !important; }
+  html.printing-labels body { background: #fff; margin: 0; }
+  html.printing-labels .print-labels { display: grid; color: #000; font-family: Manrope, system-ui, sans-serif; }
+  .print-labels.a4 { grid-template-columns: repeat(3, 1fr); gap: 3mm; }
+  .print-labels.roll { grid-template-columns: 1fr; }
+  .print-labels .label { box-sizing: border-box; height: 30mm; padding: 2mm 3mm; display: flex; flex-direction: column; gap: 1mm; break-inside: avoid; overflow: hidden; }
+  .print-labels.a4 .label { border: 0.2mm dashed #999; }
+  .print-labels.roll .label { width: 50mm; break-after: page; }
+  .label-name { font-size: 8.5pt; font-weight: 700; line-height: 1.15; max-height: 2.3em; overflow: hidden; }
+  .label-bars { flex: 1; min-height: 0; }
+  .label-bars svg { width: 100%; height: 100%; display: block; }
+  .label-meta { display: flex; justify-content: space-between; font-size: 7.5pt; letter-spacing: 0.02em; }
+}

@@ -10,6 +10,7 @@ import { menuLabel } from '../services/settingsService';
 import { useOutlets, useProducts, EMPTY } from '../hooks/useData';
 import { useFeedback } from '../store/feedback';
 import { useSettings } from '../store/settings';
+import { ScanButton } from '../components/scanner/ScanButton';
 import { Badge, EmptyState, Field, Input, PageHeader, SearchInput, Select } from '../components/ui';
 import { fmtDate, fmtDay, fmtNumber, fmtSigned, fmtTime, localYmd, matches } from '../utils/format';
 
@@ -66,7 +67,7 @@ export function MovementsPage() {
 
   return (
     <>
-      <PageHeader title={menuLabel(settings, 'movements')} subtitle={`${list.length} movimientos`} />
+      <PageHeader title={menuLabel(settings, 'movements')} subtitle={`${list.length} movimientos`} actions={<ScanButton label="Escanear y registrar" />} />
       <div className="toolbar"><SearchInput value={q} onChange={setQ} placeholder="Buscar por producto o motivo" /></div>
       <div className="filters">
         <Select aria-label="Tipo" value={type} onChange={(e) => setType(e.target.value)}>

@@ -19,8 +19,8 @@ export async function globalSearch(query: string, limit = 30): Promise<SearchHit
   const catName = new Map(categories.map((c) => [c.id, c.name]));
   const hits: SearchHit[] = [
     ...products
-      .filter((p) => matches(query, p.name, p.sku, p.externalSystems?.maxirest?.code))
-      .map((p) => ({ kind: 'product' as const, id: p.id, title: p.name, subtitle: [p.sku, p.categoryId && catName.get(p.categoryId)].filter(Boolean).join(' · '), to: `/productos?editar=${p.id}` })),
+      .filter((p) => matches(query, p.name, p.sku, p.barcode, p.externalSystems?.maxirest?.code))
+      .map((p) => ({ kind: 'product' as const, id: p.id, title: p.name, subtitle: [p.sku ?? p.barcode, p.categoryId && catName.get(p.categoryId)].filter(Boolean).join(' · '), to: `/productos?editar=${p.id}` })),
     ...suppliers
       .filter((s) => matches(query, s.name, s.contact, s.email, s.phone))
       .map((s) => ({ kind: 'supplier' as const, id: s.id, title: s.name, subtitle: s.contact, to: `/proveedores?editar=${s.id}` })),

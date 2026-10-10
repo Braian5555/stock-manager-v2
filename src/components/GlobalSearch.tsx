@@ -7,6 +7,8 @@ import { useSession } from '../store/session';
 import { globalSearch, type SearchHit, type SearchKind } from '../services/searchService';
 import { Modal } from './ui/Modal';
 import { SearchInput } from './ui';
+import { ScanBarcode } from 'lucide-react';
+import { ScanFlow } from './scanner/ScanFlow';
 
 const ICON: Record<SearchKind, typeof Package> = { product: Package, supplier: Truck, category: Tags, location: MapPin, unit: Ruler };
 const KIND: Record<SearchKind, string> = { product: 'Producto', supplier: 'Proveedor', category: 'Familia', location: 'Ubicación', unit: 'Unidad' };
@@ -14,6 +16,7 @@ const KIND: Record<SearchKind, string> = { product: 'Producto', supplier: 'Prove
 export function GlobalSearch({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [q, setQ] = useState('');
   const [hits, setHits] = useState<SearchHit[]>([]);
+  const [scanning, setScanning] = useState(false);
   const navigate = useNavigate();
   const { canAny } = useSession();
   const allowed = (m: ModuleKey) => canAny(MODULE_PERMISSIONS[m]);
@@ -42,9 +45,15 @@ export function GlobalSearch({ open, onClose }: { open: boolean; onClose: () => 
   };
 
   return (
+    <>
     <Modal open={open} onClose={onClose} title="Buscar">
       <div className="stack">
-        <SearchInput value={q} onChange={setQ} placeholder="Productos, códigos, proveedores, familias, ubicaciones…" label="Búsqueda global" />
+        <div className="row" style={{ flexWrap: 'nowrap' }}>
+          <div className="grow"><SearchInput value={q} onChange={setQ} placeholder="Productos, códigos, proveedores, familias, ubicaciones…" label="Búsqueda global" /></div>
+          {allowed('stock') && (
+            <button type="button" className="btn" onClick={() => { onClose(); setScanning(true); }}><ScanBarcode size={18} aria-hidden /> Escanear</button>
+          )}
+        </div>
         <div className="list card" role="listbox" aria-label="Resultados">
           {q && !hits.filter((h) => target(h)).length && <p className="muted card-pad">Sin resultados para “{q}”.</p>}
           {!q && <p className="muted card-pad small">Escribí para buscar en toda la app.</p>}
@@ -64,5 +73,7 @@ export function GlobalSearch({ open, onClose }: { open: boolean; onClose: () => 
         </div>
       </div>
     </Modal>
+    <ScanFlow open={scanning} onClose={() => setScanning(false)} />
+    </>
   );
 }

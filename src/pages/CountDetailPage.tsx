@@ -9,6 +9,8 @@ import { canSyncAdjustments, sendCountToExternal } from '../integrations/integra
 import { exportBridgeWorkbook } from '../integrations/maxirest/excelBridgeExport';
 import { useLookups, useProducts, EMPTY } from '../hooks/useData';
 import { useFeedback } from '../store/feedback';
+import { ScanButton } from '../components/scanner/ScanButton';
+import { findByCode } from '../services/productService';
 import { Badge, EmptyState, PageHeader, SearchInput, Segmented } from '../components/ui';
 import { Stepper } from '../components/Stepper';
 import { fmtNumber, fmtSigned, matches } from '../utils/format';
@@ -35,6 +37,7 @@ export function CountDetailPage() {
   const [showExpected, setShowExpected] = useState(true);
   const [canSync, setCanSync] = useState(false);
   const byId = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
+  const [hit, setHit] = useState<string | null>(null);
 
   useEffect(() => void canSyncAdjustments().then(setCanSync).catch(() => setCanSync(false)), []);
 
@@ -42,7 +45,7 @@ export function CountDetailPage() {
     () =>
       items
         .map((i) => ({ i, p: byId.get(i.productId) }))
-        .filter(({ i, p }) => p && matches(q, p.name, p.sku) && (show === 'all' || (show === 'done') === (i.counted !== undefined)))
+        .filter(({ i, p }) => p && matches(q, p.name, p.sku, p.barcode) && (show === 'all' || (show === 'done') === (i.counted !== undefined)))
         .sort((a, b) => a.p!.name.localeCompare(b.p!.name, 'es')),
     [items, byId, q, show],
   );
@@ -51,6 +54,20 @@ export function CountDetailPage() {
   // Agrupado por familia, ubicación o unidad: se puede contar sólo "Hormas" o sólo una cámara.
   const g = useProductGroups(rows, prodOf, lk);
   const { visible: shownRows, sentinel } = useIncremental(g.shown, `${q}|${g.mode}|${g.group}|${show}`);
+
+  // Escanear: ubica el producto en el conteo y deja el cursor en su cantidad (no se carga ningún número solo).
+  const onScan = async (code: string) => {
+    const found = await findByCode(code);
+    const inCount = items.filter((i) => found.some((p) => p.id === i.productId));
+    if (!found.length) return notify(`No hay ningún producto con el código ${code}.`, { tone: 'error' });
+    if (!inCount.length) return notify(`“${found[0].name}” no está en este conteo.`, { tone: 'error' });
+    const p = byId.get(inCount[0].productId)!;
+    setShow('all');
+    g.setGroup('');
+    setQ(p.name);
+    setHit(inCount[0].id);
+    setTimeout(() => document.querySelector<HTMLInputElement>(`[data-count-item="${inCount[0].id}"] input`)?.focus(), 80);
+  };
 
   if (count === undefined) return <p className="muted">Cargando…</p>;
   if (count === null || !count) return <EmptyState title="Conteo no encontrado" action={<Link className="btn" to="/conteo">Volver</Link>} />;
@@ -146,7 +163,8 @@ export function CountDetailPage() {
       )}
 
       <div className="toolbar">
-        <SearchInput value={q} onChange={setQ} placeholder="Buscar producto" />
+        <SearchInput value={q} onChange={setQ} placeholder="Buscar producto o código" />
+        {editable && <ScanButton onCode={onScan} title="Escanear para contar" />}
         <Segmented label="Mostrar" value={show} onChange={setShow} options={[{ value: 'all', label: 'Todos' }, { value: 'pending', label: 'Pendientes' }, { value: 'done', label: 'Contados' }]} />
         <label className="check small"><input type="checkbox" checked={showExpected} onChange={(e) => setShowExpected(e.target.checked)} /> Ver esperado</label>
       </div>
@@ -165,7 +183,7 @@ export function CountDetailPage() {
             return (
               <Fragment key={i.id}>
               {header && <div className="group-head">{g.labelOf(gid)} <span className="muted num">{g.groups.find((x) => x.id === gid)?.count}</span></div>}
-              <div className={`count-item ${i.counted !== undefined ? 'done' : ''}`}>
+              <div className={`count-item ${i.counted !== undefined ? 'done' : ''} ${hit === i.id ? 'scan-hit' : ''}`} data-count-item={i.id}>
                 <div className="grow" style={{ minWidth: 160 }}>
                   <div className="list-title">{p!.name}</div>
                   <div className="list-sub">
