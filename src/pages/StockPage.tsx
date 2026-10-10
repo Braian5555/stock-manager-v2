@@ -40,6 +40,19 @@ export function StockPage() {
 
   const activeFilters = Object.values(f).filter(Boolean).length;
 
+  // Alertas: cuántos hay en cada estado (de todo el stock activo, sin filtros) y cuántos no avisan por no tener mínimo.
+  const alerts = useMemo(() => {
+    const a = { sin_stock: 0, reponer: 0, noMin: 0 };
+    for (const p of products) {
+      if (!p.active) continue;
+      const st = statusOf(p, settings);
+      if (st === 'sin_stock') a.sin_stock++;
+      else if (st === 'bajo' || st === 'critico') a.reponer++;
+      if (p.minStock <= 0) a.noMin++;
+    }
+    return a;
+  }, [products, settings]);
+
   const rows = useMemo(() => {
     const list = products
       .filter((p) => p.active)
@@ -82,6 +95,26 @@ export function StockPage() {
           {f.proveedor && <button type="button" className="filter-chip" onClick={() => setF('proveedor', '')} aria-label={`Quitar filtro proveedor ${lk.supplier(f.proveedor)}`}>Proveedor: <b>{lk.supplier(f.proveedor) || '—'}</b> <X size={14} aria-hidden /></button>}
           {f.estado && <button type="button" className="filter-chip" onClick={() => setF('estado', '')} aria-label="Quitar filtro estado">Estado: <b>{f.estado === 'bajo' ? 'Bajo y crítico' : STATUS_LABEL[f.estado as StockStatus]}</b> <X size={14} aria-hidden /></button>}
         </div>
+      )}
+      {(alerts.sin_stock > 0 || alerts.reponer > 0) && (
+        <div className="alert-chips" role="group" aria-label="Alertas de stock">
+          {alerts.reponer > 0 && (
+            <button type="button" className={`alert-chip low ${f.estado === 'bajo' ? 'on' : ''}`} aria-pressed={f.estado === 'bajo'} onClick={() => setF('estado', f.estado === 'bajo' ? '' : 'bajo')}>
+              <b className="num">{alerts.reponer}</b> para reponer
+            </button>
+          )}
+          {alerts.sin_stock > 0 && (
+            <button type="button" className={`alert-chip out ${f.estado === 'sin_stock' ? 'on' : ''}`} aria-pressed={f.estado === 'sin_stock'} onClick={() => setF('estado', f.estado === 'sin_stock' ? '' : 'sin_stock')}>
+              <b className="num">{alerts.sin_stock}</b> sin stock
+            </button>
+          )}
+        </div>
+      )}
+      {alerts.noMin > 0 && can('catalog.manage') && (
+        <p className="small muted no-min-note">
+          {alerts.noMin === 1 ? 'Un producto no tiene' : `${alerts.noMin} productos no tienen`} mínimo cargado y no avisan cuando se acaban.{' '}
+          <Link to="/productos?sinMinimo=1&elegir=1">Cargar mínimos</Link>
+        </p>
       )}
       <div id="stock-filters" className={`filters ${showFilters ? '' : 'collapsed'}`}>
         <Select aria-label="Filtrar por familia" value={f.familia} onChange={(e) => setF('familia', e.target.value)}>

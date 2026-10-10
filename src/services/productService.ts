@@ -123,3 +123,59 @@ export async function findByCode(raw: string): Promise<Product[]> {
   if (byBarcode.length) return byBarcode;
   return all.filter((p) => p.sku && keys.has(normalizeBarcode(p.sku).toUpperCase()));
 }
+
+/** Campos que se pueden cambiar a varios productos a la vez. */
+export type BulkPatch = Partial<Pick<Product, 'categoryId' | 'locationId' | 'supplierId' | 'unitId' | 'minStock' | 'maxStock' | 'active'>>;
+const BULK_FIELDS = ['categoryId', 'locationId', 'supplierId', 'unitId', 'minStock', 'maxStock', 'active'] as const;
+
+/**
+ * Cambia uno o más campos en varios productos en una sola transacción (todo o nada).
+ * Nunca toca el stock. Devuelve un deshacer que restaura sólo los campos cambiados,
+ * respetando otros cambios que hayan llegado mientras tanto (p. ej. por sincronización).
+ */
+export async function bulkUpdateProducts(ids: string[], patch: BulkPatch): Promise<{ changed: number; undo: UndoSnapshot }> {
+  const keys = BULK_FIELDS.filter((k) => k in patch);
+  if (!ids.length) throw new Error('No hay productos elegidos.');
+  if (!keys.length) throw new Error('Elegí qué cambiar.');
+  for (const k of ['minStock', 'maxStock'] as const) {
+    const v = patch[k];
+    if (k in patch && (typeof v !== 'number' || !Number.isFinite(v) || v < 0)) throw new Error('El mínimo y el máximo tienen que ser números de 0 en adelante.');
+  }
+  const before = new Map<string, Partial<Product>>();
+  let changed = 0;
+  await db.transaction('rw', db.products, async () => {
+    const products = (await db.products.bulkGet(ids)).filter((p): p is Product => !!p);
+    // Validar todo antes de escribir: máximo menor que mínimo en algún producto → no se cambia ninguno.
+    const bad = products.filter((p) => {
+      const min = patch.minStock ?? p.minStock;
+      const max = patch.maxStock ?? p.maxStock;
+      return max > 0 && max < min;
+    });
+    if (bad.length)
+      throw new Error(`En ${bad.length === 1 ? `“${bad[0].name}”` : `${bad.length} productos (p. ej. “${bad[0].name}”)`} el máximo quedaría menor que el mínimo. Cambiá los dos juntos o ajustá el valor.`);
+    const t = nowIso();
+    const next: Product[] = [];
+    for (const p of products) {
+      if (keys.every((k) => p[k] === patch[k])) continue;
+      before.set(p.id, { ...(Object.fromEntries(keys.map((k) => [k, p[k]])) as Partial<Product>), ...(patch.supplierId ? { alternativeSupplierIds: p.alternativeSupplierIds } : {}) });
+      const n: Product = { ...p, ...patch, updatedAt: t };
+      // El proveedor principal no puede figurar también como alternativo.
+      if (patch.supplierId) n.alternativeSupplierIds = (p.alternativeSupplierIds ?? []).filter((s) => s !== patch.supplierId);
+      next.push(n);
+    }
+    await db.products.bulkPut(next);
+    changed = next.length;
+  });
+  return {
+    changed,
+    undo: {
+      restore: async () => {
+        await db.transaction('rw', db.products, async () => {
+          const t = nowIso();
+          const current = (await db.products.bulkGet([...before.keys()])).filter((p): p is Product => !!p);
+          await db.products.bulkPut(current.map((p) => ({ ...p, ...before.get(p.id), updatedAt: t })));
+        });
+      },
+    },
+  };
+}

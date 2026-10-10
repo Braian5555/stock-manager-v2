@@ -172,6 +172,10 @@ export interface InventoryCount extends BaseEntity {
   appliedAt?: ISODate;
   /** Conteo en un punto gastronómico (si falta, es en el Depósito Central). */
   outletId?: ID;
+  /** Auditoría: quién empezó, finalizó y aplicó el conteo. */
+  createdBy?: Actor;
+  finishedBy?: Actor;
+  appliedBy?: Actor;
 }
 
 export interface InventoryCountItem extends BaseEntity {
@@ -180,6 +184,9 @@ export interface InventoryCountItem extends BaseEntity {
   /** Stock esperado al iniciar el conteo (según baseline). */
   expected: number;
   counted?: number;
+  /** Auditoría: quién cargó la cantidad y cuándo. */
+  countedBy?: Actor;
+  countedAt?: ISODate;
 }
 
 export type ThemeMode = 'light' | 'dark' | 'system';

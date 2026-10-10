@@ -76,9 +76,9 @@ export async function buildDatasets(scope: ExportScope): Promise<{ title: string
     const [counts, items] = await Promise.all([db.counts.orderBy('createdAt').reverse().toArray(), db.countItems.toArray()]);
     out.push({
       title: 'Conteos',
-      columns: ['Conteo', 'Fecha', 'Lugar', 'Estado', 'Producto', 'Esperado', 'Contado', 'Diferencia'],
+      columns: ['Conteo', 'Fecha', 'Lugar', 'Estado', 'Producto', 'Esperado', 'Contado', 'Diferencia', 'Contado por', 'Aplicado por'],
       rows: counts.flatMap((c) =>
-        items.filter((i) => i.countId === c.id && i.counted !== undefined).map((i) => [c.name, fmtDateTime(c.createdAt), place(c.outletId), c.status, prod(i.productId), i.expected, i.counted!, i.counted! - i.expected]),
+        items.filter((i) => i.countId === c.id && i.counted !== undefined).map((i) => [c.name, fmtDateTime(c.createdAt), place(c.outletId), c.status, prod(i.productId), i.expected, i.counted!, i.counted! - i.expected, i.countedBy?.name ?? '', c.appliedBy?.name ?? '']),
       ),
     });
   }

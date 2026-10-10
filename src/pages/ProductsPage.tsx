@@ -1,4 +1,4 @@
-import { Copy, Package, Pencil, Plus, Tag, Trash2 } from 'lucide-react';
+import { CheckSquare, Copy, Package, Pencil, Plus, Tag, Trash2, X } from 'lucide-react';
 import { Fragment, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router';
 import { useLookups, useProducts } from '../hooks/useData';
@@ -11,6 +11,7 @@ import { ScanButton } from '../components/scanner/ScanButton';
 import { LabelsModal } from '../components/scanner/LabelsModal';
 import { Badge, EmptyState, PageHeader, SearchInput, StatusBadge } from '../components/ui';
 import { ProductForm } from '../components/ProductForm';
+import { BulkEditModal } from '../components/BulkEditModal';
 import { fmtNumber, matches } from '../utils/format';
 import { useIncremental } from '../hooks/useIncremental';
 import { GroupBar, useProductGroups } from '../components/GroupBar';
@@ -26,6 +27,11 @@ export function ProductsPage() {
   const [params, setParams] = useSearchParams();
   const [q, setQ] = useState('');
   const [labels, setLabels] = useState(false);
+  // Selección para cambios en lote. "elegir=1" en la URL la abre (p. ej. desde el aviso de productos sin mínimo).
+  const [selecting, setSelecting] = useState(params.get('elegir') === '1');
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulk, setBulk] = useState(false);
+  const noMin = params.get('sinMinimo') === '1';
   const editingId = params.get('editar');
   const creating = params.get('nuevo') === '1';
   const editing = editingId ? products.find((p) => p.id === editingId) : undefined;
@@ -43,11 +49,20 @@ export function ProductsPage() {
     setParams(next);
   };
   const list = useMemo(
-    () => products.filter((p) => matches(q, p.name, p.sku, p.barcode, lk.category(p.categoryId), lk.supplier(p.supplierId))).sort((a, b) => a.name.localeCompare(b.name, 'es')),
-    [products, q, lk],
+    () => products
+      .filter((p) => (!noMin || (p.active && p.minStock <= 0)) && matches(q, p.name, p.sku, p.barcode, lk.category(p.categoryId), lk.supplier(p.supplierId)))
+      .sort((a, b) => a.name.localeCompare(b.name, 'es')),
+    [products, q, lk, noMin],
   );
   const g = useProductGroups(list, self, lk);
   const { visible, sentinel } = useIncremental(g.shown, `${q}|${g.mode}|${g.group}`);
+
+  const allShown = g.shown.length > 0 && g.shown.every((p) => selected.has(p.id));
+  const toggle = (id: string, on: boolean) => setSelected((cur) => { const n = new Set(cur); if (on) n.add(id); else n.delete(id); return n; });
+  const toggleAll = (on: boolean) => setSelected((cur) => { const n = new Set(cur); for (const p of g.shown) { if (on) n.add(p.id); else n.delete(p.id); } return n; });
+  const stopSelecting = () => { setSelecting(false); setSelected(new Set()); };
+  const chosen = products.filter((p) => selected.has(p.id));
+  const clearNoMin = () => { const next = new URLSearchParams(params); next.delete('sinMinimo'); setParams(next, { replace: true }); };
 
   const remove = async (id: string, name: string) => {
     const ok = await confirm({ title: 'Eliminar producto', message: <p>¿Eliminar <strong>{name}</strong>? El historial de movimientos se conserva.</p>, confirmLabel: 'Eliminar', danger: true });
@@ -61,9 +76,15 @@ export function ProductsPage() {
       <PageHeader
         title={menuLabel(settings, 'products')}
         subtitle={`${products.length} productos`}
-        actions={<><ScanButton /><button type="button" className="btn" onClick={() => setLabels(true)}><Tag size={18} aria-hidden /> Etiquetas</button><button type="button" className="btn btn-primary" onClick={() => open({ nuevo: '1' })}><Plus size={18} aria-hidden /> Nuevo producto</button></>}
+        actions={<><ScanButton /><button type="button" className="btn" aria-pressed={selecting} onClick={() => (selecting ? stopSelecting() : setSelecting(true))}><CheckSquare size={18} aria-hidden /> {selecting ? 'Terminar' : 'Elegir varios'}</button><button type="button" className="btn" onClick={() => setLabels(true)}><Tag size={18} aria-hidden /> Etiquetas</button><button type="button" className="btn btn-primary" onClick={() => open({ nuevo: '1' })}><Plus size={18} aria-hidden /> Nuevo producto</button></>}
       />
       <div className="toolbar"><SearchInput value={q} onChange={setQ} placeholder="Buscar producto, código o familia" /></div>
+      {noMin && (
+        <div className="filter-chips">
+          <button type="button" className="filter-chip" onClick={clearNoMin} aria-label="Quitar filtro sin mínimo">Sin mínimo cargado <X size={14} aria-hidden /></button>
+          <span className="small muted">Estos productos no avisan cuando se están acabando. Elegilos y cargales el mínimo en lote.</span>
+        </div>
+      )}
       {products.length > 0 && <GroupBar mode={g.mode} groups={g.groups} group={g.group} total={list.length} onMode={g.setMode} onGroup={g.setGroup} />}
       <div className="card">
         {list.length === 0 ? (
@@ -74,15 +95,16 @@ export function ProductsPage() {
           <div className="table-wrap">
             <table className="table responsive">
               <thead>
-                <tr><th>Producto</th><th>Código</th><th>Familia</th><th>Ubicación</th><th>Proveedor</th><th className="num">Stock</th><th>Estado</th><th><span className="sr-only">Acciones</span></th></tr>
+                <tr>{selecting && <th className="col-check"><input type="checkbox" checked={allShown} onChange={(e) => toggleAll(e.target.checked)} aria-label={`Elegir los ${g.shown.length} productos de la lista`} /></th>}<th>Producto</th><th>Código</th><th>Familia</th><th>Ubicación</th><th>Proveedor</th><th className="num">Stock</th><th>Estado</th><th><span className="sr-only">Acciones</span></th></tr>
               </thead>
               <tbody>
                 {visible.map((p, i) => (
                   <Fragment key={p.id}>
                   {(i === 0 || g.groupOf(visible[i - 1]) !== g.groupOf(p)) && (
-                    <tr className="group-row"><th colSpan={8} scope="rowgroup">{g.labelOf(g.groupOf(p))} <span className="muted num">{g.groups.find((x) => x.id === g.groupOf(p))?.count}</span></th></tr>
+                    <tr className="group-row"><th colSpan={selecting ? 9 : 8} scope="rowgroup">{g.labelOf(g.groupOf(p))} <span className="muted num">{g.groups.find((x) => x.id === g.groupOf(p))?.count}</span></th></tr>
                   )}
-                  <tr>
+                  <tr className={selected.has(p.id) ? 'row-selected' : undefined}>
+                    {selecting && <td className="col-check"><input type="checkbox" checked={selected.has(p.id)} onChange={(e) => toggle(p.id, e.target.checked)} aria-label={`Elegir ${p.name}`} /></td>}
                     <td className="cell-title">
                       {p.name} {!p.active && <Badge>Inactivo</Badge>} {p.externalSystems?.maxirest && <Badge tone="info">Maxirest</Badge>}
                       <span className="cell-sub only-mobile">{[p.sku, lk.category(p.categoryId), lk.location(p.locationId), lk.supplier(p.supplierId)].filter(Boolean).join(' · ')}</span>
@@ -110,6 +132,15 @@ export function ProductsPage() {
         )}
       </div>
       <ProductForm open={creating || !!editing} product={editing} onClose={close} />
+      {selecting && (
+        <div className="bulk-bar" role="region" aria-label="Productos elegidos">
+          <span className="grow" style={{ whiteSpace: 'nowrap' }}><b className="num">{selected.size}</b> {selected.size === 1 ? 'elegido' : 'elegidos'}</span>
+          {!allShown && g.shown.length > 0 && <button type="button" className="btn btn-sm btn-ghost" onClick={() => toggleAll(true)}>Elegir los {g.shown.length}</button>}
+          {selected.size > 0 && <button type="button" className="btn btn-sm btn-ghost bulk-none" onClick={() => setSelected(new Set())}>Ninguno</button>}
+          <button type="button" className="btn btn-primary" disabled={!selected.size} onClick={() => setBulk(true)}>Cambiar…</button>
+        </div>
+      )}
+      <BulkEditModal open={bulk} products={chosen} onClose={() => setBulk(false)} onDone={() => { setBulk(false); setSelected(new Set()); }} />
       <LabelsModal open={labels} products={g.shown} scope={g.group ? 'del grupo elegido' : q ? 'de la búsqueda' : 'de la lista'} onClose={() => setLabels(false)} />
     </>
   );

@@ -3,6 +3,7 @@ import type { CountBaseline, InventoryCount, InventoryCountItem } from '../model
 import { nowIso, uuid } from '../utils/id';
 import { round3 } from '../utils/format';
 import { applyMovement, outletStockOf, stockByOutlet } from './stockService';
+import { getCurrentActor } from './userService';
 
 export interface StartCountInput {
   name?: string;
@@ -45,6 +46,7 @@ export async function startCount(input: StartCountInput): Promise<InventoryCount
       outletId: outlet?.id,
       categoryId: input.categoryId,
       baseline,
+      createdBy: getCurrentActor(),
     };
     await db.counts.add(count);
     const items: InventoryCountItem[] = products.map((p) => {
@@ -59,7 +61,10 @@ export async function startCount(input: StartCountInput): Promise<InventoryCount
 
 export async function setCounted(itemId: string, counted: number | undefined): Promise<void> {
   const value = counted === undefined || Number.isNaN(counted) ? undefined : Math.max(0, round3(counted));
-  await db.countItems.update(itemId, { counted: value, updatedAt: nowIso() });
+  const t = nowIso();
+  await db.countItems.update(itemId, value === undefined
+    ? { counted: undefined, countedBy: undefined, countedAt: undefined, updatedAt: t }
+    : { counted: value, countedBy: getCurrentActor(), countedAt: t, updatedAt: t });
 }
 
 export interface CountLine {
@@ -95,11 +100,11 @@ export function summarizeCount(items: InventoryCountItem[]): CountSummary {
 
 export async function finishCount(countId: string): Promise<void> {
   const t = nowIso();
-  await db.counts.update(countId, { status: 'finalizado', finishedAt: t, updatedAt: t });
+  await db.counts.update(countId, { status: 'finalizado', finishedAt: t, finishedBy: getCurrentActor(), updatedAt: t });
 }
 
 export async function reopenCount(countId: string): Promise<void> {
-  await db.counts.update(countId, { status: 'abierto', finishedAt: undefined, updatedAt: nowIso() });
+  await db.counts.update(countId, { status: 'abierto', finishedAt: undefined, finishedBy: undefined, updatedAt: nowIso() });
 }
 
 export async function discardCount(countId: string): Promise<void> {
@@ -136,6 +141,24 @@ export async function applyCount(countId: string): Promise<number> {
     if (!duplicate) applied++;
   }
   const t = nowIso();
-  await db.counts.update(countId, { status: 'aplicado', appliedAt: t, finishedAt: count.finishedAt ?? t, updatedAt: t });
+  await db.counts.update(countId, { status: 'aplicado', appliedAt: t, appliedBy: getCurrentActor(), finishedAt: count.finishedAt ?? t, updatedAt: t });
   return applied;
+}
+
+/**
+ * Productos contados cuyo stock cambió desde que empezó el conteo (ventas, ingresos…).
+ * Al aplicar quedan en lo contado; se avisa antes para que nadie se sorprenda.
+ */
+export async function movedSinceStart(countId: string): Promise<{ productId: string; expected: number; current: number; counted: number }[]> {
+  const count = await db.counts.get(countId);
+  if (!count || count.baseline !== 'local') return [];
+  const items = (await db.countItems.where('countId').equals(countId).toArray()).filter((i) => i.counted !== undefined);
+  const out: { productId: string; expected: number; current: number; counted: number }[] = [];
+  for (const i of items) {
+    const p = await db.products.get(i.productId);
+    if (!p) continue;
+    const current = count.outletId ? await outletStockOf(count.outletId, p.id) : p.stock;
+    if (round3(current) !== round3(i.expected)) out.push({ productId: p.id, expected: i.expected, current, counted: i.counted! });
+  }
+  return out;
 }

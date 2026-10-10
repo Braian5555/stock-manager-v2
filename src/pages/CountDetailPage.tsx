@@ -4,7 +4,8 @@ import { ArrowLeft, CheckCircle2, FileSpreadsheet, Send } from 'lucide-react';
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { db } from '../database/db';
-import { applyCount, discardCount, finishCount, reopenCount, setCounted, summarizeCount, type CountLine } from '../services/countService';
+import { applyCount, discardCount, finishCount, movedSinceStart, reopenCount, setCounted, summarizeCount, type CountLine } from '../services/countService';
+import { downloadCountReport } from '../exports/countReport';
 import { canSyncAdjustments, sendCountToExternal } from '../integrations/integrationService';
 import { exportBridgeWorkbook } from '../integrations/maxirest/excelBridgeExport';
 import { useLookups, useProducts, EMPTY } from '../hooks/useData';
@@ -13,7 +14,7 @@ import { ScanButton } from '../components/scanner/ScanButton';
 import { findByCode } from '../services/productService';
 import { Badge, EmptyState, PageHeader, SearchInput, Segmented } from '../components/ui';
 import { Stepper } from '../components/Stepper';
-import { fmtNumber, fmtSigned, matches } from '../utils/format';
+import { fmtDateTime, fmtNumber, fmtSigned, fmtTime, matches } from '../utils/format';
 import { COUNT_STATUS } from './CountsPage';
 import { useIncremental } from '../hooks/useIncremental';
 import { GroupBar, useProductGroups } from '../components/GroupBar';
@@ -86,12 +87,22 @@ export function CountDetailPage() {
 
   const apply = async () => {
     const changes = [...summary.increases, ...summary.decreases];
+    const moved = await movedSinceStart(id);
     const ok = await confirm({
       title: 'Aplicar conteo al stock',
       message: (
         <>
           <p>Se ajustará el stock {count.outletId ? 'del punto' : 'de Stock Manager'} a las cantidades contadas ({changes.length} productos con diferencia).</p>
           {count.baseline === 'maxirest' && <p className="small muted">Esto ajusta sólo Stock Manager. Para Maxirest usá “Enviar a Maxirest” o el Excel.</p>}
+          {moved.length > 0 && (
+            <div className="alert alert-warn stack-sm" style={{ marginTop: 8 }}>
+              <span>{moved.length === 1 ? 'Un producto tuvo' : `${moved.length} productos tuvieron`} movimientos desde que empezó el conteo. Al aplicar quedan en lo contado:</span>
+              {moved.slice(0, 8).map((m) => (
+                <span key={m.productId} className="small">{byId.get(m.productId)?.name}: al empezar {fmtNumber(m.expected)}, ahora {fmtNumber(m.current)} → queda {fmtNumber(m.counted)}</span>
+              ))}
+              {moved.length > 8 && <span className="small muted">…y {moved.length - 8} más.</span>}
+            </div>
+          )}
         </>
       ),
       confirmLabel: 'Aplicar ajustes',
@@ -128,6 +139,12 @@ export function CountDetailPage() {
         actions={editable ? <button type="button" className="btn btn-primary" onClick={finish}><CheckCircle2 size={18} aria-hidden /> Finalizar conteo</button> : undefined}
       />
 
+      <p className="small muted count-audit">
+        Empezado {fmtDateTime(count.createdAt)}{count.createdBy && ` por ${count.createdBy.name}`}
+        {count.finishedAt && <> · finalizado {fmtDateTime(count.finishedAt)}{count.finishedBy && ` por ${count.finishedBy.name}`}</>}
+        {count.appliedAt && <> · aplicado {fmtDateTime(count.appliedAt)}{count.appliedBy && ` por ${count.appliedBy.name}`}</>}
+      </p>
+
       {!editable && (
         <section className="card card-pad stack" style={{ marginBottom: 16 }} aria-labelledby="resumen">
           <h2 id="resumen">Resultado</h2>
@@ -154,6 +171,7 @@ export function CountDetailPage() {
             {count.status === 'finalizado' && can('count.apply') && <button type="button" className="btn btn-primary" onClick={apply}>Aplicar al stock</button>}
             {count.status === 'finalizado' && <button type="button" className="btn" onClick={() => run(() => reopenCount(id))}>Seguir contando</button>}
             {canSync && !count.outletId && can('admin') && linkedDiffs.length > 0 && count.status !== 'descartado' && <button type="button" className="btn" onClick={send}><Send size={16} aria-hidden /> Enviar a Maxirest</button>}
+            {can('export') && <button type="button" className="btn" onClick={() => run(() => downloadCountReport(id), 'Excel de diferencias generado')}><FileSpreadsheet size={16} aria-hidden /> Excel de diferencias</button>}
             {can('export') && !count.outletId && <button type="button" className="btn" onClick={() => run(() => exportBridgeWorkbook(id, count.name), 'Excel generado')}><FileSpreadsheet size={16} aria-hidden /> Excel para Maxirest</button>}
             {count.status === 'finalizado' && can('count.apply') && (
               <button type="button" className="btn btn-danger" onClick={async () => (await confirm({ title: 'Descartar conteo', message: 'El conteo quedará guardado como descartado y no modificará el stock.', danger: true, confirmLabel: 'Descartar' })) && run(() => discardCount(id))}>Descartar</button>
@@ -190,6 +208,7 @@ export function CountDetailPage() {
                     {[lk.unit(p!.unitId), lk.location(p!.locationId)].filter(Boolean).join(' · ')}
                     {showExpected && <> · esperado <b className="num">{fmtNumber(i.expected)}</b></>}
                     {showExpected && diff !== undefined && diff !== 0 && <> · <b className={`num ${diff > 0 ? 'pos' : 'neg'}`}>{fmtSigned(diff)}</b></>}
+                    {i.countedBy && <> · {i.countedBy.name}{i.countedAt && ` ${fmtTime(i.countedAt)}`}</>}
                   </div>
                 </div>
                 {editable ? (
