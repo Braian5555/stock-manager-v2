@@ -41,7 +41,7 @@ Se usa **Firebase** (Google): *Authentication* para el inicio de sesión y *Clou
 3. Nombre: `Stock Manager`. **No** marques Firebase Hosting. **Registrar app**.
 4. Vas a ver un bloque `const firebaseConfig = { ... }`. Copiá estos cuatro valores: `apiKey`, `authDomain`, `projectId`, `appId`.
 
-> Estos valores **no son secretos**: Firebase los diseña para estar en páginas públicas. Lo que protege los datos son las reglas del paso 3 y el inicio de sesión con Google.
+> Estos valores **no son secretos**: Firebase los diseña para estar en páginas públicas. Lo que protege los datos son las reglas del paso 3 y el inicio de sesión.
 
 ## Paso 5 — Cargar la configuración en el repositorio
 
@@ -63,20 +63,20 @@ Se usa **Firebase** (Google): *Authentication* para el inicio de sesión y *Clou
 
 **En el dispositivo que tiene tus datos actuales:**
 
-1. Abrí la app → **Más → Cuenta y nube** → **Iniciar sesión con Google**.
+1. Abrí la app → **Más → Cuenta y nube** → iniciá sesión con tu email y contraseña (o creá la cuenta).
 2. **Crear y subir mis datos**. Se crea tu espacio de trabajo y se suben los datos.
 
 **En cada uno de los otros dispositivos:**
 
-1. **Más → Cuenta y nube** → **Iniciar sesión con Google** (con la misma cuenta).
+1. **Más → Cuenta y nube** → iniciá sesión con la misma cuenta.
 2. En *Tus espacios* → **Usar en este dispositivo**. Los datos de ese dispositivo se reemplazan por los de la nube.
 
 > En iPhone, si instalaste la app con *Agregar a inicio*, iniciá sesión **dentro de la app instalada** (tiene su propio almacenamiento, separado de Safari).
 
 ## Paso 7 — Invitar empleados (opcional)
 
-1. **Cuenta y nube → Miembros → Invitar por email** → escribí el Gmail de la persona → **Invitar**.
-2. Esa persona abre la app, inicia sesión con ese Gmail y en **Invitaciones** toca **Unirme**.
+1. **Cuenta y nube → Miembros → Invitar por email** → escribí el email de la persona → **Invitar**.
+2. Esa persona abre la app, crea su cuenta o inicia sesión con ese mismo email (no hace falta confirmar el email) y en **Invitaciones** toca **Unirme**.
 3. Roles: **Dueño** (vos), **Administrador** (puede invitar y quitar personas, y cambiar usuarios con PIN y configuración), **Miembro** (usa la app: stock, pedidos, conteos, remitos, facturas; no puede cambiar usuarios ni configuración).
 
 ---

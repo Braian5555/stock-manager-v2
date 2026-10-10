@@ -7,11 +7,11 @@ import { readFileSync } from 'node:fs';
 const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')) as { version: string };
 
 /**
- * La app se publica en https://braian5555.github.io/stock-manager/
+ * La app se publica en Firebase Hosting (https://stock-manager-a7cf7.web.app/), en la raíz.
  * Toda ruta (JS, CSS, manifest, service worker, iconos) se resuelve contra BASE.
- * Se puede sobrescribir con VITE_BASE_PATH (por ejemplo "/" para un dominio propio).
+ * Se puede sobrescribir con VITE_BASE_PATH (por ejemplo "/stock-manager/" para publicar en una subcarpeta).
  */
-const BASE = process.env.VITE_BASE_PATH ?? '/stock-manager/';
+const BASE = process.env.VITE_BASE_PATH ?? '/';
 
 export default defineConfig({
   base: BASE,

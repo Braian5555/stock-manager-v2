@@ -11,7 +11,7 @@ import { existsSync, rmSync } from 'node:fs';
 import { extname, join } from 'node:path';
 import { chromium } from '@playwright/test';
 
-const BASE = process.env.VITE_BASE_PATH ?? '/stock-manager/';
+const BASE = process.env.VITE_BASE_PATH ?? '/';
 const TMP = '.sw-test';
 rmSync(TMP, { recursive: true, force: true });
 for (const v of ['A', 'B']) {
@@ -37,8 +37,13 @@ let failed = false;
 const check = (cond, msg) => { console.log(`${cond ? '✓' : '✗'} ${msg}`); if (!cond) failed = true; };
 try {
   await page.goto(url);
-  // Primer uso: crear el usuario administrador para poder ver la app.
-  await page.getByRole('heading', { name: 'Crear usuario administrador' }).waitFor();
+  // Primer uso: con la nube configurada se ofrece iniciar sesión; la prueba usa el modo local
+  // y crea el usuario administrador para poder ver la app.
+  const setup = page.getByRole('heading', { name: 'Crear usuario administrador' });
+  const cloudLogin = page.getByRole('heading', { name: 'Iniciar sesión' });
+  await setup.or(cloudLogin).first().waitFor();
+  if (await cloudLogin.isVisible()) await page.getByRole('button', { name: 'Usar sólo en este dispositivo, sin nube' }).click();
+  await setup.waitFor();
   await page.getByLabel('Tu nombre').fill('Admin');
   await page.getByLabel(/^PIN( ·|$)/).fill('1234');
   await page.getByLabel('Repetí el PIN').fill('1234');

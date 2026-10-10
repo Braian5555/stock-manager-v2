@@ -11,7 +11,7 @@ function chromiumPath(): string | undefined {
   return bin && existsSync(bin) ? bin : undefined;
 }
 
-const BASE = `http://localhost:4173${process.env.VITE_BASE_PATH ?? '/stock-manager/'}`;
+const BASE = `http://localhost:4173${process.env.VITE_BASE_PATH ?? '/'}`;
 
 export default defineConfig({
   testDir: 'tests/e2e',

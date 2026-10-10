@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { dialog, go, loadDemo, open } from './helpers';
 
-const BASE = process.env.VITE_BASE_PATH ?? '/stock-manager/';
+const BASE = process.env.VITE_BASE_PATH ?? '/';
 
 test('1 · abre la app sin mostrar código fuente ni errores', async ({ page }) => {
   const errors = await open(page);

@@ -4,7 +4,7 @@ import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
 const DIST = 'dist';
-const BASE = process.env.VITE_BASE_PATH ?? '/stock-manager/';
+const BASE = process.env.VITE_BASE_PATH ?? '/';
 const errors = [];
 const ok = (m) => console.log(`  ✓ ${m}`);
 const fail = (m) => errors.push(m);

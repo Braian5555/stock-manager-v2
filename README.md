@@ -2,7 +2,9 @@
 
 Aplicación de **inventario, stock, conteos, proveedores, pedidos y movimientos**. PWA instalable, mobile-first, funciona **sin conexión** y guarda los datos en el dispositivo. Genérica y configurable para cualquier tipo de negocio. Incluye una capa de integraciones preparada para **Maxirest** (ver [docs/maxirest.md](docs/maxirest.md) para el estado real).
 
-**Producción:** https://braian5555.github.io/stock-manager/
+**Producción:** https://stock-manager-a7cf7.web.app (Firebase Hosting, publicado por GitHub Actions en cada push a `main`).
+
+No hay app nativa: en el celular se usa la misma web instalada como PWA (Android: menú → Instalar app; iPhone: Safari → Compartir → Agregar a inicio).
 
 ---
 
@@ -14,12 +16,15 @@ Aplicación de **inventario, stock, conteos, proveedores, pedidos y movimientos*
 | Stock | Tarjetas con estado, búsqueda, filtros (familia, proveedor, ubicación, estado), orden (nombre, cantidad, familia, ubicación), registrar movimientos con *Deshacer*. |
 | Conteo | Conteo pensado para celular (`[-] [ n ] [+]`), por ubicación y/o familia, resumen de diferencias (aumentos, disminuciones, sin cambios) y aplicación con confirmación. |
 | Pedidos | Borrador → pendiente → enviado → recibido / cancelado. Crear, editar, duplicar, eliminar, copiar texto, **recibir** (suma stock con unidad de compra y registra movimiento). **Pedido sugerido** agrupado por proveedor (hasta el máximo o hasta el mínimo). |
-| Productos | Alta/edición/duplicado/eliminación (con deshacer), SKU, familia, unidad de stock y de compra con equivalencia (1 caja = 12 u), ubicación, proveedor principal y alternativos, mín/máx, activo. |
+| Productos | Alta/edición/duplicado/eliminación (con deshacer), SKU, **código de barras** (único), familia, unidad de stock y de compra con equivalencia (1 caja = 12 u), ubicación, proveedor principal y alternativos, mín/máx, activo. |
 | Proveedores, Familias, Unidades, Ubicaciones | ABM genérico; eliminar deja los productos sin ese dato (no los borra) y se puede deshacer. |
 | Movimientos | Historial: fecha, hora, producto, anterior, nuevo, diferencia, tipo, motivo, origen. Revertir con ajuste inverso. |
 | Conciliación | Stock Manager vs. Maxirest con filtros y ajustes confirmados. |
 | Exportar y backup | PDF, DOCX, XLSX, JSON (todo o por sección). Backup completo y restauración validada. Importación de productos desde XLSX/CSV. |
 | Integraciones | Maxirest: asistente de 7 pasos, mock, Excel Bridge, gateway, vínculos, cola de sincronización. |
+| Código de barras | Escanear con la cámara (detector nativo o ZXing en iPhone/Safari) o escribir/lector USB, desde la búsqueda, el botón +, Stock, Productos, Movimientos, Conteo y recepción de pedidos. Muestra el producto con su stock y deja registrar ingreso, salida o conteo (sin cantidades automáticas). Código desconocido: asignar a un producto o crear uno, con confirmación. Etiquetas Code 128 para imprimir (A4 o 50×30 mm). |
+| Producción | Usuario de producción con una sola pantalla; si el producto tiene receta, descuenta los insumos. Recetas importables desde Maxirest. |
+| Usuarios y nube | Usuarios con PIN y roles; sincronización entre dispositivos con Firebase (ver abajo). |
 | Configuración | Nombre, subtítulo, logo (predeterminado/emoji/imagen), colores, tema claro/oscuro/automático, nombre/orden/visibilidad del menú, umbral crítico, modo de pedido sugerido. |
 
 Búsqueda global con `Ctrl/⌘ + K` (productos, códigos, proveedores, familias, ubicaciones, unidades).
@@ -58,7 +63,7 @@ scripts/                    verify-build, test-sw-update, generate-icons
 
 Principios: la UI nunca toca IndexedDB directamente para escribir; todo cambio de stock pasa por `applyMovement()` (transaccional e **idempotente** por `idempotencyKey` con índice único). Todas las entidades tienen `id` (UUID), `createdAt`, `updatedAt`.
 
-Preparado para el futuro (no implementado): usuarios/roles, backend y sync cloud, múltiples sucursales/negocios (`Business` ya existe), código de barras/QR, reportes avanzados, otras integraciones (nuevo adaptador en `src/integrations/`).
+Preparado para el futuro (no implementado): múltiples negocios (`Business` ya existe), QR, otras integraciones (nuevo adaptador en `src/integrations/`).
 
 ---
 
@@ -68,13 +73,14 @@ Requisitos: Node 20+ (probado con 22).
 
 ```bash
 npm install
-npm run dev          # http://localhost:5173/stock-manager/  (sin service worker en desarrollo)
+npm run dev          # http://localhost:5173/  (sin service worker en desarrollo)
 ```
 
 | Script | Descripción |
 |---|---|
 | `npm run build` | `tsc` + build de producción + **verificación del build** (`scripts/verify-build.mjs`) |
-| `npm run preview` | Sirve `dist/` en http://localhost:4173/stock-manager/ |
+| `npm run preview` | Sirve `dist/` en http://localhost:4173/ |
+| `npm run typecheck` | Verificación de tipos (`tsc -b`) |
 | `npm run lint` | ESLint (incluye regla que prohíbe `innerHTML`) |
 | `npm test` | Tests unitarios (Vitest) |
 | `npm run test:e2e` | Tests E2E (Playwright, móvil + desktop, contra el build) |
@@ -87,49 +93,50 @@ Ver [.env.example](.env.example). Todo lo que empieza con `VITE_` es **público*
 
 | Variable | Default | Uso |
 |---|---|---|
-| `VITE_BASE_PATH` | `/stock-manager/` (en CI: nombre del repo) | Base de publicación. `/` para dominio propio. |
+| `VITE_BASE_PATH` | `/` | Base de publicación. Sólo cambiarlo para publicar en una subcarpeta (p. ej. `/stock-manager/`). |
 | `VITE_DEFAULT_GATEWAY_URL` | vacío | URL pública del gateway de integración (opcional). |
 
 ---
 
-## Deploy en GitHub Pages
+## Deploy (Firebase Hosting)
 
-El base path se toma automáticamente del **nombre del repositorio** (`/${{ github.event.repository.name }}/` en el workflow), así que la app funciona en `https://<usuario>.github.io/<nombre-del-repo>/` con cualquier nombre.
+Cada push a `main` corre `.github/workflows/deploy.yml`: lint, tests unitarios, build verificado (incluye `tsc`) con `VITE_BASE_PATH=/` y publicación en Firebase Hosting (canal `live`) con la cuenta de servicio del secreto `FIREBASE_SERVICE_ACCOUNT`. Los E2E y `test:sw` se corren localmente antes de publicar.
 
-1. En el repositorio: **Settings → Pages → Source: GitHub Actions**.
-2. Hacer push a `main`. El workflow `.github/workflows/deploy.yml` corre lint, tests unitarios, build verificado, E2E y la prueba de actualización del SW, y publica `dist/`.
-3. Abrir https://braian5555.github.io/stock-manager/
+`firebase.json` sirve `dist/` con caché larga para `/assets/**` (archivos con hash) y `no-cache` para `index.html`, `sw.js`, el manifest y `firebase-config.json`, así una versión nueva llega en cuanto se publica.
 
-> **Importante:** la versión anterior publicaba la rama directamente (un `index.html` suelto). Con este proyecto Pages **debe** publicar desde GitHub Actions; si se publica la rama `main` “tal cual”, el navegador recibiría `/src/main.tsx` sin compilar.
+Las reglas de Firestore (`firestore.rules`) **no** se publican desde CI: se pegan a mano en la consola de Firebase cuando cambian.
+
+> Copias anteriores en GitHub Pages (`braian5555.github.io/stock-manager/` y `/stock-manager-v2/`) ya no se actualizan. Quien tenga instalada alguna de esas debe usar la de Firebase.
 
 ### Por qué ya no puede aparecer código en pantalla
 
 El problema anterior: un `<script>` escrito dentro de un template string en un script inline cerraba la etiqueta antes de tiempo y el resto del JavaScript se mostraba como texto. Ahora:
 
 - El HTML no tiene scripts inline (y la CSP los bloquea): sólo un `<script type="module" src=…>` generado por Vite.
+- CSP: `script-src` sólo permite el propio sitio y los scripts de inicio de sesión de Google. `connect-src` admite cualquier `https:` a propósito: la URL del gateway de Maxirest se configura desde la app y una lista fija la bloquearía sin aviso. Si nunca se va a usar un gateway, se puede limitar a `'self' https://*.googleapis.com https://*.firebaseapp.com`.
 - Exportaciones PDF/Word se generan como archivos (jsPDF/docx), sin `document.write` ni HTML concatenado.
-- `scripts/verify-build.mjs` falla el build si: hay texto visible en `<body>`, scripts inline, etiquetas `<script>` desbalanceadas, referencias a `.tsx`, rutas fuera de `/stock-manager/` o archivos inexistentes, manifest/SW mal configurados.
+- `scripts/verify-build.mjs` falla el build si: hay texto visible en `<body>`, scripts inline, etiquetas `<script>` desbalanceadas, referencias a `.tsx`, rutas fuera del base path o archivos inexistentes, manifest/SW mal configurados.
 - El E2E verifica en el navegador que el texto visible no contenga código.
 
 ## PWA y service worker
 
-- `manifest.webmanifest` con `start_url` y `scope` = `/stock-manager/`, iconos 192/512/maskable y `apple-touch-icon`.
+- `manifest.webmanifest` con `start_url` y `scope` = base path (`/` en producción), iconos 192/512/maskable y `apple-touch-icon`.
 - Workbox `generateSW`: precache **versionado por hash**, `cleanupOutdatedCaches`, fallback de navegación sólo a `index.html` dentro del scope (nunca para archivos).
 - Actualización controlada (`registerType: 'prompt'`): la versión nueva se descarga, aparece *“Hay una nueva versión disponible — Actualizar”* y sólo entonces se activa y recarga. Se busca actualización al abrir y cada hora. Probado en `npm run test:sw`.
 - Sin service worker en `npm run dev`.
 - Instalación: Android/Chrome/Edge (menú → Instalar app), iPhone (Safari → Compartir → Agregar a inicio), escritorio (icono de instalar en la barra de direcciones).
-- HashRouter: las rutas son `/stock-manager/#/stock`, así GitHub Pages nunca devuelve 404 al recargar.
+- HashRouter: las rutas son `/#/stock`, así el hosting nunca devuelve 404 al recargar.
 
 ## Almacenamiento, backup y restauración
 
-- IndexedDB (`stock-manager`) vía Dexie, esquema versionado: **v1** núcleo, **v2** integraciones + unidad de compra/proveedores alternativos (migración que completa campos sin perder datos). Nuevas versiones: agregar `this.version(n).stores(...).upgrade(...)` en `src/database/db.ts`, nunca editar una versión publicada.
+- IndexedDB (`stock-manager`) vía Dexie, esquema versionado (v1 a v7: núcleo, integraciones, nube, usuarios, facturas, remitos, lápidas de sincronización). Campos opcionales nuevos (p. ej. `barcode`) no necesitan versión nueva. Nuevas versiones: agregar `this.version(n).stores(...).upgrade(...)` en `src/database/db.ts`, nunca editar una versión publicada.
 - Se pide almacenamiento persistente (`navigator.storage.persist()`); el estado se ve en Configuración.
 - **Exportar backup**: JSON completo con relaciones e IDs externos, **sin** secretos (se eliminan recursivamente campos como `password`, `token`, `apiKey`…).
 - **Restaurar backup**: valida formato, versión y registros; muestra advertencia *“Esta acción reemplazará los datos actuales.”*; restaura en una transacción y permite **Deshacer**.
 
 ## Sincronización con Google (opcional)
 
-Inicio de sesión con Google y datos compartidos entre dispositivos y empleados mediante Firebase (Authentication + Firestore), con funcionamiento sin conexión. Se activa completando `public/firebase-config.json`. Guía paso a paso: [docs/firebase.md](docs/firebase.md). Reglas de seguridad: [firestore.rules](firestore.rules).
+Datos compartidos entre dispositivos y empleados mediante Firebase (Authentication + Firestore), con funcionamiento sin conexión. Inicio de sesión con **email y contraseña** (sin verificación de email); "Entrar con Google" queda como opción secundaria si se habilita en la consola. Se activa completando `public/firebase-config.json` (valores públicos por diseño: lo que protege los datos son las reglas). Guía paso a paso: [docs/firebase.md](docs/firebase.md). Reglas de seguridad: [firestore.rules](firestore.rules).
 
 ## Maxirest
 
@@ -137,6 +144,6 @@ Ver [docs/maxirest.md](docs/maxirest.md). En resumen: **no existe una API públi
 
 ## Pruebas
 
-- **Unitarias (27)**: estados de stock, movimientos idempotentes, deshacer, pedidos (recepción, parcial, factor de compra, no duplicar), pedido sugerido (2/10/30 → 28), conteos, backup (validación, secretos), migración v1→v2, mock, cola, conciliación, Excel Bridge, adaptador gateway y contrato con el gateway de referencia.
-- **E2E (Playwright, móvil Pixel 7 + desktop 1366px)**: abrir sin código visible ni errores de consola, crear producto/proveedor y relacionarlos, cambiar stock y deshacer, conteo con diferencias, pedido y recepción, persistencia (pestaña y **cierre completo del navegador**), backup/restauración, exportación XLSX/PDF/DOCX (archivos válidos), PWA (manifest, SW controlando) y **uso offline**, alertas y pedido sugerido, navegación móvil/desktop sin scroll horizontal, personalización, búsqueda global, flujo Maxirest simulado completo (asistente, conciliación, ajuste confirmado, error comprensible, cola y reintento, desconexión segura) y Excel Bridge con archivo real.
+- **Unitarias (99)**: códigos de barra (validación, Code 128 leído por ZXing, unicidad, sincronización sin conexión), producción con recetas, importación de recetas, sincronización con la nube, usuarios, remitos, facturas, estados de stock, movimientos idempotentes, deshacer, pedidos (recepción, parcial, factor de compra, no duplicar), pedido sugerido (2/10/30 → 28), conteos, backup (validación, secretos), migración v1→v2, mock, cola, conciliación, Excel Bridge, adaptador gateway y contrato con el gateway de referencia.
+- **E2E (Playwright, móvil Pixel 7 + desktop 1366px)**: escáner (manual, conteo, recepción, etiquetas y cámara simulada con video), producción, botón +, agrupación, abrir sin código visible ni errores de consola, crear producto/proveedor y relacionarlos, cambiar stock y deshacer, conteo con diferencias, pedido y recepción, persistencia (pestaña y **cierre completo del navegador**), backup/restauración, exportación XLSX/PDF/DOCX (archivos válidos), PWA (manifest, SW controlando) y **uso offline**, alertas y pedido sugerido, navegación móvil/desktop sin scroll horizontal, personalización, búsqueda global, flujo Maxirest simulado completo (asistente, conciliación, ajuste confirmado, error comprensible, cola y reintento, desconexión segura) y Excel Bridge con archivo real.
 - **Actualización del SW**: deploy A → B en la misma URL.
