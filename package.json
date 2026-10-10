@@ -1,7 +1,7 @@
 {
   "name": "stock-manager",
   "private": true,
-  "version": "2.8.0",
+  "version": "2.8.1",
   "description": "Gestión de inventario, stock, conteos, proveedores y pedidos — PWA offline con capa de integraciones (Maxirest).",
   "type": "module",
   "scripts": {

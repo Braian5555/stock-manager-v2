@@ -93,3 +93,39 @@ test('producción con receta: al anotar se descuentan los insumos del stock', as
   await today.getByRole('button', { name: /^Deshacer/ }).click();
   await expect.poll(() => stockOf('Harina 000')).toBe(before);
 });
+
+test('recetas desde Producción: cargar, cambiar y quitar sin ir a Productos', async ({ page }) => {
+  await loadDemo(page);
+  await go(page, '/produccion');
+  await page.getByRole('group', { name: 'Vista' }).getByRole('button', { name: 'Recetas' }).click();
+  await page.getByLabel('Buscar receta').fill('Tomate');
+  await page.getByRole('button', { name: /Tomate.*Sin receta/ }).click();
+  let m = page.getByRole('dialog');
+  await expect(m.getByRole('heading', { name: 'Receta: Tomate' })).toBeVisible();
+  await m.getByLabel('Agregar insumo').fill('Sal fina');
+  await expect(m.getByRole('button', { name: 'Guardar receta' })).toBeDisabled(); // falta la cantidad
+  await m.getByLabel('Cantidad de Sal fina').fill('0,5');
+  await m.getByRole('button', { name: 'Guardar receta' }).click();
+  await expect(page.getByText('Receta guardada')).toBeVisible();
+  await expect(page.getByRole('button', { name: /Tomate.*Rinde 1 kg · 1 insumo/ })).toBeVisible();
+
+  // Desde Anotar: el producto muestra la receta y se puede editar ahí mismo.
+  await page.getByRole('group', { name: 'Vista' }).getByRole('button', { name: 'Anotar' }).click();
+  await page.getByLabel('Buscar producto').fill('Tomate');
+  await page.getByRole('listitem').filter({ hasText: 'Tomate' }).click();
+  m = page.getByRole('dialog');
+  await expect(m.locator('.production-uses')).toContainText('Sal fina');
+  await m.getByRole('button', { name: 'Editar receta' }).click();
+  m = page.getByRole('dialog');
+  await m.getByLabel('Cantidad de Sal fina').fill('1');
+  await m.getByRole('button', { name: 'Guardar receta' }).click();
+  await expect(page.getByText('Receta guardada')).toBeVisible();
+
+  // Quitar receta pide confirmación
+  await page.getByRole('group', { name: 'Vista' }).getByRole('button', { name: 'Recetas' }).click();
+  await page.getByRole('button', { name: /Tomate/ }).first().click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Quitar receta' }).click();
+  await page.getByRole('dialog').last().getByRole('button', { name: 'Quitar receta' }).click();
+  await expect(page.getByText('Receta quitada')).toBeVisible();
+  await expect(page.getByRole('button', { name: /Tomate.*Sin receta/ })).toBeVisible();
+});

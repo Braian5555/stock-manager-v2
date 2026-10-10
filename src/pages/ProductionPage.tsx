@@ -1,12 +1,14 @@
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Check, ChefHat, Search, Undo2 } from 'lucide-react';
+import { BookOpen, Check, ChefHat, Pencil, Search, Undo2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { db } from '../database/db';
 import { EMPTY, useLookups, useProducts } from '../hooks/useData';
 import type { Product, StockMovement } from '../models';
 import { recipeConsumption, registerProduction, undoProduction } from '../services/productionService';
 import { useFeedback } from '../store/feedback';
-import { PageHeader } from '../components/ui';
+import { PageHeader, Segmented } from '../components/ui';
+import { RecipeModal } from '../components/RecipeModal';
+import { useSession } from '../store/session';
 import { Modal } from '../components/ui/Modal';
 import { Stepper } from '../components/Stepper';
 import { fmtNumber, matches, round3 } from '../utils/format';
@@ -38,6 +40,12 @@ export function ProductionPage() {
   const [chip, setChip] = useState<string | null>(null);
   const [picked, setPicked] = useState<Product | null>(null);
   const [qty, setQty] = useState<number | undefined>(undefined);
+  // Quien administra el catálogo puede ver y editar las recetas desde acá; el panadero sólo anota.
+  const { can } = useSession();
+  const canEdit = can('catalog.manage');
+  const [view, setView] = useState<'anotar' | 'recetas'>('anotar');
+  const [editing, setEditing] = useState<Product | null>(null);
+  const [rq, setRq] = useState('');
 
   const since = useMemo(startOfToday, []);
   const history = useLiveQuery(() => db.movements.where('type').equals('produccion').toArray(), []) ?? EMPTY;
@@ -91,7 +99,15 @@ export function ProductionPage() {
 
   return (
     <div className="production">
-      <PageHeader title="Producción" subtitle={new Date().toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })} />
+      <PageHeader
+        title="Producción"
+        subtitle={new Date().toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })}
+        actions={canEdit ? <Segmented label="Vista" value={view} onChange={setView} options={[{ value: 'anotar', label: 'Anotar' }, { value: 'recetas', label: 'Recetas' }]} /> : undefined}
+      />
+
+      {view === 'recetas' ? (
+        <RecipeList products={active} lk={lk} q={rq} onQ={setRq} onEdit={setEditing} />
+      ) : (<>
 
       <label className="production-search">
         <Search size={20} aria-hidden />
@@ -156,6 +172,8 @@ export function ProductionPage() {
         )}
       </section>
 
+      </>)}
+
       <Modal
         open={!!picked}
         onClose={() => setPicked(null)}
@@ -188,9 +206,52 @@ export function ProductionPage() {
             ) : (
               <p className="small muted">Este producto no tiene receta: sólo se suma lo producido.</p>
             )}
+            {canEdit && (
+              <button type="button" className="btn btn-ghost btn-sm" onClick={() => { setEditing(picked); setPicked(null); }}>
+                <Pencil size={15} aria-hidden /> {picked.recipe?.items.length ? 'Editar receta' : 'Cargar receta'}
+              </button>
+            )}
           </div>
         )}
       </Modal>
+      <RecipeModal product={editing} onClose={() => setEditing(null)} />
+    </div>
+  );
+}
+
+/** Todas las recetas: buscar un producto y tocarlo para ver o cambiar su receta. */
+function RecipeList({ products, lk, q, onQ, onEdit }: {
+  products: Product[]; lk: ReturnType<typeof useLookups>; q: string; onQ: (v: string) => void; onEdit: (p: Product) => void;
+}) {
+  const withRecipe = products.filter((p) => p.recipe?.items.length);
+  const list = q.trim()
+    ? products.filter((p) => matches(q, p.name, p.sku)).sort((a, b) => Number(!!b.recipe?.items.length) - Number(!!a.recipe?.items.length))
+    : withRecipe;
+  return (
+    <div className="stack">
+      <label className="production-search">
+        <Search size={20} aria-hidden />
+        <input type="search" value={q} onChange={(e) => onQ(e.target.value)} placeholder="Buscar producto para ver o cargar su receta" aria-label="Buscar receta" />
+      </label>
+      <p className="small muted">{withRecipe.length} productos con receta. Buscá cualquier producto para cargarle una.</p>
+      <div className="card list">
+        {list.slice(0, 150).map((p) => {
+          const n = p.recipe?.items.length ?? 0;
+          return (
+            <button key={p.id} type="button" className="list-item" onClick={() => onEdit(p)}>
+              <BookOpen size={18} aria-hidden className="muted" />
+              <span className="grow">
+                <span className="list-title">{p.name}</span>
+                <span className="list-sub" style={{ display: 'block' }}>
+                  {n ? `Rinde ${fmtNumber(p.recipe!.yield)} ${lk.unit(p.unitId) || 'u'} · ${n} ${n === 1 ? 'insumo' : 'insumos'}` : 'Sin receta: tocá para cargarla'}
+                </span>
+              </span>
+              <Pencil size={16} aria-hidden className="muted" />
+            </button>
+          );
+        })}
+        {list.length === 0 && <p className="muted small card-pad">{q.trim() ? 'No hay productos con ese nombre.' : 'Todavía no hay recetas.'}</p>}
+      </div>
     </div>
   );
 }
