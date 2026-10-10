@@ -12,6 +12,7 @@ const COLS = {
   unit: ['unidad', 'unidad de medida', 'medida'],
   location: ['ubicacion', 'deposito'],
   supplier: ['proveedor', 'proveedor principal'],
+  altSuppliers: ['proveedores alternativos', 'proveedor alternativo', 'alternativos'],
   min: ['minimo', 'stock minimo', 'min'],
   max: ['maximo', 'stock maximo', 'max'],
   stock: ['stock', 'stock inicial', 'cantidad', 'stock actual'],
@@ -62,6 +63,7 @@ export async function planProductImport(tab: Tabular): Promise<ProductImportPlan
     unit: str(get(r, 'unit')),
     location: str(get(r, 'location')),
     supplier: str(get(r, 'supplier')),
+    altSuppliers: str(get(r, 'altSuppliers')),
     min: get(r, 'min'),
     max: get(r, 'max'),
     stock: get(r, 'stock'),
@@ -116,6 +118,10 @@ export async function planProductImport(tab: Tabular): Promise<ProductImportPlan
           unitId: (await ensure('units', r.unit)) ?? prev?.unitId,
           locationId: (await ensure('locations', r.location)) ?? prev?.locationId,
           supplierId: (await ensure('suppliers', r.supplier)) ?? prev?.supplierId,
+          // "Proveedores alternativos": nombres separados por coma o punto y coma.
+          alternativeSupplierIds: r.altSuppliers
+            ? (await Promise.all(r.altSuppliers.split(/[,;]/).map((n) => ensure('suppliers', n.trim() || undefined)))).filter((x): x is string => !!x)
+            : (prev?.alternativeSupplierIds ?? []),
           minStock: r.min !== undefined ? parseNumber(r.min) : (prev?.minStock ?? 0),
           maxStock: r.max !== undefined ? parseNumber(r.max) : (prev?.maxStock ?? 0),
           notes: r.notes ?? prev?.notes,
