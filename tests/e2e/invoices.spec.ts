@@ -58,8 +58,9 @@ test('facturas: sacar fotos, guardar, ver, descargar y bajarlas de la nube en ot
   const p2 = await makePhoto(page, 'hoja2.jpg', 1200, 1600);
   await d.getByLabel('Fotos desde la galería').setInputFiles([p1, p2]);
   await expect(d.getByRole('img', { name: 'Hoja 2' })).toBeVisible({ timeout: 20_000 });
-  await d.getByLabel('Proveedor').selectOption({ index: 1 });
-  const supplier = (await d.getByLabel('Proveedor').locator('option:checked').textContent())!.trim();
+  // Proveedor: se elige de la lista o se escribe (uno nuevo se crea al guardar).
+  const supplier = 'Lo de Camilo Test';
+  await d.getByLabel('Proveedor').fill(supplier);
   await d.getByLabel(/^Número de factura/).fill('A 0001-00001234');
   await d.getByLabel(/^Total/).fill('15430.5');
   await d.getByRole('button', { name: 'Guardar factura' }).click();
@@ -113,6 +114,7 @@ test('facturas: sacar fotos, guardar, ver, descargar y bajarlas de la nube en ot
 });
 
 test('facturas: se adjuntan desde un pedido', async ({ page }) => {
+  test.skip(true, 'Pedidos retirado de la app');
   await loadDemo(page);
   await go(page, '/pedidos/nuevo');
   await page.getByLabel('Proveedor').selectOption({ index: 1 });

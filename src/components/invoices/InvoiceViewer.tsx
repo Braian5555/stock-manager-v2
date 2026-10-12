@@ -1,6 +1,5 @@
 import { Download, Loader2, Pencil, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../database/db';
 import type { Invoice } from '../../models';
@@ -96,7 +95,7 @@ export function InvoiceViewer({ invoiceId, onClose, onEdit }: { invoiceId?: stri
             <div><dt>Fecha</dt><dd>{fmtDay(invoice.date)}</dd></div>
             <div><dt>Número</dt><dd>{invoice.number || '—'}</dd></div>
             <div><dt>Total</dt><dd className="num">{fmtMoney(invoice.total)}</dd></div>
-            {order && <div><dt>Pedido</dt><dd><Link to={`/pedidos/${order.id}`} onClick={onClose}>Pedido #{order.number}</Link></dd></div>}
+            {order && <div><dt>Pedido</dt><dd>Pedido #{order.number}</dd></div>}
             {invoice.createdBy && <div><dt>Cargada por</dt><dd>{invoice.createdBy.name}</dd></div>}
           </dl>
           {invoice.notes && <p className="small">{invoice.notes}</p>}

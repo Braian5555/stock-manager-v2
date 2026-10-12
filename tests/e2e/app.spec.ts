@@ -15,15 +15,8 @@ test('1 · abre la app sin mostrar código fuente ni errores', async ({ page }) 
   expect(errors).toEqual([]);
 });
 
-test('2-5 · crea producto y proveedor, los relaciona y cambia el stock', async ({ page }) => {
+test('2-5 · crea producto y cambia el stock', async ({ page }) => {
   await open(page);
-  await go(page, '/proveedores');
-  await page.getByRole('button', { name: 'Nuevo proveedor' }).click();
-  await dialog(page).getByLabel('Nombre').fill('Proveedor Test');
-  await dialog(page).getByLabel('Teléfono').fill('+54 11 1234-5678');
-  await dialog(page).getByRole('button', { name: 'Guardar' }).click();
-  await expect(page.getByText('Proveedor Test')).toBeVisible();
-
   await go(page, '/productos');
   await page.getByRole('button', { name: 'Nuevo producto' }).click();
   const d = dialog(page);
@@ -31,7 +24,6 @@ test('2-5 · crea producto y proveedor, los relaciona y cambia el stock', async 
   await d.getByLabel('Código / SKU').fill('HIE-T');
   await d.getByLabel('Familia').selectOption({ label: 'Hielo' });
   await d.getByLabel('Unidad de stock').selectOption({ label: 'Bolsa (bolsa)' });
-  await d.getByLabel('Proveedor principal').selectOption({ label: 'Proveedor Test' });
   await d.getByLabel('Stock mínimo').fill('8');
   await d.getByLabel('Stock máximo').fill('20');
   await d.getByLabel('Stock inicial').fill('5');
@@ -42,7 +34,6 @@ test('2-5 · crea producto y proveedor, los relaciona y cambia el stock', async 
 
   await go(page, '/stock');
   const card = page.getByRole('article', { name: 'Hielo 10 kg' });
-  await expect(card).toContainText('Proveedor Test');
   await expect(card).toContainText('Stock bajo');
   await card.getByRole('button', { name: 'Registrar movimiento' }).click();
   await dialog(page).getByLabel('Cantidad').fill('10');
@@ -79,6 +70,7 @@ test('6-7 · conteo detecta y aplica diferencias', async ({ page }) => {
 });
 
 test('8-10 · crea un pedido, lo recibe y suma stock con movimiento', async ({ page }) => {
+  test.skip(true, 'Pedidos y proveedores retirados de la app');
   await loadDemo(page);
   await go(page, '/pedidos/nuevo');
   await page.getByLabel('Proveedor').selectOption({ label: 'Carnicería Ejemplo' });
@@ -168,6 +160,7 @@ test('18-19 · PWA instalable y funciona offline', async ({ page, context }) => 
 });
 
 test('20-21 · alertas de stock bajo y pedido sugerido agrupado por proveedor', async ({ page }) => {
+  test.skip(true, 'Pedidos y proveedores retirados de la app');
   await loadDemo(page);
   await expect(page.getByRole('link', { name: /4 productos tienen stock bajo/ })).toBeVisible();
   await expect(page.getByRole('link', { name: /2 productos están sin stock/ })).toBeVisible();
@@ -186,7 +179,8 @@ test('22-23 · navegación adaptada al dispositivo', async ({ page, isMobile }) 
     const bottom = page.getByRole('navigation', { name: 'Navegación inferior' });
     await expect(bottom).toBeVisible();
     await expect(page.getByRole('navigation', { name: 'Navegación principal' })).toBeHidden();
-    for (const l of ['Inicio', 'Stock', 'Pedidos', 'Movimientos', 'Más']) await expect(bottom.getByRole('link', { name: l })).toBeVisible();
+    for (const l of ['Inicio', 'Stock', 'Conteo', 'Movimientos', 'Más']) await expect(bottom.getByRole('link', { name: l })).toBeVisible();
+    for (const l of ['Pedidos', 'Remitos']) await expect(bottom.getByRole('link', { name: l })).toHaveCount(0);
     await bottom.getByRole('link', { name: 'Más' }).click();
     await expect(page.getByRole('heading', { name: 'Operación diaria' })).toBeVisible();
     await page.getByRole('link', { name: 'Configuración' }).click();
@@ -195,7 +189,9 @@ test('22-23 · navegación adaptada al dispositivo', async ({ page, isMobile }) 
     await expect(top).toBeVisible();
     await expect(page.getByRole('navigation', { name: 'Navegación inferior' })).toBeHidden();
     // Barra lateral con las secciones; cada sección muestra sus módulos como pestañas.
-    for (const l of ['Inicio', 'Stock', 'Producción', 'Productos', 'Compras', 'Remitos', 'Reportes', 'Configuración', 'Ayuda']) await expect(top.getByRole('link', { name: l })).toBeVisible();
+    // Sólo stock, panadería (producción) y facturas; compras, remitos y reportes se retiraron.
+    for (const l of ['Inicio', 'Stock', 'Producción', 'Productos', 'Facturas', 'Configuración', 'Ayuda']) await expect(top.getByRole('link', { name: l })).toBeVisible();
+    for (const l of ['Compras', 'Pedidos', 'Proveedores', 'Remitos', 'Reportes']) await expect(top.getByRole('link', { name: l })).toHaveCount(0);
     await expect(top.getByRole('link', { name: 'Inicio' })).toHaveClass(/active/);
     await top.getByRole('link', { name: 'Productos' }).click();
     const tabs = page.getByRole('navigation', { name: 'Pestañas de Productos' });
@@ -203,8 +199,8 @@ test('22-23 · navegación adaptada al dispositivo', async ({ page, isMobile }) 
     await tabs.getByRole('link', { name: 'Familias' }).click();
     await expect(page.getByRole('heading', { name: 'Familias', level: 1 })).toBeVisible();
     await expect(top.getByRole('link', { name: 'Productos' })).toHaveClass(/active/);
-    await top.getByRole('link', { name: 'Compras' }).click();
-    for (const l of ['Pedidos', 'Proveedores', 'Facturas']) await expect(page.getByRole('navigation', { name: 'Pestañas de Compras' }).getByRole('link', { name: l })).toBeVisible();
+    await top.getByRole('link', { name: 'Facturas' }).click();
+    await expect(page.getByRole('heading', { name: 'Facturas', level: 1 })).toBeVisible();
     // La barra se puede achicar (sólo íconos) y volver a agrandar.
     await page.getByRole('button', { name: 'Achicar menú' }).click();
     await expect(top.getByRole('link', { name: 'Productos' })).toHaveAttribute('title', 'Productos');
@@ -250,7 +246,7 @@ test('navegar no falla aunque scrollTo devuelva una Promise (Chrome reciente)', 
   });
   await open(page);
   // Navegación del lado del cliente con los links del menú (la que fallaba).
-  for (const hash of ['/stock', '/movimientos', '/pedidos', '/']) {
+  for (const hash of ['/stock', '/movimientos', '/conteo', '/']) {
     await page.locator(`a[href="#${hash}"]`).filter({ visible: true }).last().click();
     await expect(page.locator('main h1').first()).toBeVisible();
     await expect(page.getByText('Algo salió mal')).toHaveCount(0);

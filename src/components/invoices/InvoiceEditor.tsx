@@ -1,15 +1,15 @@
-import { useLiveQuery } from 'dexie-react-hooks';
 import { Camera, ImagePlus, Loader2, X } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
-import { localYmd } from '../../utils/format';
+import { useEffect, useId, useRef, useState } from 'react';
+import { localYmd, normalize } from '../../utils/format';
 import { db } from '../../database/db';
+import { saveEntity } from '../../services/entityService';
 import type { Invoice } from '../../models';
 import { compressImage } from '../../services/imageService';
 import { MAX_PAGES, newPageId, saveInvoice, type PageDraft } from '../../services/invoiceService';
-import { useLookups, EMPTY } from '../../hooks/useData';
+import { useLookups } from '../../hooks/useData';
 import { useFeedback } from '../../store/feedback';
 import { Modal } from '../ui/Modal';
-import { Field, Input, NumberInput, Select, Textarea } from '../ui';
+import { Field, Input, NumberInput, Textarea } from '../ui';
 
 const today = () => localYmd();
 
@@ -26,13 +26,13 @@ interface Props {
 export function InvoiceEditor({ open, onClose, invoice, defaults, onSaved }: Props) {
   const lk = useLookups();
   const { run, notify } = useFeedback();
-  const orders = useLiveQuery(() => db.orders.orderBy('number').reverse().limit(200).toArray(), []) ?? EMPTY;
+  const listId = useId();
   const camRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const [pages, setPages] = useState<PageDraft[]>([]);
   const [date, setDate] = useState(today());
-  const [supplierId, setSupplierId] = useState('');
-  const [orderId, setOrderId] = useState('');
+  // Proveedor por nombre: se elige de la lista o se escribe uno nuevo (se crea al guardar).
+  const [supplierName, setSupplierName] = useState('');
   const [number, setNumber] = useState('');
   const [total, setTotal] = useState<number | undefined>();
   const [notes, setNotes] = useState('');
@@ -43,12 +43,11 @@ export function InvoiceEditor({ open, onClose, invoice, defaults, onSaved }: Pro
     if (!open) return;
     setPages(invoice ? invoice.pages.map((p) => ({ id: p.id, existing: p })) : []);
     setDate(invoice?.date ?? today());
-    setSupplierId(invoice?.supplierId ?? defaults?.supplierId ?? '');
-    setOrderId(invoice?.orderId ?? defaults?.orderId ?? '');
+    setSupplierName(lk.supplier(invoice?.supplierId ?? defaults?.supplierId) || '');
     setNumber(invoice?.number ?? '');
     setTotal(invoice?.total);
     setNotes(invoice?.notes ?? '');
-  }, [open, invoice, defaults?.supplierId, defaults?.orderId]);
+  }, [open, invoice, defaults?.supplierId]); // eslint-disable-line react-hooks/exhaustive-deps -- cargar sólo al abrir
 
   const addFiles = async (files: FileList | null) => {
     const list = [...(files ?? [])];
@@ -73,7 +72,13 @@ export function InvoiceEditor({ open, onClose, invoice, defaults, onSaved }: Pro
   const save = async () => {
     setSaving(true);
     const saved = await run(
-      () => saveInvoice({ id: invoice?.id, date, supplierId, orderId, number, total, notes, pages }),
+      async () => {
+        const name = supplierName.trim();
+        const found = name ? (await db.suppliers.toArray()).find((x) => normalize(x.name) === normalize(name)) : undefined;
+        const supplierId = !name ? '' : (found?.id ?? (await saveEntity(db.suppliers, { name })).id);
+        // El pedido vinculado (de antes) se conserva al editar.
+        return saveInvoice({ id: invoice?.id, date, supplierId, orderId: invoice?.orderId ?? defaults?.orderId ?? '', number, total, notes, pages });
+      },
       invoice ? 'Factura actualizada' : 'Factura guardada',
     );
     setSaving(false);
@@ -82,8 +87,6 @@ export function InvoiceEditor({ open, onClose, invoice, defaults, onSaved }: Pro
       onClose();
     }
   };
-
-  const supplierOrders = orders.filter((o) => !supplierId || o.supplierId === supplierId || o.id === orderId);
 
   return (
     <Modal open={open} wide title={invoice ? 'Editar factura' : 'Nueva factura'} onClose={onClose}
@@ -121,21 +124,13 @@ export function InvoiceEditor({ open, onClose, invoice, defaults, onSaved }: Pro
           </div>
         )}
         <div className="form-grid cols-2">
-          <Field label="Proveedor">
-            <Select value={supplierId} onChange={(e) => setSupplierId(e.target.value)}>
-              <option value="">Sin proveedor</option>
-              {lk.suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </Select>
+          <Field label="Proveedor" hint="elegí o escribí uno nuevo">
+            <Input list={listId} value={supplierName} onChange={(e) => setSupplierName(e.target.value)} placeholder="Ej.: Lo de Camilo" autoComplete="off" />
           </Field>
+          <datalist id={listId}>{lk.suppliers.map((x) => <option key={x.id} value={x.name} />)}</datalist>
           <Field label="Fecha de la factura"><Input type="date" value={date} onChange={(e) => setDate(e.target.value)} /></Field>
           <Field label="Número de factura" hint="opcional"><Input value={number} onChange={(e) => setNumber(e.target.value)} placeholder="Ej.: A 0001-00012345" /></Field>
           <Field label="Total" hint="opcional"><NumberInput value={total} min={0} onChange={setTotal} placeholder="0,00" /></Field>
-          <Field label="Pedido" hint="opcional">
-            <Select value={orderId} onChange={(e) => setOrderId(e.target.value)}>
-              <option value="">Sin pedido</option>
-              {supplierOrders.map((o) => <option key={o.id} value={o.id}>Pedido #{o.number}{o.supplierId ? ` · ${lk.supplier(o.supplierId)}` : ''}</option>)}
-            </Select>
-          </Field>
         </div>
         <Field label="Notas" hint="opcional"><Textarea value={notes} onChange={(e) => setNotes(e.target.value)} /></Field>
       </div>

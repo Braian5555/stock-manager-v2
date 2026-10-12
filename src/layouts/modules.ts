@@ -60,12 +60,20 @@ const SHORT_LABEL: Partial<Record<ModuleKey, string>> = {
   reconciliation: 'Conciliación',
 };
 
+/**
+ * Módulos retirados (pedidos, proveedores, remitos, reportes, conciliación): la app se dedica a
+ * stock, panadería (producción) y facturas para el administrativo.
+ * Sus datos se conservan (los proveedores siguen en cada producto); sólo dejan de mostrarse.
+ * Para reactivarlos alcanza con sacarlos de esta lista.
+ */
+export const RETIRED_MODULES: ReadonlySet<ModuleKey> = new Set<ModuleKey>(['orders', 'suppliers', 'transfers', 'reports', 'reconciliation']);
+export const moduleEnabled = (k: ModuleKey) => !RETIRED_MODULES.has(k);
+
 /** Grupos para "Más" (celular y computadora). */
 export const MODULE_GROUPS: { title: string; keys: ModuleKey[] }[] = [
-  { title: 'Operación diaria', keys: ['dashboard', 'stock', 'count', 'production', 'orders', 'movements', 'transfers', 'invoices'] },
-  { title: 'Catálogo', keys: ['products', 'suppliers', 'categories', 'units', 'locations'] },
-  { title: 'Reportes y control', keys: ['reports', 'reconciliation', 'export'] },
-  { title: 'Administración', keys: ['cloud', 'users', 'integrations', 'settings'] },
+  { title: 'Operación diaria', keys: ['dashboard', 'stock', 'count', 'production', 'movements', 'invoices'] },
+  { title: 'Catálogo', keys: ['products', 'categories', 'units', 'locations'] },
+  { title: 'Administración', keys: ['cloud', 'users', 'export', 'integrations', 'settings'] },
 ];
 
 /** Permisos que habilitan cada módulo (alcanza con tener uno). */
@@ -105,7 +113,7 @@ export function navLabel(settings: Settings, key: ModuleKey): string {
 
 /** Módulos visibles para esta persona, en el orden del menú configurado. */
 export function visibleModules(settings: Settings, canAny: (p: Permission[]) => boolean): ModuleKey[] {
-  return settings.menu.filter((m) => m.visible && canAny(MODULE_PERMISSIONS[m.key])).map((m) => m.key);
+  return settings.menu.filter((m) => m.visible && moduleEnabled(m.key) && canAny(MODULE_PERMISSIONS[m.key])).map((m) => m.key);
 }
 
 /** Barra superior (computadora): los fijados, en el orden del menú; el resto queda en "Más". */
@@ -121,7 +129,15 @@ export function topNavModules(settings: Settings, visible: ModuleKey[]) {
 export function bottomNavModules(settings: Settings, visible: ModuleKey[]): ModuleKey[] {
   const allowed = new Set(visible);
   const list = (settings.navBottom ?? []).filter((k) => allowed.has(k)).slice(0, 4);
-  return list.length ? list : visible.filter((k) => k !== 'settings').slice(0, 4);
+  if (!list.length) return visible.filter((k) => k !== 'settings').slice(0, 4);
+  // Si algún fijado quedó oculto (p. ej. un módulo retirado), se completa con los siguientes del menú.
+  if (list.length < 4 && (settings.navBottom ?? []).some((k) => !allowed.has(k))) {
+    const prefer: ModuleKey[] = ['count', 'production', 'invoices'];
+    for (const k of [...prefer.filter((x) => allowed.has(x)), ...visible]) if (list.length < 4 && k !== 'settings' && !list.includes(k)) list.push(k);
+    const order = new Map(visible.map((k, i) => [k, i]));
+    list.sort((a, b) => order.get(a)! - order.get(b)!);
+  }
+  return list;
 }
 
 // ───────────── Secciones (barra lateral de la computadora + pestañas) ─────────────
@@ -142,10 +158,8 @@ export const SECTIONS: Section[] = [
   { key: 'stock', icon: Boxes, modules: ['stock', 'movements', 'count', 'reconciliation'] },
   { key: 'produccion', icon: ChefHat, modules: ['production'] },
   { key: 'productos', icon: Package, modules: ['products', 'categories', 'units', 'locations'] },
-  { key: 'compras', icon: ShoppingCart, label: 'Compras', modules: ['orders', 'suppliers', 'invoices'] },
-  { key: 'remitos', icon: Forklift, modules: ['transfers'] },
-  { key: 'reportes', icon: BarChart3, modules: ['reports', 'export'] },
-  { key: 'config', icon: SettingsIcon, modules: ['settings', 'users', 'cloud', 'integrations'], bottom: true },
+  { key: 'facturas', icon: Receipt, modules: ['invoices'] },
+  { key: 'config', icon: SettingsIcon, modules: ['settings', 'users', 'cloud', 'export', 'integrations'], bottom: true },
 ];
 
 export interface VisibleSection extends Section {

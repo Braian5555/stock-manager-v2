@@ -1,7 +1,7 @@
 import { lazyPage } from '../utils/lazyPage';
 import {
   ArrowDown, ArrowLeft, ArrowUp, Boxes, Building2, ChevronRight, Cloud, Copy, Download, Eye, EyeOff, ImageUp, LayoutGrid, Package, Palette, Plug,
-  RefreshCw, RotateCcw, ShieldCheck, ShoppingCart, Smartphone, Stethoscope, UserCog, type LucideIcon,
+  RefreshCw, RotateCcw, ShieldCheck, Smartphone, Stethoscope, UserCog, type LucideIcon,
 } from 'lucide-react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Suspense, useEffect, useRef, useState, type ReactNode } from 'react';
@@ -18,7 +18,7 @@ import { Logo } from '../components/Logo';
 import { CommitInput, Field, NumberInput, PageHeader, Segmented, StatusBadge } from '../components/ui';
 import { readableInk } from '../utils/color';
 import { WipeDataSection } from '../components/WipeDataSection';
-import { MODULE_ICON, MODULE_PATH, navLabel } from '../layouts/modules';
+import { MODULE_ICON, MODULE_PATH, moduleEnabled, navLabel } from '../layouts/modules';
 import { useCloud } from '../cloud/cloudService';
 import { useIntegration, useOnline, usePendingJobs } from '../hooks/useData';
 import { syncView } from '../components/SyncBadge';
@@ -45,7 +45,7 @@ interface Section {
 type GroupKey = 'negocio' | 'inventario' | 'personas' | 'sistema';
 const GROUPS: { key: GroupKey; title: string; description: string }[] = [
   { key: 'negocio', title: 'Tu negocio', description: 'Identidad y cómo se navega la app.' },
-  { key: 'inventario', title: 'Inventario', description: 'Reglas de stock, catálogo y compras.' },
+  { key: 'inventario', title: 'Inventario', description: 'Reglas de stock y catálogo.' },
   { key: 'personas', title: 'Personas y acceso', description: 'Quién entra, con qué permisos y desde qué cuenta.' },
   { key: 'sistema', title: 'Datos y sistema', description: 'Conexiones, respaldos y estado técnico.' },
 ];
@@ -54,9 +54,8 @@ const GROUPS: { key: GroupKey; title: string; description: string }[] = [
 const SECTIONS: Section[] = [
   { key: 'empresa', group: 'negocio', title: 'Empresa y apariencia', description: 'Nombre, subtítulo, logo, colores y tema claro/oscuro.', icon: Building2, render: () => <CompanySection /> },
   { key: 'navegacion', group: 'negocio', title: 'Menú y navegación', description: 'Qué módulos se ven, su orden y nombre, y qué va en cada barra.', icon: LayoutGrid, render: () => <NavigationSection /> },
-  { key: 'stock', group: 'inventario', title: 'Stock', description: 'Alertas y stock crítico; familias, unidades, ubicaciones y puntos.', icon: Boxes, render: () => <StockSection /> },
-  { key: 'productos', group: 'inventario', title: 'Productos', description: 'Productos, proveedores e importación desde Excel.', icon: Package, render: () => <ProductsSection /> },
-  { key: 'pedidos', group: 'inventario', title: 'Pedidos y compras', description: 'Cómo se arma el pedido sugerido y la recepción de mercadería.', icon: ShoppingCart, render: () => <OrdersSection /> },
+  { key: 'stock', group: 'inventario', title: 'Stock', description: 'Alertas y stock crítico; familias, unidades y ubicaciones.', icon: Boxes, render: () => <StockSection /> },
+  { key: 'productos', group: 'inventario', title: 'Productos', description: 'Productos e importación desde Excel.', icon: Package, render: () => <ProductsSection /> },
   { key: 'usuarios', group: 'personas', title: 'Usuarios y permisos', description: 'Usuarios, roles, permisos, PIN y bloqueo automático.', icon: UserCog, render: () => <UsersPage /> },
   { key: 'nube', group: 'personas', title: 'Cuenta y nube', description: 'Sesión, espacios de trabajo, miembros, invitaciones y sincronización.', icon: Cloud, render: () => <CloudPage /> },
   { key: 'integraciones', group: 'sistema', title: 'Integraciones', description: 'Maxirest, Excel Bridge, gateway, cola y estado de conexión.', icon: Plug, render: () => <IntegrationsPage /> },
@@ -254,6 +253,7 @@ function NavigationSection() {
               <span>Nombre</span><span>Visible</span><span>Barra celular</span><span>Orden</span>
             </div>
             {form.menu.map((m, i) => {
+              if (!moduleEnabled(m.key)) return null;
               const locked = MODULES.find((x) => x.key === m.key)?.locked;
               const isSettings = m.key === 'settings';
               return (
@@ -308,8 +308,6 @@ function StockSection() {
             moduleLink(form, 'categories', 'Familias o categorías para agrupar productos.'),
             moduleLink(form, 'units', 'Unidades de stock y de compra (kg, litro, caja…).'),
             moduleLink(form, 'locations', 'Ubicaciones y depósitos dentro del negocio.'),
-            { to: '/remitos?tab=puntos', title: 'Puntos de venta', description: 'Puntos que reciben remitos del Depósito Central.', icon: MODULE_ICON.transfers },
-            moduleLink(form, 'reconciliation', 'Comparar el stock con Maxirest u otro sistema.'),
           ]} />
         </section>
       </div>
@@ -329,30 +327,6 @@ function ProductsSection() {
           { to: '/configuracion/datos', title: 'Importar productos desde Excel', description: 'Crear o actualizar productos en bloque (sin tocar el stock).', icon: Download },
         ]} />
         <p className="small muted">La equivalencia entre unidad de compra y de stock (p. ej. 1 caja = 12 unidades) se define en cada producto.</p>
-      </div>
-    </>
-  );
-}
-
-function OrdersSection() {
-  const form = useSettings();
-  const save = useSave();
-  return (
-    <>
-      <PageHeader title="Pedidos y compras" />
-      <div className="stack">
-        <section className="card card-pad stack" aria-labelledby="sugerido">
-          <h2 id="sugerido">Pedido sugerido</h2>
-          <Field label="Pedido sugerido">
-            <Segmented label="Pedido sugerido" value={form.suggestionMode} onChange={(suggestionMode) => save({ suggestionMode })} options={[{ value: 'toMax', label: 'Completar hasta el máximo' }, { value: 'toMin', label: 'Hasta el mínimo' }]} />
-          </Field>
-          <p className="small muted">Define cuánto propone pedir la app para cada producto con stock bajo.</p>
-        </section>
-        <section className="card card-pad stack">
-          <h2>Recepción de mercadería</h2>
-          <p className="small muted">Al recibir un pedido, cada cantidad recibida se suma al stock convertida a la unidad de stock del producto, y queda registrada como ingreso a nombre de quien recibe. Se pueden hacer recepciones parciales.</p>
-        </section>
-        <LinkCards items={[moduleLink(form, 'orders', 'Pedidos a proveedores: crear, enviar y recibir.'), moduleLink(form, 'invoices', 'Facturas de proveedores con sus fotos.')]} />
       </div>
     </>
   );

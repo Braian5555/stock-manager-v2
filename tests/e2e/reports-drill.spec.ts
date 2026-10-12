@@ -1,6 +1,10 @@
 import { expect, test } from '@playwright/test';
 import { dialog, go, loadDemo } from './helpers';
 
+// Sección retirada de la app (queda stock, panadería y facturas). El código se conserva: estas
+// pruebas se reactivan si se vuelve a habilitar el módulo (layouts/modules.ts → RETIRED_MODULES).
+test.skip(true, 'Módulo retirado de la app');
+
 test('reportes: tocar Ingresos, Pérdidas o un producto muestra esos movimientos', async ({ page }) => {
   await loadDemo(page);
   // Registrar una pérdida para tener algo en ese grupo.

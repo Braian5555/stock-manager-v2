@@ -2,6 +2,10 @@ import { expect, test } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { dialog, go, loadDemo } from './helpers';
 
+// Sección retirada de la app (queda stock, panadería y facturas). El código se conserva: estas
+// pruebas se reactivan si se vuelve a habilitar el módulo (layouts/modules.ts → RETIRED_MODULES).
+test.skip(true, 'Módulo retirado de la app');
+
 test('remitos internos: crear punto, mandar mercadería, Excel para Maxirest, stock del punto y anular', async ({ page }) => {
   await loadDemo(page);
   await go(page, '/remitos');

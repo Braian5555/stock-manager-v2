@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { dialog, go, loadDemo } from './helpers';
 
-test('botón +: ingreso rápido y pedido a proveedor por WhatsApp', async ({ page }) => {
+test('botón +: ingreso rápido y sin acciones de compras', async ({ page }) => {
   await loadDemo(page);
   await go(page, '/movimientos');
   // Ingreso desde cualquier pantalla
@@ -15,19 +15,8 @@ test('botón +: ingreso rápido y pedido a proveedor por WhatsApp', async ({ pag
   await m.getByRole('button', { name: 'Registrar' }).click();
   await expect(m).toBeHidden();
 
-  // Pedir a proveedor: elegir, cargar cantidad y mandar
-  await page.evaluate(() => { (window as unknown as { __opened: string[] }).__opened = []; window.open = ((u: string) => { (window as unknown as { __opened: string[] }).__opened.push(u); return null; }) as typeof window.open; });
+  // Lo de compras se retiró: el botón + ya no ofrece pedir a proveedores ni remitos.
   await page.getByRole('button', { name: 'Acciones rápidas' }).click();
-  await page.getByRole('menuitem', { name: 'Pedir a proveedor' }).click();
-  const d = dialog(page);
-  await d.locator('.list-item').first().click();
-  await expect(d.getByRole('heading', { name: /^Pedir a / })).toBeVisible();
-  const inc = d.getByRole('button', { name: /^Sumar 1 a / }).first();
-  await inc.click();
-  await inc.click();
-  await d.getByRole('button', { name: /Mandar por WhatsApp/ }).click();
-  await expect(page).toHaveURL(/#\/pedidos\/[\w-]+$/);
-  const opened = await page.evaluate(() => (window as unknown as { __opened: string[] }).__opened);
-  expect(opened[0]).toMatch(/^https:\/\/wa\.me\/\d*\?text=Pedido%20%23\d+/);
-  await expect(page.getByText('Enviado').first()).toBeVisible();
+  await expect(page.getByRole('menuitem', { name: 'Foto de factura' })).toBeVisible();
+  for (const a of ['Pedir a proveedor', 'Remito']) await expect(page.getByRole('menuitem', { name: a })).toHaveCount(0);
 });

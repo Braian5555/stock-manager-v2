@@ -1,23 +1,22 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
-  AlertTriangle, ArrowLeftRight, Boxes, Camera, ChefHat, ChevronRight, ClipboardCheck, Forklift, Lock, LogOut, Package, PackageCheck, Plus, Search,
-  ShoppingCart, Truck, type LucideIcon,
+  AlertTriangle, ArrowLeftRight, Boxes, Camera, ChefHat, ChevronRight, ClipboardCheck, Forklift, Lock, LogOut, Package, Search,
+  type LucideIcon,
 } from 'lucide-react';
 import { useMemo } from 'react';
 import { Link } from 'react-router';
 import { db } from '../database/db';
 import { useLookups, useProducts, EMPTY } from '../hooks/useData';
 import { DESKTOP_QUERY, openGlobalSearch, useMediaQuery } from '../hooks/useMediaQuery';
-import { MODULE_PERMISSIONS } from '../layouts/modules';
+import { MODULE_PERMISSIONS, moduleEnabled } from '../layouts/modules';
 import type { ModuleKey, Permission, Product, StockStatus } from '../models';
-import { OPEN_ORDER_STATUSES, ORDER_STATUS_LABEL } from '../services/orderService';
 import { menuLabel } from '../services/settingsService';
 import { MOVEMENT_LABEL, statusOf } from '../services/stockService';
 import { useSession } from '../store/session';
 import { useSettings } from '../store/settings';
 import { EmptyState, PageHeader, StatusBadge } from '../components/ui';
 import { WelcomeCard } from '../components/WelcomeCard';
-import { fmtDate, fmtDateTime, fmtDay, fmtNumber, fmtSigned } from '../utils/format';
+import { fmtDateTime, fmtDay, fmtNumber, fmtSigned } from '../utils/format';
 import { StockHealth, type HealthCounts } from '../components/dashboard/StockHealth';
 import { ActivityChart } from '../components/dashboard/ActivityChart';
 
@@ -27,7 +26,6 @@ const DAY = 86_400_000;
 function useHomeData() {
   const settings = useSettings();
   const products = useProducts();
-  const openOrders = useLiveQuery(() => db.orders.where('status').anyOf(OPEN_ORDER_STATUSES).toArray(), []) ?? EMPTY;
   const pendingTransfers = useLiveQuery(() => db.transfers.filter((t) => t.status === 'enviado' && t.maxirest === 'pendiente').toArray(), []) ?? EMPTY;
   const active = products.filter((p) => p.active);
   const withStatus = active.map((p) => ({ p, s: statusOf(p, settings) as StockStatus }));
@@ -40,7 +38,7 @@ function useHomeData() {
   const movedIds = useLiveQuery(() => db.movements.orderBy('productId').uniqueKeys(), []);
   const activeIds = useMemo(() => new Set(active.map((p) => p.id)), [active]);
   const hasMovements = movedIds === undefined ? true : movedIds.some((id) => activeIds.has(String(id)));
-  return { settings, products, active, low, out, alerts, openOrders, pendingTransfers, health, hasMovements };
+  return { settings, products, active, low, out, alerts, pendingTransfers, health, hasMovements };
 }
 
 export function DashboardPage() {
@@ -61,9 +59,6 @@ const ACTIONS: Action[] = [
   { label: 'Contar stock', to: '/conteo', icon: ClipboardCheck, perms: ['count.do'] },
   { label: 'Registrar movimiento', to: '/stock', icon: ArrowLeftRight, perms: ['stock.move'] },
   { label: 'Anotar producción', to: '/produccion', icon: ChefHat, perms: ['production'] },
-  { label: 'Recibir pedido', to: '/pedidos?estado=abiertos', icon: PackageCheck, perms: ['orders.receive', 'orders.manage'] },
-  { label: 'Nuevo pedido', to: '/pedidos/nuevo', icon: ShoppingCart, perms: ['orders.manage'] },
-  { label: 'Nuevo remito', to: '/remitos/nuevo', icon: Forklift, perms: ['transfers'] },
   { label: 'Foto de factura', to: '/facturas?nueva=1', icon: Camera, perms: ['invoices'] },
   { label: 'Buscar producto', to: '', icon: Search, perms: ['stock.view'] },
   { label: 'Ver stock', to: '/stock', icon: Boxes, perms: ['stock.view'] },
@@ -71,15 +66,14 @@ const ACTIONS: Action[] = [
 
 function MobileHome() {
   const { user, canAny, can, lock, cloudMode } = useSession();
-  const { products, alerts, openOrders, pendingTransfers, health, hasMovements } = useHomeData();
+  const { products, alerts, pendingTransfers, health, hasMovements } = useHomeData();
   const lk = useLookups();
   const noStockLoaded = health.sin_stock > 0 && health.sin_stock === products.filter((p) => p.active).length && !hasMovements;
   const firstName = user?.name.split(' ')[0] ?? '';
   const actions = ACTIONS.filter((a) => canAny(a.perms));
   // El estado del stock (sin stock / bajo) va en su propia tarjeta; acá quedan los pendientes de gestión.
   const chips = [
-    openOrders.length > 0 && canAny(MODULE_PERMISSIONS.orders) && { to: '/pedidos?estado=abiertos', icon: ShoppingCart, text: `${openOrders.length} ${openOrders.length === 1 ? 'pedido abierto' : 'pedidos abiertos'}` },
-    pendingTransfers.length > 0 && can('transfers') && { to: '/remitos', icon: Forklift, text: `${pendingTransfers.length} ${pendingTransfers.length === 1 ? 'remito' : 'remitos'} sin cargar en Maxirest` },
+    pendingTransfers.length > 0 && can('transfers') && moduleEnabled('transfers') && { to: '/remitos', icon: Forklift, text: `${pendingTransfers.length} ${pendingTransfers.length === 1 ? 'remito' : 'remitos'} sin cargar en Maxirest` },
   ].filter(Boolean) as { to: string; icon: LucideIcon; text: string }[];
 
   return (
@@ -92,7 +86,7 @@ function MobileHome() {
       {products.length === 0 && can('catalog.manage') && <WelcomeCard />}
 
       <button type="button" className="home-search" onClick={openGlobalSearch}>
-        <Search size={20} aria-hidden /> Buscar producto, proveedor, pedido…
+        <Search size={20} aria-hidden /> Buscar producto, familia, ubicación…
       </button>
 
       {canAny(MODULE_PERMISSIONS.stock) && <StockHealth counts={health} canCount={can('count.do')} hasMovements={hasMovements} compact />}
@@ -121,7 +115,6 @@ function MobileHome() {
         <section className="card" aria-labelledby="reponer">
           <div className="card-head">
             <h2 id="reponer" className="row"><AlertTriangle size={18} aria-hidden /> Para reponer</h2>
-            {can('orders.manage') && <Link to="/pedidos?sugerido=1" className="btn btn-sm">Crear pedido sugerido</Link>}
           </div>
           <div className="list">
             {alerts.slice(0, 5).map(({ p, s }) => <AlertRow key={p.id} p={p} s={s} unit={lk.unit(p.unitId)} />)}
@@ -153,8 +146,8 @@ function AlertRow({ p, s, unit }: { p: Product; s: StockStatus; unit: string }) 
 
 function DesktopHome() {
   const { can, canAny } = useSession();
-  const allowed = (m: ModuleKey) => canAny(MODULE_PERMISSIONS[m]);
-  const { settings, products, active, alerts, openOrders, pendingTransfers, health, hasMovements } = useHomeData();
+  const allowed = (m: ModuleKey) => moduleEnabled(m) && canAny(MODULE_PERMISSIONS[m]);
+  const { settings, products, active, low, out, alerts, pendingTransfers, health, hasMovements } = useHomeData();
   const lk = useLookups();
   const lastMovements = useLiveQuery(() => db.movements.orderBy('createdAt').reverse().limit(10).toArray(), []) ?? EMPTY;
   // Ventana del gráfico (14 días) — se consulta por índice, no se recorre todo el historial.
@@ -170,9 +163,9 @@ function DesktopHome() {
   const stats = [
     { label: 'Productos activos', value: fmtNumber(active.length), sub: categories ? `${categories} ${categories === 1 ? 'familia' : 'familias'}` : 'Catálogo', icon: Package, to: '/productos', m: 'products' as ModuleKey },
     { label: 'Movimientos · 7 días', value: fmtNumber(lastWeek), sub: lastWeek ? 'Ingresos, salidas y ajustes' : 'Sin movimientos esta semana', icon: ArrowLeftRight, to: '/movimientos', m: 'movements' as ModuleKey },
-    { label: 'Pedidos abiertos', value: fmtNumber(openOrders.length), sub: openOrders.length ? 'Pendientes de recibir' : 'Nada pendiente', icon: ShoppingCart, to: '/pedidos?estado=abiertos', m: 'orders' as ModuleKey },
+    { label: 'Para reponer', value: fmtNumber(low.length), sub: low.length ? 'Por debajo del mínimo' : 'Nada por debajo del mínimo', icon: AlertTriangle, to: '/stock?estado=bajo', m: 'stock' as ModuleKey },
+    { label: 'Sin stock', value: fmtNumber(out.length), sub: out.length ? 'Productos en cero' : 'Ninguno en cero', icon: Boxes, to: '/stock?estado=sin_stock', m: 'stock' as ModuleKey },
     { label: 'Remitos sin cargar', value: fmtNumber(pendingTransfers.length), sub: pendingTransfers.length ? 'Falta cargarlos en Maxirest' : 'Todo cargado', icon: Forklift, to: '/remitos', m: 'transfers' as ModuleKey },
-    { label: 'Proveedores', value: fmtNumber(lk.suppliers.length), sub: 'Activos en el catálogo', icon: Truck, to: '/proveedores', m: 'suppliers' as ModuleKey },
   ].filter((x) => allowed(x.m)).slice(0, 4);
 
   return (
@@ -181,8 +174,7 @@ function DesktopHome() {
         title={menuLabel(settings, 'dashboard')}
         subtitle={new Date().toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })}
         actions={<>
-          {can('orders.manage') && <Link to="/pedidos/nuevo" className="btn"><Plus size={18} aria-hidden /> Nuevo pedido</Link>}
-          {can('transfers') && <Link to="/remitos/nuevo" className="btn"><Forklift size={18} aria-hidden /> Nuevo remito</Link>}
+          {allowed('invoices') && <Link to="/facturas?nueva=1" className="btn"><Camera size={18} aria-hidden /> Foto de factura</Link>}
           {can('count.do') && <Link to="/conteo" className="btn btn-primary"><ClipboardCheck size={18} aria-hidden /> Contar</Link>}
         </>}
       />
@@ -211,7 +203,7 @@ function DesktopHome() {
         <section className="card" aria-labelledby="alertas">
           <div className="card-head">
             <h2 id="alertas" className="row"><AlertTriangle size={18} aria-hidden /> Alertas de stock</h2>
-            {alerts.length > 0 && can('orders.manage') && <Link to="/pedidos?sugerido=1" className="btn btn-sm">Crear pedido sugerido</Link>}
+            {alerts.length > 0 && <Link to="/stock?estado=bajo" className="btn btn-sm btn-ghost">Ver en Stock</Link>}
           </div>
           {alerts.length === 0 ? (
             <EmptyState title="Todo en orden">No hay productos por debajo del mínimo.</EmptyState>
@@ -243,29 +235,6 @@ function DesktopHome() {
         </section>
 
         <div className="stack">
-          {allowed('orders') && (
-            <section className="card" aria-labelledby="pedidos-abiertos">
-              <div className="card-head">
-                <h2 id="pedidos-abiertos" className="row"><ShoppingCart size={18} aria-hidden /> Pedidos abiertos</h2>
-                <Link to="/pedidos?estado=abiertos" className="btn btn-sm btn-ghost">Ver todos</Link>
-              </div>
-              {openOrders.length === 0 ? (
-                <p className="muted small card-body">No hay pedidos pendientes de recibir.</p>
-              ) : (
-                <div className="list">
-                  {[...openOrders].sort((a, b) => b.number - a.number).slice(0, 6).map((o) => (
-                    <Link key={o.id} to={`/pedidos/${o.id}`} className="list-item">
-                      <div className="grow">
-                        <div className="list-title truncate">#{o.number} · {lk.supplier(o.supplierId) || 'Sin proveedor'}</div>
-                        <div className="list-sub">{fmtDate(o.date)}</div>
-                      </div>
-                      <span className="small muted">{ORDER_STATUS_LABEL[o.status]}</span>
-                    </Link>
-                  ))}
-                </div>
-              )}
-            </section>
-          )}
           {allowed('transfers') && (
             <section className="card" aria-labelledby="remitos-pendientes">
               <div className="card-head">

@@ -2,13 +2,13 @@ import { expect, test } from '@playwright/test';
 import { go, loadDemo } from './helpers';
 
 const ROUTES: [string, RegExp][] = [
-  ['/', /^(Inicio|Hola)/], ['/stock', /Stock/], ['/productos', /Productos/], ['/conteo', /Conteo/], ['/pedidos', /Pedidos/],
-  ['/facturas', /Facturas/], ['/remitos', /Remitos/], ['/proveedores', /Proveedores/], ['/ubicaciones', /Ubicaciones/],
-  ['/familias', /Familias/], ['/unidades', /Unidades/], ['/movimientos', /Movimientos/], ['/conciliacion', /Conciliación/],
+  ['/', /^(Inicio|Hola)/], ['/stock', /Stock/], ['/productos', /Productos/], ['/conteo', /Conteo/], ['/produccion', /Producción/],
+  ['/facturas', /Facturas/], ['/ubicaciones', /Ubicaciones/],
+  ['/familias', /Familias/], ['/unidades', /Unidades/], ['/movimientos', /Movimientos/],
   ['/exportar', /Exportar/], ['/integraciones', /Integraciones/], ['/nube', /Cuenta y nube/], ['/usuarios', /Usuarios/],
-  ['/configuracion', /Configuración/], ['/reportes', /Reportes/], ['/ayuda', /Ayuda/], ['/acerca', /Información/], ['/mas', /Más/],
+  ['/configuracion', /Configuración/], ['/ayuda', /Ayuda/], ['/acerca', /Información/], ['/mas', /Más/],
   ['/configuracion/empresa', /Empresa y apariencia/], ['/configuracion/navegacion', /Menú y navegación/], ['/configuracion/stock', /Stock/],
-  ['/configuracion/productos', /Productos/], ['/configuracion/pedidos', /Pedidos y compras/], ['/configuracion/usuarios', /Usuarios/],
+  ['/configuracion/productos', /Productos/], ['/configuracion/usuarios', /Usuarios/],
   ['/configuracion/nube', /Cuenta y nube/], ['/configuracion/integraciones', /Integraciones/], ['/configuracion/datos', /Exportar/],
   ['/configuracion/aplicacion', /Aplicación/], ['/configuracion/diagnostico', /Diagnóstico/],
 ];
@@ -24,7 +24,17 @@ test('todas las rutas existentes y nuevas abren sin errores', async ({ page }) =
   expect(errors).toEqual([]);
 });
 
+test('secciones retiradas (pedidos, proveedores, remitos, reportes, conciliación): un enlace viejo lleva a Stock', async ({ page }) => {
+  await loadDemo(page);
+  for (const hash of ['/pedidos', '/pedidos/nuevo', '/proveedores', '/remitos', '/reportes', '/conciliacion']) {
+    await page.goto(`./#${hash}`);
+    await expect(page, hash).toHaveURL(/#\/stock$/);
+    await expect(page.locator('main h1').first()).toHaveText(/Stock/);
+  }
+});
+
 test('reportes muestra la actividad del período', async ({ page }) => {
+  test.skip(true, 'Reportes retirado de la app');
   await loadDemo(page);
   await go(page, '/reportes');
   await expect(page.getByText('Ingresos registrados')).toBeVisible();
@@ -52,11 +62,11 @@ test('configuración: qué módulos van en cada barra', async ({ page, isMobile 
   } else {
     // En la computadora las secciones están todas en la barra lateral: ocultar un módulo lo saca.
     const top = page.getByRole('navigation', { name: 'Navegación principal' });
-    await expect(top.getByRole('link', { name: 'Remitos' })).toBeVisible();
-    await page.getByRole('button', { name: /^Ocultar Remitos/ }).click();
-    await expect(top.getByRole('link', { name: 'Remitos' })).toHaveCount(0);
-    await page.getByRole('button', { name: /^Mostrar Remitos/ }).click();
-    await expect(top.getByRole('link', { name: 'Remitos' })).toBeVisible();
+    await expect(top.getByRole('link', { name: 'Facturas' })).toBeVisible();
+    await page.getByRole('button', { name: /^Ocultar Facturas/ }).click();
+    await expect(top.getByRole('link', { name: 'Facturas' })).toHaveCount(0);
+    await page.getByRole('button', { name: /^Mostrar Facturas/ }).click();
+    await expect(top.getByRole('link', { name: 'Facturas' })).toBeVisible();
   }
 });
 
