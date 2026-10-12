@@ -42,6 +42,15 @@ test('producción: usuario panadero ve sólo Producción, anota con dos toques y
   await expect(today).toContainText('+6');
   await expect(today).toContainText('Panadero');
 
+  // El panadero ve Anotar y Plan; el resumen, las recetas y armar el plan son del encargado.
+  const vista = page.getByRole('group', { name: 'Vista' });
+  for (const v of ['Anotar', 'Plan']) await expect(vista.getByRole('button', { name: v })).toBeVisible();
+  for (const v of ['Resumen', 'Recetas', 'Cierre']) await expect(vista.getByRole('button', { name: v })).toHaveCount(0);
+  await vista.getByRole('button', { name: 'Plan' }).click();
+  await expect(page.getByText('No hay plan para hoy')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Armar plan' })).toHaveCount(0);
+  await vista.getByRole('button', { name: 'Anotar' }).click();
+
   // La próxima vez aparece en "Lo de siempre"
   await page.getByLabel('Buscar producto').fill('');
   await expect(page.getByRole('button', { name: 'Lo de siempre' })).toHaveAttribute('aria-pressed', 'true');
@@ -128,4 +137,38 @@ test('recetas desde Producción: cargar, cambiar y quitar sin ir a Productos', a
   await page.getByRole('dialog').last().getByRole('button', { name: 'Quitar receta' }).click();
   await expect(page.getByText('Receta quitada')).toBeVisible();
   await expect(page.getByRole('button', { name: /Tomate.*Sin receta/ })).toBeVisible();
+});
+
+test('panadería: plan del día y resumen con Excel', async ({ page }) => {
+  await loadDemo(page);
+  await go(page, '/produccion');
+  const vista = page.getByRole('group', { name: 'Vista' });
+
+  // Armar el plan de hoy
+  await vista.getByRole('button', { name: 'Plan' }).click();
+  await page.getByRole('button', { name: 'Armar plan' }).click();
+  let d = page.getByRole('dialog');
+  await d.getByLabel('Buscar producto para el plan').fill('Sal fina');
+  for (let i = 0; i < 4; i++) await d.getByRole('button', { name: 'Sumar 1 a Sal fina' }).click();
+  await d.getByRole('button', { name: 'Guardar plan (1)' }).click();
+  await expect(page.getByText('Plan guardado')).toBeVisible();
+  const row = page.getByRole('listitem').filter({ hasText: 'Sal fina' });
+  await expect(row).toContainText('0 / 4');
+
+  // Tocar el producto del plan abre "Anotar" con lo que falta
+  await row.click();
+  d = page.getByRole('dialog');
+  await expect(d.getByLabel(/^Cantidad contada de/)).toHaveValue('4');
+  await d.getByRole('button', { name: /^Anotar 4/ }).click();
+  await expect(row).toContainText('4 / 4');
+  await expect(row.getByLabel('Listo')).toBeVisible();
+  await expect(page.getByText('1 de 1 listos')).toBeVisible();
+
+  // Resumen de hoy + Excel
+  await vista.getByRole('button', { name: 'Resumen' }).click();
+  await page.getByRole('group', { name: 'Período' }).getByRole('button', { name: 'Hoy' }).click();
+  const r = page.getByRole('row').filter({ hasText: 'Sal fina' });
+  await expect(r.getByRole('cell')).toHaveText([/Sal fina/, '4', '4', 'Admin Prueba']);
+  const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Excel' }).click()]);
+  expect(download.suggestedFilename()).toMatch(/^panaderia-hoy-.*\.xlsx$/);
 });

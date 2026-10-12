@@ -77,6 +77,8 @@ export interface Product extends BaseEntity {
   externalSystems?: ExternalSystems;
   /** Receta: al anotar una producción de este producto se descuentan estos insumos. */
   recipe?: Recipe;
+  /** Plan de producción (panadería): cantidad a producir por fecha YYYY-MM-DD. */
+  productionPlan?: Record<string, number>;
 }
 
 /** Un insumo de la receta: cantidad (en su unidad de stock) por cada tanda. */

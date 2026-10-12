@@ -944,3 +944,20 @@ hr.sep { border: 0; border-top: 1px solid var(--border); margin: 16px 0; }
   .psheet-alt { color: #666; font-size: 8pt; }
   .psheet-foot { display: flex; justify-content: space-between; margin-top: 6mm; font-size: 10pt; }
 }
+
+/* ───────────────────────── Panadería: plan y cierre ───────────────────────── */
+.plan-row { width: 100%; text-align: left; font: inherit; color: inherit; background: transparent; border: 0; border-bottom: 1px solid var(--border); cursor: pointer; min-height: 60px; }
+div.plan-row { cursor: default; }
+.plan-row:hover { background: var(--surface-2); }
+.plan-row.done .list-title { color: var(--text-2); }
+.plan-check { color: var(--ok); flex: none; }
+.plan-dot { width: 22px; height: 22px; flex: none; border-radius: 50%; border: 2px solid var(--border-strong); }
+.plan-bar { display: block; height: 6px; margin-top: 6px; border-radius: 999px; background: var(--surface-3); overflow: hidden; max-width: 320px; }
+.plan-bar i { display: block; height: 100%; background: var(--primary); border-radius: inherit; }
+.plan-row.done .plan-bar i { background: var(--ok); }
+.plan-count { white-space: nowrap; color: var(--text-2); }
+.plan-count b { color: var(--text); font-size: 1.05rem; }
+.close-inputs { display: flex; gap: 8px; }
+.close-field { display: flex; flex-direction: column; gap: 2px; font-size: 0.78rem; color: var(--text-3); font-weight: 650; }
+.close-field input { width: 96px; }
+.close-done { display: inline-flex; align-items: center; gap: 6px; color: var(--text-2); }

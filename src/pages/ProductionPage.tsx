@@ -8,6 +8,7 @@ import { recipeConsumption, registerProduction, undoProduction } from '../servic
 import { useFeedback } from '../store/feedback';
 import { PageHeader, Segmented } from '../components/ui';
 import { RecipeModal } from '../components/RecipeModal';
+import { PlanView, SummaryView } from '../components/bakery/BakeryViews';
 import { useSession } from '../store/session';
 import { Modal } from '../components/ui/Modal';
 import { Stepper } from '../components/Stepper';
@@ -43,7 +44,16 @@ export function ProductionPage() {
   // Quien administra el catálogo puede ver y editar las recetas desde acá; el panadero sólo anota.
   const { can } = useSession();
   const canEdit = can('catalog.manage');
-  const [view, setView] = useState<'anotar' | 'recetas'>('anotar');
+  type View = 'anotar' | 'plan' | 'resumen' | 'recetas';
+  const [view, setView] = useState<View>('anotar');
+  const views: { value: View; label: string }[] = [
+    { value: 'anotar', label: 'Anotar' },
+    { value: 'plan', label: 'Plan' },
+    ...(canEdit ? [{ value: 'resumen' as View, label: 'Resumen' }, { value: 'recetas' as View, label: 'Recetas' }] : []),
+  ];
+  // Movimientos de los últimos dos meses (plan y resumen).
+  const twoMonthsAgo = useMemo(() => new Date(Date.now() - 62 * 86_400_000).toISOString(), []);
+  const recent = useLiveQuery(() => db.movements.where('createdAt').aboveOrEqual(twoMonthsAgo).toArray(), [twoMonthsAgo]) ?? EMPTY;
   const [editing, setEditing] = useState<Product | null>(null);
   const [rq, setRq] = useState('');
 
@@ -74,9 +84,9 @@ export function ProductionPage() {
     ? active.filter((p) => matches(q, p.name, p.sku))
     : current === FREQUENT ? frequent : active.filter((p) => p.categoryId === current);
 
-  const open = (p: Product) => {
+  const open = (p: Product, initial?: number) => {
     setPicked(p);
-    setQty(undefined);
+    setQty(initial && initial > 0 ? initial : undefined);
   };
   const unitOf = (p: Product) => lk.unit(p.unitId) || 'u';
   const byId = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
@@ -102,11 +112,15 @@ export function ProductionPage() {
       <PageHeader
         title="Producción"
         subtitle={new Date().toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })}
-        actions={canEdit ? <Segmented label="Vista" value={view} onChange={setView} options={[{ value: 'anotar', label: 'Anotar' }, { value: 'recetas', label: 'Recetas' }]} /> : undefined}
+        actions={<Segmented label="Vista" value={view} onChange={setView} options={views} />}
       />
 
       {view === 'recetas' ? (
         <RecipeList products={active} lk={lk} q={rq} onQ={setRq} onEdit={setEditing} />
+      ) : view === 'plan' ? (
+        <PlanView products={active} lk={lk} movements={recent} canEdit={canEdit} onPick={(p, remaining) => open(p, remaining)} />
+      ) : view === 'resumen' ? (
+        <SummaryView products={products} lk={lk} movements={recent} />
       ) : (<>
 
       <label className="production-search">
