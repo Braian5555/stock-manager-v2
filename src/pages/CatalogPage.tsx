@@ -1,5 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks';
-import { ChevronRight, ListPlus, MapPin, Mail, Pencil, Phone, Plus, Ruler, Tags, Trash2, Truck } from 'lucide-react';
+import { ChevronRight, ClipboardList, ListPlus, MapPin, Mail, Pencil, Phone, Plus, Ruler, Tags, Trash2, Truck } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import type { Table } from 'dexie';
@@ -11,6 +11,7 @@ import { useFeedback } from '../store/feedback';
 import { useSettings } from '../store/settings';
 import { useProducts, EMPTY } from '../hooks/useData';
 import { Modal } from '../components/ui/Modal';
+import { PurchaseSheetModal } from '../components/PurchaseSheetModal';
 import { EmptyState, Field, Input, PageHeader, SearchInput, Textarea } from '../components/ui';
 import { matches } from '../utils/format';
 import { statusOf } from '../services/stockService';
@@ -58,6 +59,8 @@ export function CatalogPage({ kind }: { kind: Kind }) {
   const [params, setParams] = useSearchParams();
   const [editing, setEditing] = useState<Partial<Row> | null>(null);
   const [bulkText, setBulkText] = useState<string | null>(null);
+  // Planillas de compra (sólo proveedores): undefined = cerrado, '' = abierta sin proveedor elegido.
+  const [sheetFor, setSheetFor] = useState<string | undefined>();
   const Icon = cfg.icon;
 
   useEffect(() => {
@@ -144,6 +147,7 @@ export function CatalogPage({ kind }: { kind: Kind }) {
         subtitle={cfg.help}
         actions={
           <>
+            {kind === 'supplier' && <button type="button" className="btn" onClick={() => setSheetFor('')}><ClipboardList size={18} aria-hidden /> Planillas de compra</button>}
             {kind === 'supplier' && <button type="button" className="btn" onClick={() => setBulkText('')}><ListPlus size={18} aria-hidden /> Cargar varios</button>}
             <button type="button" className="btn btn-primary" onClick={() => setEditing({})}><Plus size={18} aria-hidden /> {cfg.male ? 'Nuevo' : 'Nueva'} {cfg.singular}</button>
           </>
@@ -177,6 +181,9 @@ export function CatalogPage({ kind }: { kind: Kind }) {
                     {kind === 'supplier' && typeof r.contact === 'string' && <span>{r.contact}</span>}
                   </div>
                 </div>
+                {kind === 'supplier' && (usage.get(r.id) ?? 0) > 0 && (
+                  <button type="button" className="btn btn-sm btn-ghost icon-btn" aria-label={`Planilla de compra de ${r.name}`} title="Planilla de compra" onClick={() => setSheetFor(r.id)}><ClipboardList size={16} /></button>
+                )}
                 <button type="button" className="btn btn-sm btn-ghost icon-btn" aria-label={`Editar ${r.name}`} onClick={() => setEditing(r)}><Pencil size={16} /></button>
                 <button type="button" className="btn btn-sm btn-ghost icon-btn btn-danger" aria-label={`Eliminar ${r.name}`} onClick={() => remove(r)}><Trash2 size={16} /></button>
               </div>
@@ -184,6 +191,7 @@ export function CatalogPage({ kind }: { kind: Kind }) {
           </div>
         )}
       </div>
+      {kind === 'supplier' && <PurchaseSheetModal open={sheetFor !== undefined} initial={sheetFor || undefined} onClose={() => setSheetFor(undefined)} />}
       <Modal
         open={!!editing}
         title={editing?.id ? `Editar ${cfg.singular}` : `${cfg.male ? 'Nuevo' : 'Nueva'} ${cfg.singular}`}

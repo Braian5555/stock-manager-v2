@@ -917,3 +917,30 @@ hr.sep { border: 0; border-top: 1px solid var(--border); margin: 16px 0; }
   .with-side .group-chip[aria-pressed='true'] .num { color: inherit; opacity: 0.85; }
   .with-side .group-chip:focus-visible { outline: 2px solid var(--bar-accent); outline-offset: -2px; }
 }
+
+/* ───────────────────────── Planillas de compra (impresión) ───────────────────────── */
+.print-sheets { display: none; }
+@media print {
+  html.printing-sheets body > *:not(.print-sheets) { display: none !important; }
+  html.printing-sheets body { background: #fff; margin: 0; }
+  html.printing-sheets .print-sheets { display: block; color: #000; font-family: Manrope, system-ui, sans-serif; font-size: 10pt; }
+  .psheet { break-after: page; }
+  .psheet:last-child { break-after: auto; }
+  .psheet-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 12mm; padding-bottom: 3mm; margin-bottom: 4mm; border-bottom: 0.6mm solid #000; }
+  .psheet-biz { font-size: 9pt; color: #444; }
+  .psheet-head h1 { font-size: 15pt; margin: 1mm 0 0; letter-spacing: -0.01em; }
+  .psheet-sub { font-size: 9pt; color: #444; margin-top: 1mm; }
+  .psheet-fill { display: flex; flex-direction: column; gap: 3mm; font-size: 10pt; white-space: nowrap; }
+  .psheet-table { width: 100%; border-collapse: collapse; }
+  .psheet-table thead { display: table-header-group; }
+  .psheet-table th, .psheet-table td { border: 0.25mm solid #888; padding: 1.6mm 2mm; text-align: left; vertical-align: middle; }
+  .psheet-table thead th { background: #e9e9e9; font-size: 8.5pt; }
+  .psheet-table tr { break-inside: avoid; }
+  .psheet-table td { height: 7.5mm; }
+  .psheet-table .n { text-align: right; width: 13mm; }
+  .psheet-table .box { width: 17mm; }
+  .psheet-table .obs { width: 32mm; }
+  .psheet-fam th { background: #f4f4f4; font-size: 9pt; font-weight: 750; border-top: 0.5mm solid #555; }
+  .psheet-alt { color: #666; font-size: 8pt; }
+  .psheet-foot { display: flex; justify-content: space-between; margin-top: 6mm; font-size: 10pt; }
+}
