@@ -107,10 +107,13 @@ test('facturas: sacar fotos, guardar, ver, descargar y bajarlas de la nube en ot
 
   // Editar: quitar una hoja borra su foto también en la nube.
   await dialog(page).getByRole('button', { name: 'Editar datos' }).click();
+  await expect(dialog(page).getByLabel('Proveedor')).toHaveValue(supplier);
   await dialog(page).getByRole('button', { name: 'Quitar hoja 2' }).click();
   await dialog(page).getByRole('button', { name: 'Guardar factura' }).click();
   await expect(page.getByText('Factura actualizada')).toBeVisible();
   await expect.poll(async () => (await fake(page)).images.length).toBe(1);
+  // Editar sin tocar el proveedor lo conserva.
+  await expect(page.getByRole('button', { name: new RegExp(`Factura A 0001-00001234 de ${supplier}`) })).toBeVisible();
 });
 
 test('facturas: se adjuntan desde un pedido', async ({ page }) => {

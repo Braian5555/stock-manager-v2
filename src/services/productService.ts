@@ -46,7 +46,9 @@ export async function saveProduct(draft: Draft<Product>, initialStock = 0): Prom
   }
   if (draft.id) {
     const prev = await db.products.get(draft.id);
-    return saveEntity(db.products, { ...clean, stock: prev?.stock ?? clean.stock });
+    // El stock se deriva de los movimientos y el plan de panadería se edita en su pantalla:
+    // un formulario abierto con datos viejos no los pisa.
+    return saveEntity(db.products, { ...clean, stock: prev?.stock ?? clean.stock, productionPlan: prev?.productionPlan });
   }
   const created = await saveEntity(db.products, { ...clean, stock: 0 });
   if (initialStock) {
@@ -73,6 +75,7 @@ export async function duplicateProduct(id: string): Promise<Product> {
     name: `${p.name} (copia)`,
     sku: p.sku ? `${p.sku}-COPIA` : undefined,
     barcode: undefined, // el código de barras es único: la copia queda sin código
+    productionPlan: undefined, // el plan de panadería es del producto original
     stock: 0,
     externalSystems: undefined,
     createdAt: t,

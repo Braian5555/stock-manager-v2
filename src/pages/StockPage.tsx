@@ -127,10 +127,13 @@ export function StockPage() {
           <option value="">Todas las familias</option>
           {lk.categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
         </Select>
-        <Select aria-label="Filtrar por proveedor" value={f.proveedor} onChange={(e) => setF('proveedor', e.target.value)}>
-          <option value="">Todos los proveedores</option>
-          {lk.suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-        </Select>
+        {/* Proveedores se retiró de la app: el filtro sólo aparece si llega en un enlace viejo. */}
+        {f.proveedor && (
+          <Select aria-label="Filtrar por proveedor" value={f.proveedor} onChange={(e) => setF('proveedor', e.target.value)}>
+            <option value="">Todos los proveedores</option>
+            {lk.suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </Select>
+        )}
         <Select aria-label="Filtrar por ubicación" value={f.ubicacion} onChange={(e) => setF('ubicacion', e.target.value)}>
           <option value="">Todas las ubicaciones</option>
           {lk.locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}

@@ -68,6 +68,8 @@ const SHORT_LABEL: Partial<Record<ModuleKey, string>> = {
  */
 export const RETIRED_MODULES: ReadonlySet<ModuleKey> = new Set<ModuleKey>(['orders', 'suppliers', 'transfers', 'reports', 'reconciliation']);
 export const moduleEnabled = (k: ModuleKey) => !RETIRED_MODULES.has(k);
+/** Permisos que sólo servían a los módulos retirados (se ocultan al editar usuarios). */
+export const RETIRED_PERMISSIONS: ReadonlySet<Permission> = new Set<Permission>(['orders.manage', 'orders.receive', 'transfers']);
 
 /** Grupos para "Más" (celular y computadora). */
 export const MODULE_GROUPS: { title: string; keys: ModuleKey[] }[] = [

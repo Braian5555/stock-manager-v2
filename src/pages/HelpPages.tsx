@@ -12,30 +12,31 @@ const GUIDES: { title: string; steps: string[] }[] = [
     title: 'Primeros pasos',
     steps: [
       'Cargá tus productos en Productos (o importalos desde Excel en Configuración → Importar y exportar).',
-      'Definí el stock mínimo de cada producto: con eso la app avisa qué reponer.',
-      'Cargá a tus proveedores y asignáselos a cada producto para armar pedidos sugeridos.',
+      'Definí el stock mínimo de cada producto: con eso la app avisa qué reponer. En Productos → Elegir varios se carga a muchos de una vez.',
+      'Hacé un conteo inicial para que el stock de la app sea el real.',
     ],
   },
   {
     title: 'Contar stock',
     steps: [
       'Tocá Contar en el Inicio (o Conteo en el menú) y elegí qué contar.',
-      'Cargá las cantidades con los botones + y − o escribiéndolas.',
-      'Al terminar, aplicá el conteo: la diferencia queda registrada como ajuste.',
+      'Cargá las cantidades con los botones + y − o escribiéndolas. También podés escanear el código de barras.',
+      'Al terminar, aplicá el conteo: la diferencia queda registrada como ajuste, con quién contó cada producto.',
     ],
   },
   {
-    title: 'Pedidos a proveedores',
+    title: 'Panadería',
     steps: [
-      'En Pedidos usá "Pedido sugerido" para armar un pedido con lo que falta.',
-      'Cuando llega la mercadería, abrí el pedido y tocá Recibir: el stock se suma solo.',
+      'En Producción → Plan, el encargado carga qué hay que hacer hoy o mañana y cuánto.',
+      'El panadero toca lo que hizo y la cantidad: se suma al stock y, si tiene receta, se descuentan los insumos.',
+      'En Producción → Resumen ves lo producido y los insumos usados, y lo bajás en Excel para el administrativo.',
     ],
   },
   {
-    title: 'Remitos internos y Maxirest',
+    title: 'Facturas',
     steps: [
-      'En Remitos creá el envío del Depósito Central a cada punto.',
-      'Después cargalo en Maxirest y marcalo como "Cargado" para llevar el control.',
+      'En Facturas tocá Nueva factura y sacale fotos (hasta varias hojas).',
+      'Elegí o escribí el proveedor, la fecha y el número: queda guardada para el administrativo.',
     ],
   },
   {

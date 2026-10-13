@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { PERMISSIONS, type AppUser, type Permission, type UserRole } from '../models';
 import { PERMISSION_LABEL, PIN_RE, ROLE_LABEL, ROLE_PERMISSIONS, deleteUser, saveUser, type UserDraft } from '../services/userService';
 import { updateSettings } from '../services/settingsService';
+import { RETIRED_PERMISSIONS } from '../layouts/modules';
 import { useSession } from '../store/session';
 import { useSettings } from '../store/settings';
 import { useFeedback } from '../store/feedback';
@@ -11,10 +12,10 @@ import { Badge, Field, Input, PageHeader, Select } from '../components/ui';
 import { UserAvatar } from '../components/auth/UserAvatar';
 
 const ROLE_HELP: Record<UserRole, string> = {
-  production: 'Sólo anota lo que produce. Ve una única pantalla con botones grandes.',
+  production: 'Sólo anota lo que produce y ve el plan del día. Una única pantalla con botones grandes.',
   admin: 'Todo, incluidos usuarios, configuración, nube e integraciones.',
-  manager: 'Todo el trabajo diario (stock, conteos, pedidos, productos, exportar). Sin administración.',
-  staff: 'Ver stock, hacer conteos y recibir pedidos.',
+  manager: 'Todo el trabajo diario (stock, conteos, producción y recetas, productos, facturas, exportar). Sin administración.',
+  staff: 'Ver stock y hacer conteos.',
   custom: 'Elegí permiso por permiso.',
 };
 
@@ -115,7 +116,8 @@ export function UsersPage() {
             <p className="small muted">{ROLE_HELP[editing.role]}</p>
             <fieldset className="stack-sm" style={{ border: 0, padding: 0, margin: 0 }}>
               <legend className="small" style={{ fontWeight: 600, marginBottom: 6 }}>Permisos</legend>
-              {PERMISSIONS.map((p) => (
+              {/* Permisos de secciones retiradas (pedidos, remitos) no se muestran; si un usuario los tiene, se conservan. */}
+              {PERMISSIONS.filter((p) => !RETIRED_PERMISSIONS.has(p)).map((p) => (
                 <label key={p} className="check small" style={{ minHeight: 36 }}>
                   <input type="checkbox" checked={editing.permissions.includes(p)} onChange={(e) => setPerm(p, e.target.checked)} />
                   {PERMISSION_LABEL[p]}

@@ -13,7 +13,7 @@ import { initializeApp, type FirebaseApp } from 'firebase/app';
 import {
   GoogleAuthProvider, browserLocalPersistence, browserPopupRedirectResolver, createUserWithEmailAndPassword, indexedDBLocalPersistence,
   initializeAuth, onAuthStateChanged, reload, sendEmailVerification, sendPasswordResetEmail, signInWithEmailAndPassword, signInWithPopup,
-  signInWithRedirect, signOut, updateProfile, type Auth, type User,
+  getRedirectResult, signInWithRedirect, signOut, updateProfile, type Auth, type User,
 } from 'firebase/auth';
 import {
   arrayUnion, collection, deleteDoc, doc, getDoc, getDocs, initializeFirestore, onSnapshot, persistentLocalCache, persistentMultipleTabManager,
@@ -32,6 +32,23 @@ const toUser = (u: User): CloudUser => ({
   emailVerified: u.emailVerified,
 });
 
+const REDIRECT_FLAG = 'sm:google-redirect';
+function readFlag(key: string): boolean {
+  try {
+    return sessionStorage.getItem(key) === '1';
+  } catch {
+    return false;
+  }
+}
+function writeFlag(key: string, on: boolean) {
+  try {
+    if (on) sessionStorage.setItem(key, '1');
+    else sessionStorage.removeItem(key);
+  } catch {
+    /* sin almacenamiento de sesión (muy raro): habría que volver a tocar "Entrar con Google" */
+  }
+}
+
 export class FirebaseBackend implements CloudBackend {
   readonly kind = 'firebase' as const;
   private app: FirebaseApp;
@@ -47,10 +64,15 @@ export class FirebaseBackend implements CloudBackend {
     const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
     const standalone = matchMedia('(display-mode: standalone)').matches || (navigator as unknown as { standalone?: boolean }).standalone === true;
     this.preferRedirect = sameOriginAuth(config) && (ios || standalone);
+    // El script de "Entrar con Google" (apis.google.com) se carga sólo cuando hace falta: al
+    // tocar el botón, o al volver de un inicio de sesión por redirección. Así el celular no lo
+    // descarga en cada apertura (la mayoría entra con email y contraseña).
+    const returningFromRedirect = readFlag(REDIRECT_FLAG);
     this.auth = initializeAuth(this.app, {
       persistence: [indexedDBLocalPersistence, browserLocalPersistence],
-      popupRedirectResolver: browserPopupRedirectResolver,
+      ...(returningFromRedirect ? { popupRedirectResolver: browserPopupRedirectResolver } : {}),
     });
+    if (returningFromRedirect) void getRedirectResult(this.auth, browserPopupRedirectResolver).catch(() => null).finally(() => writeFlag(REDIRECT_FLAG, false));
     this.fs = initializeFirestore(this.app, {
       localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
       ignoreUndefinedProperties: true,
@@ -65,16 +87,18 @@ export class FirebaseBackend implements CloudBackend {
     const provider = new GoogleAuthProvider();
     provider.setCustomParameters({ prompt: 'select_account' });
     if (this.preferRedirect) {
-      await signInWithRedirect(this.auth, provider);
+      writeFlag(REDIRECT_FLAG, true);
+      await signInWithRedirect(this.auth, provider, browserPopupRedirectResolver);
       return new Promise(() => undefined); // la página se redirige y vuelve con la sesión iniciada
     }
     try {
-      return toUser((await signInWithPopup(this.auth, provider)).user);
+      return toUser((await signInWithPopup(this.auth, provider, browserPopupRedirectResolver)).user);
     } catch (e) {
       const code = (e as { code?: string }).code;
       // Algunos navegadores (o la app instalada en iPhone) bloquean ventanas emergentes.
       if (code === 'auth/popup-blocked' || code === 'auth/operation-not-supported-in-this-environment') {
-        await signInWithRedirect(this.auth, provider);
+        writeFlag(REDIRECT_FLAG, true);
+        await signInWithRedirect(this.auth, provider, browserPopupRedirectResolver);
         return new Promise(() => undefined); // la página se redirige
       }
       throw e;

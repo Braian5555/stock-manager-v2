@@ -124,7 +124,8 @@ export function ProductForm({ product, open, onClose, preset }: { product?: Prod
             <NumberInput value={initial} onChange={setInitial} min={0} />
           </Field>
         )}
-        {lk.suppliers.length > 1 && (
+        {/* Proveedores alternativos: sólo si el producto ya tiene alguno (la sección Proveedores se retiró). */}
+        {lk.suppliers.length > 1 && (d.alternativeSupplierIds ?? []).length > 0 && (
           <fieldset className="span-all" style={{ border: 0, padding: 0, margin: 0 }}>
             <legend className="small" style={{ fontWeight: 600, color: 'var(--text-2)', marginBottom: 6 }}>Proveedores alternativos</legend>
             <div className="chip-list">

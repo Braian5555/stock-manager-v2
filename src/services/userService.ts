@@ -17,7 +17,7 @@ export const PERMISSION_LABEL: Record<Permission, string> = {
   'count.apply': 'Aplicar conteos al stock',
   'orders.manage': 'Crear y editar pedidos',
   'orders.receive': 'Recibir pedidos',
-  'catalog.manage': 'Administrar productos, proveedores y catálogos',
+  'catalog.manage': 'Administrar productos, recetas y catálogos',
   'movements.view': 'Ver historial de movimientos',
   export: 'Exportar datos',
   invoices: 'Cargar, ver y descargar facturas',

@@ -32,7 +32,10 @@ export function InvoiceEditor({ open, onClose, invoice, defaults, onSaved }: Pro
   const [pages, setPages] = useState<PageDraft[]>([]);
   const [date, setDate] = useState(today());
   // Proveedor por nombre: se elige de la lista o se escribe uno nuevo (se crea al guardar).
-  const [supplierName, setSupplierName] = useState('');
+  // `undefined` = sin tocar: se conserva el proveedor que ya tenía (aunque la lista no haya cargado).
+  const [supplierName, setSupplierName] = useState<string | undefined>();
+  const initialSupplierId = invoice?.supplierId ?? defaults?.supplierId ?? '';
+  const shownSupplier = supplierName ?? lk.supplier(initialSupplierId) ?? '';
   const [number, setNumber] = useState('');
   const [total, setTotal] = useState<number | undefined>();
   const [notes, setNotes] = useState('');
@@ -43,11 +46,11 @@ export function InvoiceEditor({ open, onClose, invoice, defaults, onSaved }: Pro
     if (!open) return;
     setPages(invoice ? invoice.pages.map((p) => ({ id: p.id, existing: p })) : []);
     setDate(invoice?.date ?? today());
-    setSupplierName(lk.supplier(invoice?.supplierId ?? defaults?.supplierId) || '');
+    setSupplierName(undefined);
     setNumber(invoice?.number ?? '');
     setTotal(invoice?.total);
     setNotes(invoice?.notes ?? '');
-  }, [open, invoice, defaults?.supplierId]); // eslint-disable-line react-hooks/exhaustive-deps -- cargar sólo al abrir
+  }, [open, invoice, defaults?.supplierId]);
 
   const addFiles = async (files: FileList | null) => {
     const list = [...(files ?? [])];
@@ -73,9 +76,12 @@ export function InvoiceEditor({ open, onClose, invoice, defaults, onSaved }: Pro
     setSaving(true);
     const saved = await run(
       async () => {
-        const name = supplierName.trim();
-        const found = name ? (await db.suppliers.toArray()).find((x) => normalize(x.name) === normalize(name)) : undefined;
-        const supplierId = !name ? '' : (found?.id ?? (await saveEntity(db.suppliers, { name })).id);
+        let supplierId = initialSupplierId;
+        if (supplierName !== undefined) {
+          const name = supplierName.trim();
+          const found = name ? (await db.suppliers.toArray()).find((x) => normalize(x.name) === normalize(name)) : undefined;
+          supplierId = !name ? '' : (found?.id ?? (await saveEntity(db.suppliers, { name })).id);
+        }
         // El pedido vinculado (de antes) se conserva al editar.
         return saveInvoice({ id: invoice?.id, date, supplierId, orderId: invoice?.orderId ?? defaults?.orderId ?? '', number, total, notes, pages });
       },
@@ -125,7 +131,7 @@ export function InvoiceEditor({ open, onClose, invoice, defaults, onSaved }: Pro
         )}
         <div className="form-grid cols-2">
           <Field label="Proveedor" hint="elegí o escribí uno nuevo">
-            <Input list={listId} value={supplierName} onChange={(e) => setSupplierName(e.target.value)} placeholder="Ej.: Lo de Camilo" autoComplete="off" />
+            <Input list={listId} value={shownSupplier} onChange={(e) => setSupplierName(e.target.value)} placeholder="Ej.: Lo de Camilo" autoComplete="off" />
           </Field>
           <datalist id={listId}>{lk.suppliers.map((x) => <option key={x.id} value={x.name} />)}</datalist>
           <Field label="Fecha de la factura"><Input type="date" value={date} onChange={(e) => setDate(e.target.value)} /></Field>

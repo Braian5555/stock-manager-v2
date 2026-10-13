@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { db } from '../../src/database/db';
 import { bakerySummary, closeDay, closedOn, planOf, savePlan, ymdAdd } from '../../src/services/bakeryService';
 import { registerProduction, undoProduction } from '../../src/services/productionService';
-import { emptyProduct, saveProduct } from '../../src/services/productService';
+import { duplicateProduct, emptyProduct, saveProduct } from '../../src/services/productService';
 import { revertMovement } from '../../src/services/stockService';
 import { localYmd } from '../../src/utils/format';
 
@@ -69,5 +69,19 @@ describe('panadería', () => {
     // Fuera del período no aparece nada
     const yesterday = ymdAdd(today, -1);
     expect(bakerySummary(await db.movements.toArray(), await db.products.toArray(), yesterday, yesterday).rows).toEqual([]);
+  });
+});
+
+describe('panadería: el plan no se pierde por otras ediciones', () => {
+  it('editar un producto con un formulario viejo no borra su plan, y la copia no lo hereda', async () => {
+    const p = await saveProduct({ ...emptyProduct(), name: 'Medialuna' });
+    const stale = (await db.products.get(p.id))!; // formulario abierto antes del plan
+    await savePlan(today, { [p.id]: 48 });
+    await saveProduct({ ...stale, minStock: 10 });
+    const after = (await db.products.get(p.id))!;
+    expect(after.minStock).toBe(10);
+    expect(planOf(after, today)).toBe(48);
+    const copy = await duplicateProduct(p.id);
+    expect(copy.productionPlan).toBeUndefined();
   });
 });
