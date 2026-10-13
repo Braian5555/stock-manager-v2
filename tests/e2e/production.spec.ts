@@ -42,10 +42,10 @@ test('producción: usuario panadero ve sólo Producción, anota con dos toques y
   await expect(today).toContainText('+6');
   await expect(today).toContainText('Panadero');
 
-  // El panadero ve Anotar y Plan; el resumen, las recetas y armar el plan son del encargado.
+  // El panadero ve Anotar, Plan y Recetas (puede editarlas); el resumen y armar el plan son del encargado.
   const vista = page.getByRole('group', { name: 'Vista' });
-  for (const v of ['Anotar', 'Plan']) await expect(vista.getByRole('button', { name: v })).toBeVisible();
-  for (const v of ['Resumen', 'Recetas', 'Cierre']) await expect(vista.getByRole('button', { name: v })).toHaveCount(0);
+  for (const v of ['Anotar', 'Plan', 'Recetas']) await expect(vista.getByRole('button', { name: v })).toBeVisible();
+  for (const v of ['Resumen', 'Cierre']) await expect(vista.getByRole('button', { name: v })).toHaveCount(0);
   await vista.getByRole('button', { name: 'Plan' }).click();
   await expect(page.getByText('No hay plan para hoy')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Armar plan' })).toHaveCount(0);
@@ -171,4 +171,21 @@ test('panadería: plan del día y resumen con Excel', async ({ page }) => {
   await expect(r.getByRole('cell')).toHaveText([/Sal fina/, '4', '4', 'Admin Prueba']);
   const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Excel' }).click()]);
   expect(download.suggestedFilename()).toMatch(/^panaderia-hoy-.*\.xlsx$/);
+});
+
+test('producción muestra sólo las familias elegidas (sin bebidas ni el resto)', async ({ page }) => {
+  await loadDemo(page);
+  await go(page, '/produccion');
+  // Sin familias de panadería en los datos de ejemplo se ve todo; el administrador elige cuáles.
+  await page.getByRole('button', { name: 'Familias' }).click();
+  const d = page.getByRole('dialog');
+  await d.getByRole('checkbox', { name: 'Mostrar Almacén en Producción' }).check();
+  await d.getByRole('button', { name: 'Guardar' }).click();
+  await expect(page.getByText('Familias de producción guardadas')).toBeVisible();
+  const grid = page.getByRole('list', { name: 'Productos' });
+  await expect(grid.getByRole('listitem').filter({ hasText: 'Harina 000' })).toBeVisible();
+  await page.getByLabel('Buscar producto').fill('Gaseosa');
+  await expect(page.getByText('No hay productos con ese nombre.')).toBeVisible();
+  await page.getByLabel('Buscar producto').fill('');
+  await expect(grid.getByRole('listitem').filter({ hasText: 'Agua mineral' })).toHaveCount(0);
 });

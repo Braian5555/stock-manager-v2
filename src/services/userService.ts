@@ -24,6 +24,7 @@ export const PERMISSION_LABEL: Record<Permission, string> = {
   transfers: 'Hacer remitos internos a los puntos y marcarlos en Maxirest',
   admin: 'Administración (usuarios, configuración, integraciones, nube y backups)',
   production: 'Anotar producción (panadería, cocina)',
+  recipes: 'Ver y editar recetas de producción',
 };
 
 export const ROLE_LABEL: Record<UserRole, string> = {
@@ -36,10 +37,10 @@ export const ROLE_LABEL: Record<UserRole, string> = {
 
 export const ROLE_PERMISSIONS: Record<Exclude<UserRole, 'custom'>, Permission[]> = {
   admin: [...PERMISSIONS],
-  manager: ['stock.view', 'stock.move', 'count.do', 'count.apply', 'orders.manage', 'orders.receive', 'catalog.manage', 'movements.view', 'export', 'invoices', 'transfers', 'production'],
+  manager: ['stock.view', 'stock.move', 'count.do', 'count.apply', 'orders.manage', 'orders.receive', 'catalog.manage', 'movements.view', 'export', 'invoices', 'transfers', 'production', 'recipes'],
   staff: ['stock.view', 'count.do', 'orders.receive', 'invoices'],
   /** Sólo anota lo que produce (p. ej. el panadero): ve una sola pantalla. */
-  production: ['production'],
+  production: ['production', 'recipes'],
 };
 
 /**

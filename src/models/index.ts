@@ -223,6 +223,11 @@ export interface Settings extends BaseEntity {
   navTop?: ModuleKey[];
   /** Módulos de la barra inferior del celular (hasta 4; "Más" siempre está). */
   navBottom?: ModuleKey[];
+  /**
+   * Familias que aparecen en Producción (panadería, pastelería…). Si falta, se usan las que
+   * se llaman parecido a "Panadería" o "Pastelería".
+   */
+  productionCategoryIds?: ID[];
 }
 
 export type IntegrationMode = 'disabled' | 'mock' | 'gateway' | 'excel';
@@ -287,7 +292,7 @@ export type StockStatus = 'normal' | 'bajo' | 'critico' | 'sin_stock';
 
 export const PERMISSIONS = [
   'stock.view', 'stock.move', 'count.do', 'count.apply', 'orders.manage', 'orders.receive', 'catalog.manage',
-  'movements.view', 'export', 'admin', 'invoices', 'transfers', 'production',
+  'movements.view', 'export', 'admin', 'invoices', 'transfers', 'production', 'recipes',
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];
 

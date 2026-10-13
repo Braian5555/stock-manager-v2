@@ -94,7 +94,7 @@ export const MODULE_PERMISSIONS: Record<ModuleKey, Permission[]> = {
   movements: ['movements.view'],
   reconciliation: ['admin'],
   reports: ['movements.view', 'export'],
-  production: ['production'],
+  production: ['production', 'recipes'],
   export: ['export'],
   integrations: ['admin'],
   cloud: ['admin'],

@@ -85,3 +85,13 @@ describe('panadería: el plan no se pierde por otras ediciones', () => {
     expect(copy.productionPlan).toBeUndefined();
   });
 });
+
+describe('familias de producción', () => {
+  it('por defecto panadería/pastelería; si se eligen, sólo esas', async () => {
+    const { productionFamilyIds } = await import('../../src/services/bakeryService');
+    const cats = [{ id: 'a', name: 'Panaderia' }, { id: 'b', name: 'Pastelería' }, { id: 'c', name: 'Bebidas' }, { id: 'd', name: 'Preparaciones' }];
+    expect([...productionFamilyIds({}, cats)].sort()).toEqual(['a', 'b']);
+    expect([...productionFamilyIds({ productionCategoryIds: ['d', 'x'] }, cats)]).toEqual(['d']);
+    expect(productionFamilyIds({}, [{ id: 'c', name: 'Bebidas' }]).size).toBe(0);
+  });
+});

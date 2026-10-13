@@ -181,3 +181,11 @@ export function closedOn(movements: StockMovement[], date: string): Map<string, 
   }
   return out;
 }
+
+/** Familias que se ven en Producción: las elegidas, o por defecto las de panadería/pastelería. */
+export function productionFamilyIds(settings: { productionCategoryIds?: string[] }, categories: { id: string; name: string }[]): Set<string> {
+  const chosen = settings.productionCategoryIds?.filter((id) => categories.some((c) => c.id === id));
+  if (chosen && chosen.length) return new Set(chosen);
+  const norm = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  return new Set(categories.filter((c) => /panad|pastel|reposter/.test(norm(c.name))).map((c) => c.id));
+}
