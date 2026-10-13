@@ -1,6 +1,7 @@
 const numberFmt = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 3 });
 const dateFmt = new Intl.DateTimeFormat('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' });
-const timeFmt = new Intl.DateTimeFormat('es-AR', { hour: '2-digit', minute: '2-digit' });
+// hourCycle fijo: las versiones nuevas de Chrome usan 12 h en es-AR (y a veces sin "p. m.").
+const timeFmt = new Intl.DateTimeFormat('es-AR', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
 
 export const fmtNumber = (n: number | undefined | null): string => (n == null || Number.isNaN(n) ? '—' : numberFmt.format(n));
 export const fmtDate = (iso?: string): string => (iso ? dateFmt.format(new Date(iso)) : '—');

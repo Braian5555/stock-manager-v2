@@ -11,7 +11,7 @@ import { useSettings } from '../store/settings';
 import { PageHeader, Segmented } from '../components/ui';
 import { Modal } from '../components/ui/Modal';
 import { Stepper } from '../components/Stepper';
-import { fmtNumber, localYmd, matches, round3 } from '../utils/format';
+import { fmtNumber, fmtTime, localYmd, matches, round3 } from '../utils/format';
 
 export const SOLD_REASON = 'Vitrina: vendido';
 export const WASTE_REASON = 'Vitrina: merma';
@@ -157,7 +157,7 @@ export function ShowcasePage() {
               <span className="production-tile-unit">
                 {i.madeToday > 0 ? `Hoy +${fmtNumber(i.madeToday)}` : 'De antes'}
                 {i.outToday > 0 ? ` · salió ${fmtNumber(i.outToday)}` : ''}
-                {i.last ? ` · ${new Date(i.last.at).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}${i.last.by ? ` ${i.last.by}` : ''}` : ''}
+                {i.last ? ` · ${fmtTime(i.last.at)}${i.last.by ? ` ${i.last.by}` : ''}` : ''}
               </span>
             </button>
           ))}

@@ -3,7 +3,7 @@ import type { Product, StockMovement } from '../models';
 import { foldStock, recomputeStock } from './stockService';
 import { productionFamilyIds } from './bakeryService';
 import { normalizeSettings, SETTINGS_ID } from './settingsService';
-import { round3 } from '../utils/format';
+import { fmtDateTime, round3 } from '../utils/format';
 
 /**
  * Autodiagnóstico: revisa los datos, la sincronización y los errores que tuvo la app, y arma
@@ -90,7 +90,9 @@ export interface Check {
   /** Cuántos casos hay en total (puede ser más que los ejemplos). */
   count?: number;
   /** Hay una corrección segura que la app puede hacer sola. */
-  fix?: 'recompute-stock';
+  fix?: 'recompute-stock' | 'count-negatives';
+  /** Productos afectados (para la corrección). */
+  productIds?: string[];
 }
 
 export interface CloudInfo {
@@ -158,13 +160,17 @@ export async function runDiagnostics(cloud: CloudInfo): Promise<DiagnosticReport
       : ok('stock-mismatch', 'Stock vs movimientos', 'El stock de todos los productos coincide con su historial.'),
   );
 
-  // 2. Stock negativo
+  // 2. Stock negativo. Casi siempre son insumos que nunca se contaron: las recetas los
+  // descuentan al anotar producción y quedan por debajo de cero.
   const neg = active.filter((p) => p.stock < 0);
+  const loaded = new Set(movements.filter((m) => m.type === 'ingreso' || m.type === 'conteo' || m.type === 'devolucion' || (m.absolute && m.quantityAfter > 0) || (m.type === 'ajuste' && m.delta > 0 && m.origin !== 'deshacer')).map((m) => m.productId));
+  const byRecipe = new Set(movements.filter((m) => m.type === 'consumo').map((m) => m.productId));
+  const never = neg.filter((p) => !loaded.has(p.id));
   checks.push(
     neg.length
-      ? { id: 'negative-stock', title: 'Stock negativo', level: 'warn', count: neg.length,
-          summary: `${neg.length} productos activos tienen stock negativo (se descontó más de lo que había cargado).`,
-          items: sample(neg.map((p) => `${nameOf(p)}: ${p.stock}`)) }
+      ? { id: 'negative-stock', title: 'Stock negativo', level: 'warn', count: neg.length, fix: 'count-negatives', productIds: neg.map((p) => p.id),
+          summary: `${neg.length} productos activos tienen stock negativo. ${never.length} nunca tuvieron stock cargado${never.filter((p) => byRecipe.has(p.id)).length ? ' y se descontaron por recetas al anotar producción' : ''}. Se arregla contándolos: “Contar estos productos” arma un conteo sólo con ellos.`,
+          items: sample(neg.map((p) => `${nameOf(p)}: ${p.stock}${loaded.has(p.id) ? '' : ' (nunca se cargó stock)'}`)) }
       : ok('negative-stock', 'Stock negativo', 'Ningún producto activo tiene stock negativo.'),
   );
 
@@ -261,13 +267,16 @@ export async function runDiagnostics(cloud: CloudInfo): Promise<DiagnosticReport
   const movIssues = [
     ...badNum.map((m) => `Movimiento ${m.id} (${m.productName ?? m.productId}): cantidad inválida`),
     ...future.map((m) => `Movimiento ${m.id} (${m.productName ?? m.productId}): fecha futura ${m.createdAt}`),
-    ...orphan.slice(0, 5).map((m) => `Movimiento de "${m.productName ?? m.productId}": el producto ya no existe`),
+    ...[...orphan.reduce((g, m) => g.set(m.productId, [...(g.get(m.productId) ?? []), m]), new Map<string, StockMovement[]>()).entries()].map(([id, ms]) => {
+      const last = ms.reduce((a, b) => (a.createdAt > b.createdAt ? a : b));
+      return `${ms[0].productName ?? `Producto borrado ${id.slice(0, 8)}`}: ${ms.length} ${ms.length === 1 ? 'movimiento' : 'movimientos'} (último ${fmtDateTime(last.createdAt)}, ${last.type} ${last.delta})`;
+    }),
   ];
   checks.push(
     badNum.length || future.length
       ? { id: 'movements', title: 'Movimientos con datos inválidos', level: 'error', count: badNum.length + future.length, summary: `${badNum.length} con cantidad inválida y ${future.length} con fecha futura (reloj del dispositivo mal configurado).`, items: sample(movIssues) }
       : orphan.length
-        ? { id: 'movements', title: 'Movimientos de productos borrados', level: 'info', count: orphan.length, summary: `${orphan.length} movimientos son de productos que ya no existen (queda la historia; no afecta el stock).`, items: sample(movIssues) }
+        ? { id: 'movements', title: 'Movimientos de productos borrados', level: 'info', count: orphan.length, summary: `${orphan.length} movimientos son de ${new Set(orphan.map((m) => m.productId)).size} productos que ya no existen (queda la historia; no afecta el stock ni los informes).`, items: sample(movIssues) }
         : ok('movements', 'Movimientos', `${movements.length} movimientos revisados, sin problemas.`),
   );
 
@@ -313,7 +322,7 @@ export async function runDiagnostics(cloud: CloudInfo): Promise<DiagnosticReport
     week.length
       ? { id: 'app-errors', title: 'Errores de la app', level: crashes.length ? 'warn' : 'info', count: week.length,
           summary: `En los últimos 7 días: ${crashes.length} errores inesperados y ${week.length - crashes.length} avisos mostrados en pantalla (detalle al final del informe).`,
-          items: sample(week.map((e) => `${new Date(e.at).toLocaleString('es-AR')} · ${e.kind ? 'aviso' : 'ERROR'} · ${e.path} · ${e.message}`)) }
+          items: sample(week.map((e) => `${fmtDateTime(e.at)} · ${e.kind ? 'aviso' : 'ERROR'} · ${e.path} · ${e.message}`)) }
       : ok('app-errors', 'Errores de la app', 'Sin errores registrados en los últimos 7 días.'),
   );
 
@@ -367,6 +376,12 @@ function maskEmail(e: string) {
   return `${u.slice(0, 2)}***@${d ?? ''}`;
 }
 
+/** Arma un conteo sólo con los productos indicados (para cargar su stock real). */
+export async function countProducts(productIds: string[], name: string) {
+  const { startCount } = await import('./countService');
+  return startCount({ productIds, name });
+}
+
 /** Corrección segura: el stock se vuelve a calcular desde los movimientos (no se pierde nada). */
 export async function fixStockMismatches(): Promise<number> {
   const [products, movements] = await Promise.all([db.products.toArray(), db.movements.toArray()]);
@@ -386,7 +401,7 @@ export function reportToText(r: DiagnosticReport): string {
   const n = (l: Level) => r.checks.filter((c) => c.level === l).length;
   const lines = [
     `# Diagnóstico de Stock Manager v${r.version}`,
-    `Fecha: ${new Date(r.at).toLocaleString('es-AR')} · ${n('error')} errores · ${n('warn')} avisos · ${n('info')} notas · ${n('ok')} en orden`,
+    `Fecha: ${fmtDateTime(r.at)} · ${n('error')} errores · ${n('warn')} avisos · ${n('info')} notas · ${n('ok')} en orden`,
     '',
     'Claude: revisá este informe y corregí en el código (repo Braian5555/stock-manager-v2) lo que corresponda.',
     '',

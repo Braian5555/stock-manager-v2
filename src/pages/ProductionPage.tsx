@@ -15,7 +15,7 @@ import { useSettings } from '../store/settings';
 import { useSession } from '../store/session';
 import { Modal } from '../components/ui/Modal';
 import { Stepper } from '../components/Stepper';
-import { fmtNumber, matches, round3 } from '../utils/format';
+import { fmtNumber, fmtTime, matches, round3 } from '../utils/format';
 
 const FREQUENT = '__frecuentes';
 const startOfToday = () => {
@@ -186,7 +186,7 @@ export function ProductionPage() {
                   <div className="grow">
                     <div className="list-title truncate">{m.productName ?? p?.name ?? '(producto eliminado)'}</div>
                     <div className="list-sub">
-                      {new Date(m.createdAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}
+                      {fmtTime(m.createdAt)}
                       {m.performedBy?.name ? ` · ${m.performedBy.name}` : ''}{gone ? ' · deshecho' : ''}
                     </div>
                   </div>

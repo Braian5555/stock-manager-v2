@@ -12,6 +12,8 @@ export interface StartCountInput {
   baseline?: CountBaseline;
   /** Contar el stock de un punto gastronómico en lugar del Depósito Central. */
   outletId?: string;
+  /** Contar sólo estos productos (p. ej. los que quedaron en negativo). */
+  productIds?: string[];
 }
 
 /** Inicia un conteo con los productos activos que cumplen el filtro (ubicación / familia). */
@@ -27,7 +29,8 @@ export async function startCount(input: StartCountInput): Promise<InventoryCount
       (p) =>
         p.active &&
         (outlet ? atOutlet!.has(p.id) : !input.locationId || p.locationId === input.locationId) &&
-        (!input.categoryId || p.categoryId === input.categoryId),
+        (!input.categoryId || p.categoryId === input.categoryId) &&
+        (!input.productIds || input.productIds.includes(p.id)),
     );
     if (outlet && !products.length) throw new Error(`${outlet.name} todavía no recibió mercadería por remito.`);
     const external =

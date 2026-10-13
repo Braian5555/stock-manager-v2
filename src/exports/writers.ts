@@ -1,4 +1,5 @@
 import type { Dataset } from './datasets';
+import { fmtDateTime } from '../utils/format';
 
 /** Las librerías se cargan sólo al exportar (code splitting). */
 
@@ -35,7 +36,7 @@ export async function toPdf(title: string, datasets: Dataset[]): Promise<Blob> {
   doc.text(title, 14, 16);
   doc.setFontSize(9);
   doc.setTextColor(110);
-  doc.text(`Exportado: ${new Date().toLocaleString('es-AR')}`, 14, 22);
+  doc.text(`Exportado: ${fmtDateTime(new Date().toISOString())}`, 14, 22);
   let y = 28;
   for (const ds of datasets) {
     if (y > 180) {
@@ -64,7 +65,7 @@ export async function toDocx(title: string, datasets: Dataset[]): Promise<Blob> 
     new d.TableCell({ children: [new d.Paragraph({ children: [new d.TextRun({ text, bold, size: 18 })] })] });
   const children: (InstanceType<typeof d.Paragraph> | InstanceType<typeof d.Table>)[] = [
     new d.Paragraph({ heading: d.HeadingLevel.TITLE, children: [new d.TextRun(title)] }),
-    new d.Paragraph({ children: [new d.TextRun({ text: `Exportado: ${new Date().toLocaleString('es-AR')}`, italics: true, size: 18 })] }),
+    new d.Paragraph({ children: [new d.TextRun({ text: `Exportado: ${fmtDateTime(new Date().toISOString())}`, italics: true, size: 18 })] }),
   ];
   for (const ds of datasets) {
     children.push(new d.Paragraph({ heading: d.HeadingLevel.HEADING_2, spacing: { before: 300 }, children: [new d.TextRun(ds.title)] }));

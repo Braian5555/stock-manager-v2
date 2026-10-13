@@ -1,12 +1,14 @@
 import { AlertTriangle, CheckCircle2, ClipboardCopy, Download, Info, RefreshCw, Trash2, Wrench, XCircle } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
+import { useNavigate } from 'react-router';
 import { useCloud } from '../cloud/cloudService';
 import { downloadBlob, stamp } from '../exports/download';
 import {
-  clearErrorLog, fixStockMismatches, reportToText, runDiagnostics, type Check, type DiagnosticReport, type Level,
+  clearErrorLog, countProducts, fixStockMismatches, reportToText, runDiagnostics, type Check, type DiagnosticReport, type Level,
 } from '../services/diagnosticsService';
 import { useFeedback } from '../store/feedback';
 import { PageHeader } from '../components/ui';
+import { fmtTime } from '../utils/format';
 
 const ICON: Record<Level, typeof CheckCircle2> = { ok: CheckCircle2, info: Info, warn: AlertTriangle, error: XCircle };
 const ORDER: Level[] = ['error', 'warn', 'info', 'ok'];
@@ -21,6 +23,7 @@ export function DiagnosticsPage() {
   const [report, setReport] = useState<DiagnosticReport | null>(null);
   const [busy, setBusy] = useState(false);
   const [text, setText] = useState('');
+  const navigate = useNavigate();
 
   const check = useCallback(async () => {
     setBusy(true);
@@ -64,6 +67,11 @@ export function DiagnosticsPage() {
   const download = () => downloadBlob(new Blob([text], { type: 'text/markdown;charset=utf-8' }), `diagnostico-stock-manager-${stamp()}.md`);
 
   const fix = async (c: Check) => {
+    if (c.fix === 'count-negatives' && c.productIds?.length) {
+      const count = await run(() => countProducts(c.productIds!, 'Conteo de productos en negativo'), 'Conteo armado: cargá cuánto hay de cada uno');
+      if (count) navigate(`/conteo/${count.id}`);
+      return;
+    }
     if (c.fix !== 'recompute-stock') return;
     const yes = await confirm({
       title: 'Recalcular stock',
@@ -103,7 +111,7 @@ export function DiagnosticsPage() {
             <div>
               <strong>{n('error') ? `${n('error')} ${n('error') === 1 ? 'problema' : 'problemas'} para corregir` : n('warn') ? `${n('warn')} ${n('warn') === 1 ? 'aviso' : 'avisos'}` : 'Todo en orden'}</strong>
               <div className="small muted">
-                {n('ok')} revisiones en orden{n('info') ? ` · ${n('info')} notas` : ''} · v{report.version} · {new Date(report.at).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}
+                {n('ok')} revisiones en orden{n('info') ? ` · ${n('info')} notas` : ''} · v{report.version} · {fmtTime(report.at)}
               </div>
             </div>
           </div>
@@ -137,7 +145,7 @@ export function DiagnosticsPage() {
                     </ul>
                   ) : null}
                   <div className="row wrap">
-                    {c.fix && <button type="button" className="btn btn-sm" onClick={() => fix(c)}><Wrench size={15} aria-hidden /> Corregir ahora</button>}
+                    {c.fix && <button type="button" className="btn btn-sm" onClick={() => fix(c)}><Wrench size={15} aria-hidden /> {c.fix === 'count-negatives' ? 'Contar estos productos' : 'Corregir ahora'}</button>}
                     {c.id === 'app-errors' && report?.errors.length ? <button type="button" className="btn btn-sm btn-ghost" onClick={clearLog}><Trash2 size={15} aria-hidden /> Borrar registro</button> : null}
                   </div>
                 </div>

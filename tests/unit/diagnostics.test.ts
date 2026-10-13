@@ -33,7 +33,7 @@ describe('diagnóstico', () => {
     const r = await runDiagnostics(cloud);
     expect(byId(r, 'recipes').items?.join()).toContain('Torta: usa un insumo que ya no existe');
     expect(byId(r, 'dup-names').level).toBe('warn');
-    expect(byId(r, 'negative-stock').items).toEqual(['Pan: -2']);
+    expect(byId(r, 'negative-stock').items).toEqual(['Pan: -2 (nunca se cargó stock)']);
   });
 
   it('registra errores y arma el informe para Claude', async () => {
@@ -49,5 +49,21 @@ describe('diagnóstico', () => {
     expect(text).toContain('Claude: revisá este informe');
     clearErrorLog();
     expect(readErrorLog()).toEqual([]);
+  });
+});
+
+describe('diagnóstico: stock negativo', () => {
+  it('explica que nunca se cargó stock y arma un conteo sólo con esos productos', async () => {
+    const harina = await saveProduct({ ...emptyProduct(), name: 'Harina 0000' });
+    const ok = await saveProduct({ ...emptyProduct(), name: 'Sal' }, 5);
+    await applyMovement({ productId: harina.id, type: 'consumo', delta: -4, origin: 'manual' });
+    const c = (await runDiagnostics(cloud)).checks.find((x) => x.id === 'negative-stock')!;
+    expect(c.items).toEqual(['Harina 0000: -4 (nunca se cargó stock)']);
+    expect(c.summary).toContain('se descontaron por recetas');
+    const { countProducts } = await import('../../src/services/diagnosticsService');
+    const count = await countProducts(c.productIds!, 'Negativos');
+    const items = await db.countItems.where('countId').equals(count.id).toArray();
+    expect(items.map((i) => i.productId)).toEqual([harina.id]);
+    expect(items[0].productId).not.toBe(ok.id);
   });
 });
