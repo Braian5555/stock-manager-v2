@@ -1,5 +1,5 @@
 import { AlertTriangle, CheckCircle2, ClipboardCopy, Download, Info, RefreshCw, Trash2, Wrench, XCircle } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useCloud } from '../cloud/cloudService';
 import { downloadBlob, stamp } from '../exports/download';
@@ -25,27 +25,35 @@ export function DiagnosticsPage() {
   const [text, setText] = useState('');
   const navigate = useNavigate();
 
-  const check = useCallback(async () => {
+  // Estado de la nube al momento de revisar (no el de cuando se abrió la pantalla).
+  const cloudRef = useRef(cloud);
+  cloudRef.current = cloud;
+  const prev = useRef<DiagnosticReport | null>(null);
+
+  const check = useCallback(async (manual = false) => {
     setBusy(true);
+    const c = cloudRef.current;
+    const started = Date.now();
     const r = await run(() =>
       runDiagnostics({
-        phase: cloud.phase,
-        provider: cloud.provider,
-        workspace: cloud.workspace?.name,
-        syncState: cloud.status.state,
-        pending: cloud.status.pending,
-        lastSyncAt: cloud.status.lastSyncAt,
-        error: cloud.status.error ?? cloud.error,
+        phase: c.phase,
+        provider: c.provider,
+        workspace: c.workspace?.name,
+        syncState: c.status.state,
+        pending: c.status.pending,
+        lastSyncAt: c.status.lastSyncAt,
+        error: c.status.error ?? c.error,
       }),
     );
+    // La revisión tarda milisegundos: una pausa corta para que se note que se hizo.
+    await new Promise((res) => setTimeout(res, Math.max(0, 600 - (Date.now() - started))));
     setBusy(false);
-    if (r) {
-      setReport(r);
-      setText(reportToText(r));
-    }
-    // El estado de la nube cambia seguido; se revisa sólo al entrar o al tocar "Revisar de nuevo".
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [run]);
+    if (!r) return;
+    if (manual) notify(compare(prev.current, r));
+    prev.current = r;
+    setReport(r);
+    setText(reportToText(r));
+  }, [run, notify]);
 
   useEffect(() => {
     void check();
@@ -82,7 +90,7 @@ export function DiagnosticsPage() {
     const n = await run(fixStockMismatches);
     if (n !== undefined) {
       notify(`Stock recalculado en ${n} productos`);
-      void check();
+      void check(true);
     }
   };
 
@@ -90,7 +98,7 @@ export function DiagnosticsPage() {
     const yes = await confirm({ title: 'Borrar registro de errores', message: 'Se borra la lista de errores guardada en este dispositivo (no toca tus datos).', confirmLabel: 'Borrar' });
     if (!yes) return;
     clearErrorLog();
-    void check();
+    void check(true);
   };
 
   const n = (l: Level) => report?.checks.filter((c) => c.level === l).length ?? 0;
@@ -101,17 +109,17 @@ export function DiagnosticsPage() {
       <PageHeader
         title="Diagnóstico"
         subtitle="La app revisa sus datos, la nube y los errores que tuvo. Copiá el informe y pegáselo a Claude para que corrija lo que falte."
-        actions={<button type="button" className="btn btn-sm" onClick={check} disabled={busy}><RefreshCw size={16} aria-hidden className={busy ? 'spin' : ''} /> Revisar de nuevo</button>}
+        actions={<button type="button" className="btn btn-sm" onClick={() => check(true)} disabled={busy}><RefreshCw size={16} aria-hidden className={busy ? 'spin' : ''} /> {busy ? 'Revisando…' : 'Revisar de nuevo'}</button>}
       />
 
       {report && (
-        <div className="card card-body diag-head">
+        <div className="card card-body diag-head" aria-busy={busy} style={busy ? { opacity: 0.55 } : undefined}>
           <div className="diag-score" aria-live="polite">
             {n('error') ? <XCircle size={28} aria-hidden className="diag-error" /> : n('warn') ? <AlertTriangle size={28} aria-hidden className="diag-warn" /> : <CheckCircle2 size={28} aria-hidden className="diag-ok" />}
             <div>
               <strong>{n('error') ? `${n('error')} ${n('error') === 1 ? 'problema' : 'problemas'} para corregir` : n('warn') ? `${n('warn')} ${n('warn') === 1 ? 'aviso' : 'avisos'}` : 'Todo en orden'}</strong>
               <div className="small muted">
-                {n('ok')} revisiones en orden{n('info') ? ` · ${n('info')} notas` : ''} · v{report.version} · {fmtTime(report.at)}
+                {n('ok')} revisiones en orden{n('info') ? ` · ${n('info')} notas` : ''} · v{report.version} · revisado a las {fmtTime(report.at)}
               </div>
             </div>
           </div>
@@ -165,4 +173,17 @@ export function DiagnosticsPage() {
       )}
     </div>
   );
+}
+
+/** Qué cambió desde la revisión anterior, para el aviso de "Revisar de nuevo". */
+function compare(before: DiagnosticReport | null, after: DiagnosticReport): string {
+  const bad = (r: DiagnosticReport) => r.checks.filter((c) => c.level === 'error' || c.level === 'warn');
+  const now = bad(after);
+  if (!before) return now.length ? `Revisión hecha: ${now.length} para revisar` : 'Revisión hecha: todo en orden';
+  const was = new Map(bad(before).map((c) => [c.id, c]));
+  const fixed = bad(before).filter((c) => !now.some((x) => x.id === c.id)).length;
+  const added = now.filter((c) => !was.has(c.id)).length;
+  const moved = now.filter((c) => was.has(c.id) && was.get(c.id)!.count !== c.count).map((c) => `${c.title}: ${was.get(c.id)!.count ?? '?'} → ${c.count ?? '?'}`);
+  const parts = [fixed && `${fixed} resueltos`, added && `${added} nuevos`, ...moved].filter(Boolean);
+  return parts.length ? `Revisión hecha · ${parts.join(' · ')}` : 'Revisión hecha: sin cambios desde la anterior';
 }
