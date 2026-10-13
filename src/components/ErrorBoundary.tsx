@@ -1,4 +1,5 @@
 import { Component, type ReactNode } from 'react';
+import { logError } from '../services/diagnosticsService';
 
 /** Evita la pantalla en blanco: muestra un mensaje y permite recargar. Los datos no se tocan. */
 export class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
@@ -8,6 +9,7 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, { error: E
   }
   componentDidCatch(error: Error) {
     console.error('[Stock Manager]', error);
+    logError(error);
   }
   render() {
     if (!this.state.error) return this.props.children;

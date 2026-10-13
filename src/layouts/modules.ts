@@ -1,6 +1,6 @@
 import {
   ArrowLeftRight, BarChart3, Boxes, ClipboardCheck, Cloud, Download, Forklift, Home, MapPin, Package, Plug, Receipt, Ruler, Scale, Settings as SettingsIcon,
-  ShoppingCart, Store, Tags, Truck, UserCog, ChefHat,
+  ShoppingCart, Stethoscope, Store, Tags, Truck, UserCog, ChefHat,
   type LucideIcon,
 } from 'lucide-react';
 import type { ModuleKey, Permission, Settings } from '../models';
@@ -23,6 +23,7 @@ export const MODULE_PATH: Record<ModuleKey, string> = {
   reports: '/reportes',
   production: '/produccion',
   showcase: '/vitrina',
+  diagnostics: '/diagnostico',
   export: '/exportar',
   integrations: '/integraciones',
   cloud: '/nube',
@@ -47,6 +48,7 @@ export const MODULE_ICON: Record<ModuleKey, LucideIcon> = {
   reports: BarChart3,
   production: ChefHat,
   showcase: Store,
+  diagnostics: Stethoscope,
   export: Download,
   integrations: Plug,
   cloud: Cloud,
@@ -77,7 +79,7 @@ export const RETIRED_PERMISSIONS: ReadonlySet<Permission> = new Set<Permission>(
 export const MODULE_GROUPS: { title: string; keys: ModuleKey[] }[] = [
   { title: 'Operación diaria', keys: ['dashboard', 'stock', 'count', 'production', 'showcase', 'movements', 'invoices'] },
   { title: 'Catálogo', keys: ['products', 'categories', 'units', 'locations'] },
-  { title: 'Administración', keys: ['cloud', 'users', 'export', 'integrations', 'settings'] },
+  { title: 'Administración', keys: ['cloud', 'users', 'export', 'integrations', 'diagnostics', 'settings'] },
 ];
 
 /** Permisos que habilitan cada módulo (alcanza con tener uno). */
@@ -98,6 +100,7 @@ export const MODULE_PERMISSIONS: Record<ModuleKey, Permission[]> = {
   reports: ['movements.view', 'export'],
   production: ['production', 'recipes'],
   showcase: ['stock.move'],
+  diagnostics: ['admin'],
   export: ['export'],
   integrations: ['admin'],
   cloud: ['admin'],
@@ -165,7 +168,7 @@ export const SECTIONS: Section[] = [
   { key: 'vitrina', icon: Store, modules: ['showcase'] },
   { key: 'productos', icon: Package, modules: ['products', 'categories', 'units', 'locations'] },
   { key: 'facturas', icon: Receipt, modules: ['invoices'] },
-  { key: 'config', icon: SettingsIcon, modules: ['settings', 'users', 'cloud', 'export', 'integrations'], bottom: true },
+  { key: 'config', icon: SettingsIcon, modules: ['settings', 'users', 'cloud', 'export', 'integrations', 'diagnostics'], bottom: true },
 ];
 
 export interface VisibleSection extends Section {

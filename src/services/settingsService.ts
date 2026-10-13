@@ -26,6 +26,7 @@ export const MODULES: { key: ModuleKey; label: string; primary?: boolean; locked
   { key: 'cloud', label: 'Cuenta y nube' },
   { key: 'users', label: 'Usuarios', locked: true },
   { key: 'integrations', label: 'Integraciones' },
+  { key: 'diagnostics', label: 'Diagnóstico' },
   { key: 'settings', label: 'Configuración', locked: true },
 ];
 

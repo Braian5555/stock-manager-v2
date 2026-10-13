@@ -196,7 +196,7 @@ export type LogoKind = 'default' | 'emoji' | 'image';
 export type ModuleKey =
   | 'dashboard' | 'stock' | 'count' | 'orders' | 'products' | 'suppliers' | 'locations' | 'categories'
   | 'units' | 'movements' | 'reconciliation' | 'export' | 'settings' | 'integrations' | 'cloud' | 'users' | 'invoices' | 'transfers'
-  | 'reports' | 'production' | 'showcase';
+  | 'reports' | 'production' | 'showcase' | 'diagnostics';
 
 export interface MenuItemSetting {
   key: ModuleKey;

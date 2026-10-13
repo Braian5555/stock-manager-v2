@@ -1,3 +1,4 @@
+import { logError } from '../services/diagnosticsService';
 import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Modal } from '../components/ui/Modal';
 
@@ -48,6 +49,7 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
         if (success) notify(success);
         return r;
       } catch (e) {
+        logError(e, 'aviso');
         notify(e instanceof Error ? e.message : 'Ocurrió un error inesperado.', { tone: 'error' });
         return undefined;
       }
