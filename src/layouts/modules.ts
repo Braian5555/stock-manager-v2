@@ -1,6 +1,6 @@
 import {
   ArrowLeftRight, BarChart3, Boxes, ClipboardCheck, Cloud, Download, Forklift, Home, MapPin, Package, Plug, Receipt, Ruler, Scale, Settings as SettingsIcon,
-  ShoppingCart, Tags, Truck, UserCog, ChefHat,
+  ShoppingCart, Store, Tags, Truck, UserCog, ChefHat,
   type LucideIcon,
 } from 'lucide-react';
 import type { ModuleKey, Permission, Settings } from '../models';
@@ -22,6 +22,7 @@ export const MODULE_PATH: Record<ModuleKey, string> = {
   reconciliation: '/conciliacion',
   reports: '/reportes',
   production: '/produccion',
+  showcase: '/vitrina',
   export: '/exportar',
   integrations: '/integraciones',
   cloud: '/nube',
@@ -45,6 +46,7 @@ export const MODULE_ICON: Record<ModuleKey, LucideIcon> = {
   reconciliation: Scale,
   reports: BarChart3,
   production: ChefHat,
+  showcase: Store,
   export: Download,
   integrations: Plug,
   cloud: Cloud,
@@ -73,7 +75,7 @@ export const RETIRED_PERMISSIONS: ReadonlySet<Permission> = new Set<Permission>(
 
 /** Grupos para "Más" (celular y computadora). */
 export const MODULE_GROUPS: { title: string; keys: ModuleKey[] }[] = [
-  { title: 'Operación diaria', keys: ['dashboard', 'stock', 'count', 'production', 'movements', 'invoices'] },
+  { title: 'Operación diaria', keys: ['dashboard', 'stock', 'count', 'production', 'showcase', 'movements', 'invoices'] },
   { title: 'Catálogo', keys: ['products', 'categories', 'units', 'locations'] },
   { title: 'Administración', keys: ['cloud', 'users', 'export', 'integrations', 'settings'] },
 ];
@@ -95,6 +97,7 @@ export const MODULE_PERMISSIONS: Record<ModuleKey, Permission[]> = {
   reconciliation: ['admin'],
   reports: ['movements.view', 'export'],
   production: ['production', 'recipes'],
+  showcase: ['stock.move'],
   export: ['export'],
   integrations: ['admin'],
   cloud: ['admin'],
@@ -159,6 +162,7 @@ export const SECTIONS: Section[] = [
   { key: 'inicio', icon: Home, modules: ['dashboard'] },
   { key: 'stock', icon: Boxes, modules: ['stock', 'movements', 'count', 'reconciliation'] },
   { key: 'produccion', icon: ChefHat, modules: ['production'] },
+  { key: 'vitrina', icon: Store, modules: ['showcase'] },
   { key: 'productos', icon: Package, modules: ['products', 'categories', 'units', 'locations'] },
   { key: 'facturas', icon: Receipt, modules: ['invoices'] },
   { key: 'config', icon: SettingsIcon, modules: ['settings', 'users', 'cloud', 'export', 'integrations'], bottom: true },
