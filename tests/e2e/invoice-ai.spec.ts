@@ -16,14 +16,12 @@ test('facturas: leer con IA, revisar renglones y guardar', async ({ page }) => {
   await dialog(page).getByRole('button', { name: 'Crear y subir datos' }).click();
   await expect(page.getByText('Sincronizado').first()).toBeVisible();
 
-  // Función de la nube simulada: responde como Claude, usando las referencias del catálogo que manda la app.
+  // Lector simulado: responde como Claude, usando las referencias del catálogo que manda la app.
   await page.evaluate(() => {
     type Cat = { ref: string; name: string; unit: string; buy: string };
-    const s = (globalThis as unknown as { __smFakeCloud: { functions?: Record<string, (d: unknown) => unknown> } }).__smFakeCloud;
-    s.functions = {
-      readInvoice: (data) => {
-        const d = data as { wsId: string; images: unknown[]; catalog: Cat[] };
-        if (!d.wsId || d.images.length !== 1) throw new Error('pedido inválido');
+    (globalThis as unknown as { __smInvoiceReader: (d: unknown) => Promise<unknown> }).__smInvoiceReader = async (data) => {
+        const d = data as { images: unknown[]; catalog: Cat[] };
+        if (d.images.length !== 1) throw new Error('pedido inválido');
         const ref = (name: string) => d.catalog.find((c) => c.name === name)?.ref ?? null;
         return {
           supplier: { name: 'Distribuidora Ejemplo', cuit: null },
@@ -35,7 +33,6 @@ test('facturas: leer con IA, revisar renglones y guardar', async ({ page }) => {
           ],
           warnings: ['Descuento general del 5% al pie.'],
         };
-      },
     };
   });
 
@@ -139,4 +136,17 @@ test('facturas: lectura con IA por el servidor de Cloudflare (configuración, pr
   await expect(d.getByRole('listitem').filter({ hasText: 'ACEITE GIRASOL 900CC' }).getByLabel(/^Cantidad en stock de/)).toHaveValue('12');
   expect(seen).toMatchObject({ auth: 'Bearer fake-id-token', model: 'claude-sonnet-5-5', catalog: true });
   expect(seen.ws).toBeTruthy();
+});
+
+test('facturas: sin servidor configurado no aparece "Leer con IA"', async ({ page }) => {
+  await loadDemo(page);
+  await go(page, '/facturas');
+  await page.getByRole('button', { name: 'Nueva factura' }).click();
+  const d = dialog(page);
+  const file = join(mkdtempSync(join(tmpdir(), 'sm-')), 'factura.jpg');
+  writeFileSync(file, Buffer.from(JPEG, 'base64'));
+  await d.getByLabel('Fotos desde la galería').setInputFiles(file);
+  await expect(d.getByRole('img', { name: 'Hoja 1' })).toBeVisible({ timeout: 20_000 });
+  await expect(d.getByRole('button', { name: 'Leer con IA' })).toHaveCount(0);
+  await expect(d.getByText(/Lectura con IA|leer los productos con IA/)).toHaveCount(0);
 });

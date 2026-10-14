@@ -53,7 +53,10 @@ export function InvoiceEditor({ open, onClose, invoice, defaults, onSaved }: Pro
   const [warnings, setWarnings] = useState<string[]>([]);
   const [reading, setReading] = useState(false);
   // En las pruebas automáticas el lector se reemplaza; en uso real hace falta la nube.
-  const aiAvailable = cloud.phase === 'linked' || !!(globalThis as { __smInvoiceReader?: unknown }).__smInvoiceReader;
+  // La lectura con IA aparece sólo si se configuró el servidor (Configuración → Lectura con IA).
+  const testReader = !!(globalThis as { __smInvoiceReader?: unknown }).__smInvoiceReader;
+  const aiConfigured = !!settings.aiReaderUrl || testReader;
+  const aiAvailable = testReader || (aiConfigured && cloud.phase === 'linked');
 
   useEffect(() => {
     if (!open) return;
@@ -166,7 +169,7 @@ export function InvoiceEditor({ open, onClose, invoice, defaults, onSaved }: Pro
             {busy > 0 && <div className="invoice-page-thumb processing" role="status"><Loader2 size={22} className="spin" aria-hidden /> Procesando foto…</div>}
           </div>
         )}
-        {pages.length > 0 && (
+        {pages.length > 0 && aiConfigured && (
           <div className="inv-ai">
             <Sparkles size={20} aria-hidden />
             <p className="grow small">
