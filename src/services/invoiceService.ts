@@ -3,7 +3,7 @@
  * Los datos se sincronizan como cualquier tabla; las fotos se suben/bajan aparte (ver cloudService).
  */
 import { db } from '../database/db';
-import type { Invoice, InvoicePage } from '../models';
+import type { Invoice, InvoiceItem, InvoicePage } from '../models';
 import { nowIso, uuid } from '../utils/id';
 import { deleteCloudImages, fetchCloudImage, uploadPendingImages } from '../cloud/cloudService';
 import { getCurrentActor } from './userService';
@@ -23,6 +23,10 @@ export interface InvoiceDraft {
   total?: number;
   notes?: string;
   pages: PageDraft[];
+  /** Renglones leídos con IA y revisados (si falta, se conservan los que tenía). */
+  items?: InvoiceItem[];
+  aiReadAt?: string;
+  aiWarnings?: string[];
 }
 
 const clean = (s?: string) => (s ?? '').trim() || undefined;
@@ -32,6 +36,11 @@ export async function saveInvoice(d: InvoiceDraft): Promise<Invoice> {
   if (d.pages.length > MAX_PAGES) throw new Error(`Máximo ${MAX_PAGES} fotos por factura.`);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(d.date)) throw new Error('Ingresá la fecha de la factura.');
   if (d.total !== undefined && (!Number.isFinite(d.total) || d.total < 0)) throw new Error('El total no es válido.');
+  for (const i of d.items ?? []) {
+    if (i.status !== 'ignored' && i.productId && (i.stockQty === undefined || !Number.isFinite(i.stockQty) || i.stockQty < 0)) {
+      throw new Error(`Revisá la cantidad de “${i.description}”.`);
+    }
+  }
 
   const prev = d.id ? await db.invoices.get(d.id) : undefined;
   if (d.id && !prev) throw new Error('La factura no existe.');
@@ -53,7 +62,11 @@ export async function saveInvoice(d: InvoiceDraft): Promise<Invoice> {
     notes: clean(d.notes),
     pages,
     createdBy: prev?.createdBy ?? getCurrentActor(),
+    items: d.items ?? prev?.items,
+    aiReadAt: d.items ? (d.aiReadAt ?? prev?.aiReadAt) : prev?.aiReadAt,
+    aiWarnings: d.items ? (d.aiWarnings ?? prev?.aiWarnings) : prev?.aiWarnings,
   };
+  if (!invoice.items?.length) { delete invoice.items; delete invoice.aiReadAt; delete invoice.aiWarnings; }
 
   await db.transaction('rw', db.invoices, db.invoiceImages, async () => {
     await db.invoices.put(invoice);

@@ -201,6 +201,17 @@ export async function fetchCloudImage(id: string): Promise<CloudImage | null> {
   return c.backend.getImage(c.wsId, id);
 }
 
+/** Llama a una función de la nube del espacio vinculado (agrega el id del espacio). */
+export async function callCloudFunction<T>(name: string, data: Record<string, unknown>): Promise<T> {
+  const c = activeWs();
+  if (!c) throw new Error('Para leer facturas con IA, la app tiene que estar conectada a la nube (Cuenta y nube).');
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) throw new Error('Sin conexión: la lectura con IA necesita Internet.');
+  return c.backend.callFunction<T>(name, { ...data, wsId: c.wsId });
+}
+
+/** true si se puede usar la nube ahora (para mostrar u ocultar funciones que la necesitan). */
+export const cloudLinked = () => !!activeWs();
+
 export async function deleteCloudImages(ids: string[]): Promise<void> {
   const c = activeWs();
   if (!c) return;

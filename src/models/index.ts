@@ -337,6 +337,29 @@ export interface Invoice extends BaseEntity {
   notes?: string;
   pages: InvoicePage[];
   createdBy?: Actor;
+  /** Renglones leídos de la foto (con IA) y revisados. */
+  items?: InvoiceItem[];
+  /** Cuándo se leyó con IA, y avisos de la lectura (algo borroso, descuento general…). */
+  aiReadAt?: string;
+  aiWarnings?: string[];
+}
+
+/**
+ * Renglón de una factura: lo que dice la factura y a qué producto del catálogo corresponde.
+ * `stockQty` es la cantidad en la unidad de stock del producto (p. ej. 2 cajas × 12 = 24 u).
+ */
+export interface InvoiceItem {
+  id: ID;
+  description: string;
+  code?: string;
+  quantity: number;
+  unit?: string;
+  unitPrice?: number;
+  lineTotal?: number;
+  productId?: ID;
+  stockQty?: number;
+  /** ok: reconocido seguro · check: revisar · none: sin producto · ignored: no va al stock. */
+  status: 'ok' | 'check' | 'none' | 'ignored';
 }
 
 /**

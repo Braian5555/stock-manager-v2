@@ -259,4 +259,19 @@ export class FirebaseBackend implements CloudBackend {
   async deleteImage(wsId: string, id: string) {
     await deleteDoc(this.img(wsId, id));
   }
+
+  async callFunction<T>(name: string, data: unknown): Promise<T> {
+    // Se carga sólo cuando se usa (no suma peso al abrir la app).
+    const { getFunctions, httpsCallable } = await import('firebase/functions');
+    const fn = httpsCallable<unknown, T>(getFunctions(this.app, 'southamerica-east1'), name, { timeout: 190_000 });
+    try {
+      return (await fn(data)).data;
+    } catch (e) {
+      const err = e as { code?: string; message?: string };
+      // Mensaje en castellano que manda la función; si no llegó a ejecutarse, uno genérico.
+      if (err.code === 'functions/not-found' || err.code === 'functions/internal' && !err.message) throw new Error('La lectura con IA todavía no está instalada en la nube.', { cause: e });
+      if (err.code === 'functions/unavailable' || err.code === 'functions/deadline-exceeded') throw new Error(err.message && !/^(unavailable|deadline)/i.test(err.message) ? err.message : 'No se pudo conectar con la lectura con IA. Probá de nuevo.', { cause: e });
+      throw new Error(err.message || 'No se pudo completar la lectura.', { cause: e });
+    }
+  }
 }

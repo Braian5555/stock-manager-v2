@@ -15,6 +15,8 @@ export class FakeCloudStore {
   private listeners = new Map<string, Set<Listener>>();
   private wsListeners = new Map<string, Set<(ws: Workspace | null) => void>>();
   online = true;
+  /** Funciones de la nube simuladas (sólo pruebas). */
+  functions?: Record<string, (data: unknown) => unknown>;
   /** Cuentas de email y contraseña (sólo pruebas). */
   accounts = new Map<string, { uid: string; password: string; name: string; verified: boolean }>();
   private queue: { path: string; doc: RemoteDoc; resolve: () => void }[] = [];
@@ -186,5 +188,10 @@ export class FakeBackend implements CloudBackend {
   }
   async deleteImage(wsId: string, id: string) {
     this.store.coll(`${wsId}/invoiceImages`).delete(id);
+  }
+  async callFunction<T>(name: string, data: unknown): Promise<T> {
+    const handler = this.store.functions?.[name];
+    if (!handler) throw new Error('La lectura con IA todavía no está instalada en la nube.');
+    return (await handler(data)) as T;
   }
 }

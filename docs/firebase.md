@@ -113,3 +113,28 @@ La app puede publicarse en `https://<projectId>.web.app`. Ventajas: la direcció
 2. GitHub → repositorio → **Settings → Secrets and variables → Actions → New repository secret**. Nombre: `FIREBASE_SERVICE_ACCOUNT`. Valor: el contenido completo del `.json`.
 3. El workflow (`.github/workflows/deploy.yml`) construye con `VITE_BASE_PATH=/` y publica con `FirebaseExtended/action-hosting-deploy` usando `firebase.json`.
 4. Abrir la app en la nueva dirección, iniciar sesión y elegir **Usar en este dispositivo** (cada dirección tiene su propio almacenamiento local; los datos vienen de la nube).
+
+## Lectura de facturas con IA (opcional)
+
+En **Facturas → Nueva factura → Leer con IA**, la foto se manda a una función de la nube
+(`functions/index.mjs`, región `southamerica-east1`) que la lee con Claude (`claude-sonnet-5-5`)
+y devuelve los renglones. La app los empareja con el catálogo y muestra la revisión; nada se carga
+al stock sin confirmar.
+
+Activarla, una sola vez:
+
+1. Firebase Console → el proyecto → **Actualizar al plan Blaze** (pago por uso; las funciones no corren en el plan gratis).
+2. Crear una clave en <https://console.anthropic.com> → *API keys* (con saldo cargado).
+3. Cargar la clave como secreto (desde una computadora con `firebase-tools` y sesión iniciada):
+   ```
+   firebase functions:secrets:set ANTHROPIC_API_KEY --project stock-manager-a7cf7
+   ```
+4. Publicar la función: GitHub → *Actions* → **Deploy functions** → *Run workflow*
+   (o `firebase deploy --only functions --project stock-manager-a7cf7`).
+   La cuenta de servicio del repositorio necesita los roles *Cloud Functions Admin*,
+   *Service Account User*, *Secret Manager Viewer* y *Artifact Registry Administrator*; si el
+   workflow falla por permisos, publicarla a mano con el comando anterior.
+
+Seguridad y costos: la clave nunca llega a la app; sólo miembros del espacio pueden usar la función,
+con un máximo de 150 lecturas por espacio y por día (`aiUsage/{espacio}_{fecha}` en Firestore,
+con los tokens usados).

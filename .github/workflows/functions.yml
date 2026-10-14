@@ -1,0 +1,35 @@
+name: Deploy functions
+
+# Las funciones en la nube (lectura de facturas con IA) se publican aparte del sitio:
+# sólo cuando cambia la carpeta functions/ o a mano. Requieren el plan Blaze de Firebase
+# y el secreto ANTHROPIC_API_KEY cargado (firebase functions:secrets:set ANTHROPIC_API_KEY).
+on:
+  push:
+    branches: [main]
+    paths: ['functions/**', '.github/workflows/functions.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-functions
+  cancel-in-progress: false
+
+jobs:
+  functions:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci --omit=dev || npm install --omit=dev
+        working-directory: functions
+      - name: Credenciales
+        run: printf '%s' "$SA" > "$RUNNER_TEMP/sa.json"
+        env:
+          SA: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+      - run: npx -y firebase-tools@14 deploy --only functions --project stock-manager-a7cf7 --force --non-interactive
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/sa.json

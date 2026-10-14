@@ -79,6 +79,9 @@ export interface CloudBackend {
   /** null si no existe. Lanza error si no hay conexión y no está en la copia local. */
   getImage(wsId: string, id: string): Promise<CloudImage | null>;
   deleteImage(wsId: string, id: string): Promise<void>;
+
+  /** Llama a una función de la nube (p. ej. leer una factura con IA). */
+  callFunction<T>(name: string, data: unknown): Promise<T>;
 }
 
 export interface WatchInfo {

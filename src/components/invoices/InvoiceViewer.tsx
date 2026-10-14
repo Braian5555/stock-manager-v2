@@ -6,10 +6,11 @@ import type { Invoice } from '../../models';
 import { base64ToBlob } from '../../services/imageService';
 import { deleteInvoice, getInvoiceImage, invoiceFileName } from '../../services/invoiceService';
 import { downloadBlob, safeFilename } from '../../exports/download';
-import { useLookups } from '../../hooks/useData';
+import { useLookups, useProducts } from '../../hooks/useData';
+import { ITEM_STATUS_LABEL } from '../../services/invoiceAI';
 import { useFeedback } from '../../store/feedback';
 import { useSession } from '../../store/session';
-import { fmtDay, fmtMoney } from '../../utils/format';
+import { fmtDay, fmtMoney, fmtNumber } from '../../utils/format';
 import { Modal } from '../ui/Modal';
 
 /** Una hoja de la factura: carga la foto (del dispositivo o de la nube) y permite descargarla. */
@@ -99,9 +100,41 @@ export function InvoiceViewer({ invoiceId, onClose, onEdit }: { invoiceId?: stri
             {invoice.createdBy && <div><dt>Cargada por</dt><dd>{invoice.createdBy.name}</dd></div>}
           </dl>
           {invoice.notes && <p className="small">{invoice.notes}</p>}
+          {invoice.items?.length ? <InvoiceItemsTable invoice={invoice} /> : null}
           {invoice.pages.map((p, i) => <PageImage key={p.id} invoice={invoice} index={i} supplierName={supplierName} />)}
         </div>
       )}
     </Modal>
+  );
+}
+
+/** Renglones leídos con IA (sólo lectura; para cambiarlos, "Editar datos"). */
+function InvoiceItemsTable({ invoice }: { invoice: Invoice }) {
+  const products = useProducts();
+  const lk = useLookups();
+  const byId = new Map(products.map((p) => [p.id, p]));
+  const items = invoice.items ?? [];
+  const pending = items.filter((i) => i.status === 'check' || i.status === 'none').length;
+  return (
+    <section className="card" aria-label="Productos de la factura">
+      <div className="card-head">
+        <h3 className="row" style={{ margin: 0 }}>Productos ({items.length})</h3>
+        {pending > 0 ? <span className="badge badge-warn">{pending} sin revisar</span> : <span className="badge badge-ok">Revisada</span>}
+      </div>
+      <div className="list">
+        {items.map((i) => {
+          const p = i.productId ? byId.get(i.productId) : undefined;
+          return (
+            <div key={i.id} className={`list-item ${i.status === 'ignored' ? 'production-undone' : ''}`}>
+              <div className="grow">
+                <div className="list-title truncate">{p?.name ?? i.description}</div>
+                <div className="list-sub">{p ? i.description : ITEM_STATUS_LABEL[i.status]}{i.unitPrice != null ? ` · $${fmtNumber(i.unitPrice)} c/u` : ''}</div>
+              </div>
+              <strong className="num">{i.status === 'ignored' ? '—' : p && i.stockQty != null ? `${fmtNumber(i.stockQty)} ${lk.unit(p.unitId) || 'u'}` : `${fmtNumber(i.quantity)} ${i.unit ?? ''}`}</strong>
+            </div>
+          );
+        })}
+      </div>
+    </section>
   );
 }
