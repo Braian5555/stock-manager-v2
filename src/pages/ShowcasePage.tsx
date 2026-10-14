@@ -3,6 +3,7 @@ import { ChefHat, Minus, Search, Store } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { db } from '../database/db';
 import { EMPTY, useLookups, useProducts } from '../hooks/useData';
+import { startOfDayIso, useToday } from '../hooks/useToday';
 import type { Product } from '../models';
 import { productionFamilyIds } from '../services/bakeryService';
 import { applyMovement, revertMovement } from '../services/stockService';
@@ -11,7 +12,7 @@ import { useSettings } from '../store/settings';
 import { PageHeader, Segmented } from '../components/ui';
 import { Modal } from '../components/ui/Modal';
 import { Stepper } from '../components/Stepper';
-import { fmtNumber, fmtTime, localYmd, matches, round3 } from '../utils/format';
+import { fmtNumber, fmtTime, matches, round3 } from '../utils/format';
 
 export const SOLD_REASON = 'Vitrina: vendido';
 export const WASTE_REASON = 'Vitrina: merma';
@@ -51,12 +52,8 @@ export function ShowcasePage() {
   const [qty, setQty] = useState<number | undefined>();
   const [kind, setKind] = useState<Kind>('venta');
 
-  const today = localYmd();
-  const since = useMemo(() => {
-    const d = new Date();
-    d.setHours(0, 0, 0, 0);
-    return d.toISOString();
-  }, [today]);
+  const today = useToday();
+  const since = useMemo(() => startOfDayIso(today), [today]);
   const moves = useLiveQuery(() => db.movements.where('createdAt').aboveOrEqual(since).toArray(), [since]) ?? EMPTY;
 
   const famIds = useMemo(() => productionFamilyIds(settings, lk.categories), [settings, lk.categories]);

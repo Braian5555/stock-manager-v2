@@ -41,6 +41,19 @@ describe('sincronización con la nube', () => {
     expect(engine!.getStatus().state).toBe('synced');
   });
 
+  it('movimientos borrados en otro dispositivo: el stock se recalcula (vuelve a 0 si no queda ninguno)', async () => {
+    const { otherDevice } = await setup();
+    const p = await saveProduct({ ...emptyProduct(), name: 'Harina' }, 10);
+    await applyMovement({ productId: p.id, type: 'salida', delta: -3, origin: 'manual' });
+    await tick();
+    expect((await db.products.get(p.id))!.stock).toBe(7);
+    const later = new Date(Date.now() + 1000).toISOString();
+    for (const m of await db.movements.where('productId').equals(p.id).toArray()) otherDevice('movements', { id: m.id, _deleted: true, updatedAt: later });
+    await tick(80);
+    expect(await db.movements.where('productId').equals(p.id).count()).toBe(0);
+    expect((await db.products.get(p.id))!.stock).toBe(0);
+  });
+
   it('los cambios locales se suben y las eliminaciones dejan lápida', async () => {
     const { remote } = await setup();
     const p = await saveProduct({ ...emptyProduct(), name: 'Hielo 10 kg' }, 4);

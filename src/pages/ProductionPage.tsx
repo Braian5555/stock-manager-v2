@@ -3,6 +3,7 @@ import { BookOpen, Check, ChefHat, Pencil, Search, Tags, Undo2 } from 'lucide-re
 import { useEffect, useMemo, useState } from 'react';
 import { db } from '../database/db';
 import { EMPTY, useLookups, useProducts } from '../hooks/useData';
+import { startOfDayIso, useToday } from '../hooks/useToday';
 import type { Product, StockMovement } from '../models';
 import { recipeConsumption, registerProduction, undoProduction } from '../services/productionService';
 import { useFeedback } from '../store/feedback';
@@ -18,11 +19,6 @@ import { Stepper } from '../components/Stepper';
 import { fmtNumber, fmtTime, matches, round3 } from '../utils/format';
 
 const FREQUENT = '__frecuentes';
-const startOfToday = () => {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return d.toISOString();
-};
 
 /** Botones rápidos según la unidad: de a docenas para unidades, de a medio kilo para kilos. */
 function quickSteps(unit: string): number[] {
@@ -60,12 +56,14 @@ export function ProductionPage() {
     ...(canRecipes ? [{ value: 'recetas' as View, label: 'Recetas' }] : []),
   ];
   // Movimientos de los últimos dos meses (plan y resumen).
-  const twoMonthsAgo = useMemo(() => new Date(Date.now() - 62 * 86_400_000).toISOString(), []);
+  const todayYmd = useToday();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const twoMonthsAgo = useMemo(() => new Date(Date.now() - 62 * 86_400_000).toISOString(), [todayYmd]);
   const recent = useLiveQuery(() => db.movements.where('createdAt').aboveOrEqual(twoMonthsAgo).toArray(), [twoMonthsAgo]) ?? EMPTY;
   const [editing, setEditing] = useState<Product | null>(null);
   const [rq, setRq] = useState('');
 
-  const since = useMemo(startOfToday, []);
+  const since = useMemo(() => startOfDayIso(todayYmd), [todayYmd]);
   const history = useLiveQuery(() => db.movements.where('type').equals('produccion').toArray(), []) ?? EMPTY;
   const undone = useLiveQuery(() => db.movements.where('type').equals('ajuste').filter((m) => m.origin === 'deshacer').toArray(), []) ?? EMPTY;
   const undoneKeys = useMemo(() => new Set(undone.map((m) => m.idempotencyKey)), [undone]);

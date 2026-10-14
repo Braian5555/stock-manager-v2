@@ -18,6 +18,7 @@ import { Logo } from '../components/Logo';
 import { CommitInput, Field, NumberInput, PageHeader, Segmented, StatusBadge } from '../components/ui';
 import { readableInk } from '../utils/color';
 import { WipeDataSection } from '../components/WipeDataSection';
+import { StockResetSection } from '../components/StockResetSection';
 import { MODULE_ICON, MODULE_PATH, moduleEnabled, navLabel } from '../layouts/modules';
 import { useCloud } from '../cloud/cloudService';
 import { useIntegration, useOnline, usePendingJobs } from '../hooks/useData';
@@ -389,6 +390,7 @@ function AppSection() {
           <div><button type="button" className="btn btn-sm" onClick={() => void resetConfig()}>Restablecer configuración</button></div>
         </section>
 
+        <StockResetSection />
         <WipeDataSection />
       </div>
     </>

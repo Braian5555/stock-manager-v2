@@ -144,6 +144,7 @@ export class SyncEngine {
   private async applyRemote(table: SyncTableName, changes: RemoteChange[], info: WatchInfo) {
     const docs = changes.filter((c) => !c.pending).map((c) => c.doc);
     const affectedProducts = new Set<string>();
+    const emptiedProducts = new Set<string>();
     const toPush: RemoteDoc[] = [];
 
     await db.transaction('rw', [db.table(table), db.products, db.movements, db.invoiceImages, db.tombstones], async () => {
@@ -162,6 +163,10 @@ export class SyncEngine {
         }
         const tombKey = `${table}:${d.id}`;
         if (d._deleted) {
+          // Un movimiento borrado en otro dispositivo cambia el stock de su producto.
+          if (table === 'movements' && local && typeof (local as { productId?: unknown }).productId === 'string') {
+            emptiedProducts.add((local as unknown as { productId: string }).productId);
+          }
           if (local) await t.delete(d.id);
           if (table === 'invoices') await db.invoiceImages.where('invoiceId').equals(d.id).delete();
           await db.tombstones.put({ key: tombKey, table, id: d.id, updatedAt: remoteAt || nowIso(), pushed: 1 });
@@ -188,6 +193,12 @@ export class SyncEngine {
         if (table === 'products') affectedProducts.add(d.id);
       }
       for (const pid of affectedProducts) await recomputeStock(pid);
+      // Sin movimientos que lo expliquen, el stock vuelve a 0 (p. ej. "Empezar de cero" en otro dispositivo).
+      for (const pid of emptiedProducts) {
+        const left = (await db.movements.where('productId').equals(pid).toArray()).filter((m) => !m.outletId);
+        if (left.length) await recomputeStock(pid);
+        else await db.products.update(pid, { stock: 0 });
+      }
 
       // Con la lista confirmada por el servidor: lo que existe sólo en este dispositivo se sube
       // (p. ej. creado sin sesión). Con una copia parcial de caché no se puede saber, así que se espera.

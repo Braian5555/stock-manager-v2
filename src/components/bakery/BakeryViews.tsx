@@ -1,3 +1,4 @@
+import { useToday } from '../../hooks/useToday';
 import { CheckCircle2, ClipboardList, Copy, FileSpreadsheet, Lock, Pencil, Search } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import type { Lookups } from '../../hooks/useData';
@@ -27,8 +28,10 @@ function isBakeryCandidate(p: Product, lk: Lookups) {
  * "Anotar". Quien administra arma el plan de hoy o de mañana.
  */
 export function PlanView({ products, lk, movements, canEdit, onPick }: Common & { canEdit: boolean; onPick: (p: Product, remaining?: number) => void }) {
-  const today = localYmd();
+  const today = useToday();
   const [date, setDate] = useState(today);
+  // A la medianoche el plan pasa solo al día nuevo.
+  useEffect(() => setDate(today), [today]);
   const [editing, setEditing] = useState(false);
   const summary = useMemo(() => bakerySummary(movements, products, date, date), [movements, products, date]);
   const produced = useMemo(() => new Map(summary.rows.map((r) => [r.productId, r.produced])), [summary]);

@@ -39,3 +39,38 @@ export async function wipeAllData(opts: { recreateBaseCatalogs: boolean }): Prom
   await deleteCloudImages(imageIds);
   if (opts.recreateBaseCatalogs) await ensureBaseCatalogs();
 }
+
+/** "Empezar de cero": tablas de historia que se vacían (el catálogo y las recetas quedan). */
+export const STOCK_RESET_TABLES = ['transfers', 'invoices', 'countItems', 'counts', 'movements', 'orderItems', 'orders', 'syncJobs'] as const;
+
+export async function stockResetSummary(): Promise<Record<string, number>> {
+  const out: Record<string, number> = {};
+  for (const t of STOCK_RESET_TABLES) out[t] = await db.table(t).count();
+  out.invoiceImages = await db.invoiceImages.count();
+  out.withStock = await db.products.filter((p) => p.stock !== 0).count();
+  out.withPlan = await db.products.filter((p) => !!p.productionPlan).count();
+  return out;
+}
+
+/**
+ * Empezar de cero conservando el catálogo: todo el stock en 0 y se borra la historia
+ * (movimientos, conteos, pedidos, facturas, remitos y planes de producción). Productos,
+ * familias, unidades, ubicaciones, proveedores, recetas, usuarios y configuración quedan.
+ */
+export async function resetStockKeepCatalog(): Promise<{ products: number; movements: number }> {
+  const movements = await db.movements.count();
+  const imageIds = (await db.invoiceImages.toCollection().primaryKeys()).map(String);
+  for (const t of STOCK_RESET_TABLES) {
+    const keys = await db.table(t).toCollection().primaryKeys();
+    for (let i = 0; i < keys.length; i += 500) await db.table(t).bulkDelete(keys.slice(i, i + 500));
+  }
+  await db.invoiceImages.clear();
+  await deleteCloudImages(imageIds);
+  // El stock se guarda con updatedAt nuevo para que llegue en 0 a la nube y a los demás dispositivos.
+  const t = new Date().toISOString();
+  const touched = (await db.products.toArray()).filter((p) => p.stock !== 0 || p.productionPlan);
+  for (let i = 0; i < touched.length; i += 200) {
+    await db.products.bulkPut(touched.slice(i, i + 200).map((p) => ({ ...p, stock: 0, productionPlan: undefined, updatedAt: t })));
+  }
+  return { products: touched.length, movements };
+}

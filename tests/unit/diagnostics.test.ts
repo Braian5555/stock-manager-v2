@@ -67,3 +67,20 @@ describe('diagnóstico: stock negativo', () => {
     expect(items[0].productId).not.toBe(ok.id);
   });
 });
+
+describe('empezar de cero', () => {
+  it('pone el stock en 0, borra la historia y conserva productos y recetas', async () => {
+    const { resetStockKeepCatalog } = await import('../../src/services/resetService');
+    const harina = await saveProduct({ ...emptyProduct(), name: 'Harina' }, 12);
+    const pan = await saveProduct({ ...emptyProduct(), name: 'Pan', recipe: { yield: 10, items: [{ productId: harina.id, quantity: 1 }] }, productionPlan: { '2026-10-14': 30 } });
+    await applyMovement({ productId: pan.id, type: 'produccion', delta: 10, origin: 'manual' });
+    const r = await resetStockKeepCatalog();
+    expect(r.products).toBe(2);
+    expect(await db.movements.count()).toBe(0);
+    const [h, p] = await db.products.bulkGet([harina.id, pan.id]);
+    expect([h!.stock, p!.stock]).toEqual([0, 0]);
+    expect(p!.recipe?.items[0].productId).toBe(harina.id);
+    expect(p!.productionPlan).toBeUndefined();
+    expect(byId(await runDiagnostics(cloud), 'stock-mismatch').level).toBe('ok');
+  });
+});
