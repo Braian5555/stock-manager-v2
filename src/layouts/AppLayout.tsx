@@ -11,7 +11,6 @@ import { useSettings } from '../store/settings';
 import { MODULE_ICON, MODULE_PATH, bottomNavModules, moduleOfPath, navLabel, visibleModules, visibleSections, type VisibleSection } from './modules';
 import { useAutoSync } from '../hooks/useAutoSync';
 import { SyncBadge } from '../components/SyncBadge';
-import { QuickAdd } from '../components/QuickAdd';
 import { UserMenu } from '../components/auth/UserMenu';
 import { useSession } from '../store/session';
 import type { ModuleKey } from '../models';
@@ -136,7 +135,6 @@ export function AppLayout() {
           <span>Más</span>
         </NavLink>
       </nav>
-      <QuickAdd />
       <GlobalSearch open={searchOpen} onClose={() => setSearchOpen(false)} />
     </div>
   );
