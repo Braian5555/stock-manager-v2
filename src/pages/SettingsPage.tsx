@@ -1,7 +1,7 @@
 import { lazyPage } from '../utils/lazyPage';
 import {
   ArrowDown, ArrowLeft, ArrowUp, Boxes, Building2, ChevronRight, Cloud, Copy, Download, Eye, EyeOff, ImageUp, LayoutGrid, Package, Palette, Plug,
-  RefreshCw, RotateCcw, ShieldCheck, Smartphone, Stethoscope, UserCog, type LucideIcon,
+  RefreshCw, RotateCcw, ShieldCheck, Smartphone, Sparkles, Stethoscope, UserCog, type LucideIcon,
 } from 'lucide-react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Suspense, useEffect, useRef, useState, type ReactNode } from 'react';
@@ -19,6 +19,7 @@ import { CommitInput, Field, NumberInput, PageHeader, Segmented, StatusBadge } f
 import { readableInk } from '../utils/color';
 import { WipeDataSection } from '../components/WipeDataSection';
 import { StockResetSection } from '../components/StockResetSection';
+import { AIReaderSection } from '../components/AIReaderSection';
 import { MODULE_ICON, MODULE_PATH, moduleEnabled, navLabel } from '../layouts/modules';
 import { useCloud } from '../cloud/cloudService';
 import { useIntegration, useOnline, usePendingJobs } from '../hooks/useData';
@@ -60,6 +61,7 @@ const SECTIONS: Section[] = [
   { key: 'usuarios', group: 'personas', title: 'Usuarios y permisos', description: 'Usuarios, roles, permisos, PIN y bloqueo automático.', icon: UserCog, render: () => <UsersPage /> },
   { key: 'nube', group: 'personas', title: 'Cuenta y nube', description: 'Sesión, espacios de trabajo, miembros, invitaciones y sincronización.', icon: Cloud, render: () => <CloudPage /> },
   { key: 'integraciones', group: 'sistema', title: 'Integraciones', description: 'Maxirest, Excel Bridge, gateway, cola y estado de conexión.', icon: Plug, render: () => <IntegrationsPage /> },
+  { key: 'ia', group: 'sistema', title: 'Lectura con IA', description: 'Leer facturas con Claude: dirección del servidor y prueba de conexión.', icon: Sparkles, render: () => <AIReaderSection /> },
   { key: 'datos', group: 'sistema', title: 'Importar y exportar', description: 'Excel, CSV, PDF, Word, JSON, backup completo y restauración.', icon: Download, render: () => <ExportPage /> },
   { key: 'aplicacion', group: 'sistema', title: 'Aplicación', description: 'Actualizaciones, datos del dispositivo, restablecer y borrar datos.', icon: Smartphone, render: () => <AppSection /> },
   { key: 'diagnostico', group: 'sistema', title: 'Diagnóstico', description: 'Estado del sistema, de Firebase y de la sincronización; versión.', icon: Stethoscope, render: () => <DiagnosticsSection /> },

@@ -209,6 +209,13 @@ export async function callCloudFunction<T>(name: string, data: Record<string, un
   return c.backend.callFunction<T>(name, { ...data, wsId: c.wsId });
 }
 
+/** Sesión para servicios propios (p. ej. el lector de facturas en Cloudflare): token y espacio. */
+export async function cloudSession(): Promise<{ token: string; wsId: string }> {
+  const c = activeWs();
+  if (!c) throw new Error('Para leer facturas con IA, la app tiene que estar conectada a la nube (Cuenta y nube).');
+  return { token: await c.backend.getIdToken(), wsId: c.wsId };
+}
+
 /** true si se puede usar la nube ahora (para mostrar u ocultar funciones que la necesitan). */
 export const cloudLinked = () => !!activeWs();
 

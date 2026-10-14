@@ -3,7 +3,8 @@
  * Claude, y acá se decide a qué producto del catálogo corresponde cada renglón y cuánto suma en
  * la unidad de stock. Nada se carga al stock sin que una persona lo revise.
  */
-import { callCloudFunction } from '../cloud/cloudService';
+import { buildRequest, parseReading } from '../../functions/reader.mjs';
+import { callCloudFunction, cloudSession } from '../cloud/cloudService';
 import type { InvoiceItem, Product } from '../models';
 import { normalize, round3 } from '../utils/format';
 import { uuid } from '../utils/id';
@@ -49,12 +50,16 @@ export function buildCatalog(products: Product[], lk: CatalogLookups): { catalog
 }
 
 /** Lee las fotos. En las pruebas automáticas se puede reemplazar el lector (window.__smInvoiceReader). */
-export async function readInvoicePhotos(images: { type: string; data: string }[], products: Product[], lk: CatalogLookups): Promise<InvoiceReadResult> {
+export async function readInvoicePhotos(images: { type: string; data: string }[], products: Product[], lk: CatalogLookups, opts: { readerUrl?: string } = {}): Promise<InvoiceReadResult> {
   if (!images.length) throw new Error('Sacá o elegí al menos una foto de la factura.');
   if (images.length > 6) throw new Error('Para leer con IA, máximo 6 hojas por factura.');
   const { catalog, byRef } = buildCatalog(products, lk);
   const override = (globalThis as { __smInvoiceReader?: Reader }).__smInvoiceReader;
-  const reading = override ? await override({ images, catalog }) : await callCloudFunction<AIReading>('readInvoice', { images, catalog });
+  const reading = override
+    ? await override({ images, catalog })
+    : opts.readerUrl
+      ? await readViaWorker(opts.readerUrl, images, catalog)
+      : await readViaFirebase(images, catalog);
   return {
     supplierName: reading.supplier?.name ?? undefined,
     number: reading.invoice?.number ?? undefined,
@@ -63,6 +68,70 @@ export async function readInvoicePhotos(images: { type: string; data: string }[]
     items: matchLines(reading.lines ?? [], products, lk, byRef),
     warnings: reading.warnings ?? [],
   };
+}
+
+/** Sin servidor de Cloudflare configurado: función de Firebase (requiere el plan Blaze; ver docs/firebase.md). */
+async function readViaFirebase(images: { type: string; data: string }[], catalog: CatalogEntry[]): Promise<AIReading> {
+  try {
+    return await callCloudFunction<AIReading>('readInvoice', { images, catalog });
+  } catch (e) {
+    if (e instanceof Error && /no está instalada/.test(e.message)) {
+      throw new Error('Falta configurar la lectura con IA: Configuración → Lectura con IA.', { cause: e });
+    }
+    throw e;
+  }
+}
+
+/** Errores del servidor o de la API de Claude, en castellano. */
+function readerError(status: number, body: unknown): Error {
+  const b = body as { error?: string | { type?: string; message?: string } } | null;
+  const own = typeof b?.error === 'string' ? b.error : undefined;
+  if (own) return new Error(own); // mensaje del servidor de Cloudflare
+  const type = typeof b?.error === 'object' ? b.error?.type : undefined;
+  if (status === 401 || type === 'authentication_error') return new Error('La clave de Anthropic no es válida. Revisala en Cloudflare (secreto ANTHROPIC_API_KEY).');
+  if (status === 403 || type === 'permission_error') return new Error('La clave de Anthropic no tiene permiso para usar este modelo.');
+  if (status === 402 || /credit|billing/i.test(typeof b?.error === 'object' ? b.error?.message ?? '' : '')) return new Error('La cuenta de Anthropic no tiene saldo. Cargá crédito en console.anthropic.com.');
+  if (status === 429 || status === 529 || type === 'overloaded_error' || type === 'rate_limit_error') return new Error('El servicio de IA está ocupado. Probá de nuevo en un minuto.');
+  if (status === 413 || type === 'request_too_large') return new Error('Las fotos son demasiado grandes. Probá con menos hojas.');
+  if (status === 400) return new Error('La IA no pudo procesar estas fotos.');
+  return new Error(`No se pudo leer la factura (error ${status}). Probá de nuevo.`);
+}
+
+/** Lectura a través del servidor de Cloudflare: el pedido se arma acá y el servidor sólo agrega la clave. */
+async function readViaWorker(url: string, images: { type: string; data: string }[], catalog: CatalogEntry[]): Promise<AIReading> {
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) throw new Error('Sin conexión: la lectura con IA necesita Internet.');
+  const { token, wsId } = await cloudSession();
+  let r: Response;
+  try {
+    r = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, 'X-Workspace': wsId },
+      body: JSON.stringify(buildRequest(images, catalog)),
+    });
+  } catch (e) {
+    throw new Error('No se pudo conectar con el servidor de lectura. Revisá la dirección en Configuración → Lectura con IA.', { cause: e });
+  }
+  const body = await r.json().catch(() => null);
+  if (!r.ok) throw readerError(r.status, body);
+  const msg = body as { stop_reason?: string; content?: { type: string; text?: string }[] };
+  if (msg.stop_reason === 'refusal') throw new Error('La IA no procesó estas fotos.');
+  const text = (msg.content ?? []).filter((b) => b.type === 'text').map((b) => b.text ?? '').join('');
+  const reading = parseReading(text, catalog.map((c) => c.ref)) as AIReading;
+  if (msg.stop_reason === 'max_tokens') reading.warnings.push('La factura es muy larga: puede faltar algún renglón al final.');
+  return reading;
+}
+
+/** Prueba de conexión con el servidor (Configuración → Lectura con IA). */
+export async function testReader(url: string): Promise<{ configured: boolean; model?: string }> {
+  let r: Response;
+  try {
+    r = await fetch(url, { method: 'GET' });
+  } catch (e) {
+    throw new Error('No se pudo conectar. Revisá que la dirección esté bien copiada.', { cause: e });
+  }
+  const b = (await r.json().catch(() => null)) as { service?: string; configured?: boolean; model?: string } | null;
+  if (!r.ok || b?.service !== 'stock-manager-invoice-reader') throw new Error('Esa dirección no es el servidor de lectura de Stock Manager.');
+  return { configured: !!b.configured, model: b.model };
 }
 
 // ───────────── Reconocimiento de productos ─────────────

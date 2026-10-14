@@ -93,3 +93,50 @@ test('facturas: leer con IA, revisar renglones y guardar', async ({ page }) => {
   }));
   expect(stock).toBe(7);
 });
+
+test('facturas: lectura con IA por el servidor de Cloudflare (configuración, prueba y lectura)', async ({ page }) => {
+  const WORKER = 'https://stock-manager-ia.ejemplo.workers.dev';
+  await page.route('**/firebase-config.json', (r) => r.fulfill({ contentType: 'application/json', body: JSON.stringify({ provider: 'fake' }) }));
+  let seen: { auth?: string; ws?: string; model?: string; catalog?: boolean } = {};
+  await page.route(`${WORKER}/**`, async (r) => {
+    const req = r.request();
+    if (req.method() === 'GET') return r.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true, service: 'stock-manager-invoice-reader', configured: true, model: 'claude-sonnet-5-5' }) });
+    const body = req.postDataJSON() as { model: string; messages: { content: { type: string; text?: string }[] }[] };
+    const text = body.messages[0].content.find((c) => c.type === 'text')!.text!;
+    const ref = /^(\w+): Aceite de girasol 900 ml/m.exec(text)?.[1] ?? null;
+    seen = { auth: req.headers()['authorization'], ws: req.headers()['x-workspace'], model: body.model, catalog: !!ref };
+    const reading = {
+      supplier: { name: 'Distribuidora Ejemplo', cuit: null },
+      invoice: { kind: 'factura', number: 'B 0001-00000077', date: '2026-10-12', total: 24000 },
+      lines: [{ description: 'ACEITE GIRASOL 900CC', code: null, quantity: 1, unit: 'caja', unitPrice: 24000, lineTotal: 24000, ref, confidence: 'alta' }],
+      warnings: [],
+    };
+    return r.fulfill({ contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: JSON.stringify({ stop_reason: 'end_turn', content: [{ type: 'text', text: JSON.stringify(reading) }] }) });
+  });
+  await loadDemo(page);
+  await go(page, '/nube');
+  await page.getByRole('button', { name: 'Entrar con una cuenta de Google' }).click();
+  await page.getByRole('button', { name: 'Crear y subir mis datos' }).click();
+  await dialog(page).getByRole('button', { name: 'Crear y subir datos' }).click();
+  await expect(page.getByText('Sincronizado').first()).toBeVisible();
+
+  // Configurar la dirección del servidor y probarla.
+  await go(page, '/configuracion');
+  await page.getByRole('link', { name: /Lectura con IA/ }).first().click();
+  await page.getByLabel(/^Dirección del servidor/).fill(`${WORKER}/`);
+  await page.getByRole('button', { name: 'Guardar' }).click();
+  await expect(page.getByText('Conectado. La clave de Anthropic está cargada')).toBeVisible();
+
+  await go(page, '/facturas');
+  await page.getByRole('button', { name: 'Nueva factura' }).click();
+  const d = dialog(page);
+  const file = join(mkdtempSync(join(tmpdir(), 'sm-')), 'factura.jpg');
+  writeFileSync(file, Buffer.from(JPEG, 'base64'));
+  await d.getByLabel('Fotos desde la galería').setInputFiles(file);
+  await expect(d.getByRole('img', { name: 'Hoja 1' })).toBeVisible({ timeout: 20_000 });
+  await d.getByRole('button', { name: 'Leer con IA' }).click();
+  await expect(page.getByText('Leí 1 renglones, todos reconocidos')).toBeVisible();
+  await expect(d.getByRole('listitem').filter({ hasText: 'ACEITE GIRASOL 900CC' }).getByLabel(/^Cantidad en stock de/)).toHaveValue('12');
+  expect(seen).toMatchObject({ auth: 'Bearer fake-id-token', model: 'claude-sonnet-5-5', catalog: true });
+  expect(seen.ws).toBeTruthy();
+});

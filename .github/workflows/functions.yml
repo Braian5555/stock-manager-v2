@@ -1,12 +1,9 @@
 name: Deploy functions
 
-# Las funciones en la nube (lectura de facturas con IA) se publican aparte del sitio:
-# sólo cuando cambia la carpeta functions/ o a mano. Requieren el plan Blaze de Firebase
-# y el secreto ANTHROPIC_API_KEY cargado (firebase functions:secrets:set ANTHROPIC_API_KEY).
+# Alternativa a Cloudflare para la lectura de facturas con IA: función de Firebase.
+# Sólo a mano (Actions → Run workflow): requiere el plan Blaze y el secreto ANTHROPIC_API_KEY
+# (firebase functions:secrets:set ANTHROPIC_API_KEY). Hoy se usa el worker de Cloudflare.
 on:
-  push:
-    branches: [main]
-    paths: ['functions/**', '.github/workflows/functions.yml']
   workflow_dispatch:
 
 permissions:

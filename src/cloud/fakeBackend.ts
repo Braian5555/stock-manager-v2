@@ -194,4 +194,7 @@ export class FakeBackend implements CloudBackend {
     if (!handler) throw new Error('La lectura con IA todavía no está instalada en la nube.');
     return (await handler(data)) as T;
   }
+  async getIdToken(): Promise<string> {
+    return 'fake-id-token';
+  }
 }

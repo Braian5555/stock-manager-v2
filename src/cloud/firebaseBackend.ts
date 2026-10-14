@@ -274,4 +274,10 @@ export class FirebaseBackend implements CloudBackend {
       throw new Error(err.message || 'No se pudo completar la lectura.', { cause: e });
     }
   }
+
+  async getIdToken(): Promise<string> {
+    const u = this.auth.currentUser;
+    if (!u) throw new Error('Iniciá sesión en la nube para leer facturas con IA.');
+    return u.getIdToken();
+  }
 }

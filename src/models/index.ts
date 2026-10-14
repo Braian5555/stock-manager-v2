@@ -228,6 +228,8 @@ export interface Settings extends BaseEntity {
    * se llaman parecido a "Panadería" o "Pastelería".
    */
   productionCategoryIds?: ID[];
+  /** Dirección del servidor que lee facturas con IA (Cloudflare Worker). */
+  aiReaderUrl?: string;
 }
 
 export type IntegrationMode = 'disabled' | 'mock' | 'gateway' | 'excel';

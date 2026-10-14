@@ -82,6 +82,8 @@ export interface CloudBackend {
 
   /** Llama a una función de la nube (p. ej. leer una factura con IA). */
   callFunction<T>(name: string, data: unknown): Promise<T>;
+  /** Token de sesión vigente (para servicios propios que verifican quién llama). */
+  getIdToken(): Promise<string>;
 }
 
 export interface WatchInfo {

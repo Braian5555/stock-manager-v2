@@ -8,6 +8,7 @@ import { compressImage } from '../../services/imageService';
 import { getInvoiceImage, MAX_PAGES, newPageId, saveInvoice, type PageDraft } from '../../services/invoiceService';
 import { readInvoicePhotos } from '../../services/invoiceAI';
 import { useCloud } from '../../cloud/cloudService';
+import { useSettings } from '../../store/settings';
 import { InvoiceItemsReview } from './InvoiceItemsReview';
 import { useLookups, useProducts } from '../../hooks/useData';
 import { useFeedback } from '../../store/feedback';
@@ -30,6 +31,7 @@ export function InvoiceEditor({ open, onClose, invoice, defaults, onSaved }: Pro
   const lk = useLookups();
   const products = useProducts();
   const cloud = useCloud();
+  const settings = useSettings();
   const { run, notify, confirm } = useFeedback();
   const listId = useId();
   const camRef = useRef<HTMLInputElement>(null);
@@ -71,7 +73,7 @@ export function InvoiceEditor({ open, onClose, invoice, defaults, onSaved }: Pro
     setReading(true);
     const r = await run(async () => {
       const images = await Promise.all(pages.map(async (p) => ('image' in p ? { type: p.image.type, data: p.image.data } : getInvoiceImage(p.id, invoice!.id))));
-      return readInvoicePhotos(images.map((i) => ({ type: i.type, data: i.data })), products, lk);
+      return readInvoicePhotos(images.map((i) => ({ type: i.type, data: i.data })), products, lk, { readerUrl: settings.aiReaderUrl });
     });
     setReading(false);
     if (!r) return;
