@@ -69,9 +69,11 @@ export function AppLayout() {
   const [collapsed, setCollapsed] = useState(() => readCollapsed());
   const toggleSidebar = () => setCollapsed((c) => { writeCollapsed(!c); return !c; });
   const connected = integration && integration.mode !== 'disabled' && integration.mode !== 'excel' && integration.status !== 'desconectado';
+  // En el Inicio los accesos ya están en la pantalla: sin barra lateral (en las demás, sí).
+  const isHome = location.pathname === '/';
 
   return (
-    <div className={`app ${collapsed ? 'side-collapsed' : ''}`}>
+    <div className={`app ${collapsed ? 'side-collapsed' : ''} ${isHome ? 'no-side' : ''}`}>
       <a href="#contenido" className="skip-link" onClick={(e) => { e.preventDefault(); document.getElementById('contenido')?.focus(); }}>Saltar al contenido</a>
       <header className="topbar">
         <Link to="/" className="brand" aria-label={`${settings.businessName} — Inicio`}>
@@ -95,7 +97,7 @@ export function AppLayout() {
         <UserMenu />
       </header>
 
-      <Sidebar sections={sections} active={section?.key ?? (/^\/(ayuda|acerca)/.test(location.pathname) ? 'ayuda' : undefined)} collapsed={collapsed} onToggle={toggleSidebar} />
+      {!isHome && <Sidebar sections={sections} active={section?.key ?? (/^\/(ayuda|acerca)/.test(location.pathname) ? 'ayuda' : undefined)} collapsed={collapsed} onToggle={toggleSidebar} />}
       {section && section.tabs.length > 1 && <SectionTabs tabs={section.tabs} label={section.label} />}
 
       <UpdatePrompt />

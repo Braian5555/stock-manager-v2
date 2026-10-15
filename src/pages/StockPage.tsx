@@ -26,7 +26,8 @@ export function StockPage() {
   const products = useProducts();
   const lk = useLookups();
   const [params, setParams] = useSearchParams();
-  const [q, setQ] = useState('');
+  // ?q= viene de los links del Inicio (p. ej. un producto para reponer).
+  const [q, setQ] = useState(() => params.get('q') ?? '');
   const [sort, setSort] = useState<SortKey>('name');
   const [moving, setMoving] = useState<Product | null>(null);
   const [showFilters, setShowFilters] = useState(false);

@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import { go, loadDemo } from './helpers';
 
 const ROUTES: [string, RegExp][] = [
-  ['/', /^(Inicio|Hola)/], ['/stock', /Stock/], ['/productos', /Productos/], ['/conteo', /Conteo/], ['/produccion', /Producción/],
+  ['/', /^(Inicio|Hola|Buen día|Buenas tardes|Buenas noches)/], ['/stock', /Stock/], ['/productos', /Productos/], ['/conteo', /Conteo/], ['/produccion', /Producción/],
   ['/facturas', /Facturas/], ['/ubicaciones', /Ubicaciones/],
   ['/familias', /Familias/], ['/unidades', /Unidades/], ['/movimientos', /Movimientos/],
   ['/exportar', /Exportar/], ['/integraciones', /Integraciones/], ['/nube', /Cuenta y nube/], ['/usuarios', /Usuarios/],

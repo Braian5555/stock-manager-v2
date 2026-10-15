@@ -8,7 +8,7 @@ const BASE = process.env.VITE_BASE_PATH ?? '/';
 
 test('1 · abre la app sin mostrar código fuente ni errores', async ({ page }) => {
   const errors = await open(page);
-  await expect(page.getByRole('heading', { name: /^(Inicio|Hola)/, level: 1 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /^(Inicio|Hola|Buen día|Buenas tardes|Buenas noches)/, level: 1 })).toBeVisible();
   const text = await page.locator('body').innerText();
   expect(text).not.toMatch(/import\s|export\s|function\s*\(|=>|React\.|createElement|<\/?script/);
   expect(await page.locator('script:not([src])').count()).toBe(0);
@@ -148,7 +148,7 @@ test('18-19 · PWA instalable y funciona offline', async ({ page, context }) => 
 
   await context.setOffline(true);
   await page.reload();
-  await expect(page.getByRole('heading', { name: /^(Inicio|Hola)/, level: 1 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /^(Inicio|Hola|Buen día|Buenas tardes|Buenas noches)/, level: 1 })).toBeVisible();
   await expect(page.getByText(/Sin conexión/).first()).toBeVisible();
   await expect(page.getByRole('link', { name: /Estado: Sin conexión/ }).or(page.getByRole('status', { name: /Estado: Sin conexión/ })).first()).toBeVisible();
   await page.goto('./#/stock');
@@ -185,6 +185,10 @@ test('22-23 · navegación adaptada al dispositivo', async ({ page, isMobile }) 
     await expect(page.getByRole('heading', { name: 'Operación diaria' })).toBeVisible();
     await page.getByRole('link', { name: 'Configuración' }).click();
   } else {
+    // En el Inicio los accesos están en la pantalla: sin barra lateral. En las demás, sí.
+    await expect(page.getByRole('navigation', { name: 'Navegación principal' })).toHaveCount(0);
+    await expect(page.getByRole('navigation', { name: 'Acciones rápidas' })).toBeVisible();
+    await go(page, '/stock');
     const top = page.getByRole('navigation', { name: 'Navegación principal' });
     await expect(top).toBeVisible();
     await expect(page.getByRole('navigation', { name: 'Navegación inferior' })).toBeHidden();
@@ -192,7 +196,7 @@ test('22-23 · navegación adaptada al dispositivo', async ({ page, isMobile }) 
     // Sólo stock, panadería (producción) y facturas; compras, remitos y reportes se retiraron.
     for (const l of ['Inicio', 'Stock', 'Producción', 'Productos', 'Facturas', 'Configuración', 'Ayuda']) await expect(top.getByRole('link', { name: l })).toBeVisible();
     for (const l of ['Compras', 'Pedidos', 'Proveedores', 'Remitos', 'Reportes']) await expect(top.getByRole('link', { name: l })).toHaveCount(0);
-    await expect(top.getByRole('link', { name: 'Inicio' })).toHaveClass(/active/);
+    await expect(top.getByRole('link', { name: 'Stock' })).toHaveClass(/active/);
     await top.getByRole('link', { name: 'Productos' }).click();
     const tabs = page.getByRole('navigation', { name: 'Pestañas de Productos' });
     for (const l of ['Productos', 'Familias', 'Unidades', 'Ubicaciones']) await expect(tabs.getByRole('link', { name: l })).toBeVisible();
