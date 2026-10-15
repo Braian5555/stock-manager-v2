@@ -5,7 +5,7 @@ import { testReader } from '../services/invoiceAI';
 import { updateSettings } from '../services/settingsService';
 import { useFeedback } from '../store/feedback';
 import { useSettings } from '../store/settings';
-import { Field, Input } from './ui';
+import { Field, Input, PageHeader } from './ui';
 
 /**
  * Configuración → Lectura de facturas con IA: dirección del servidor de Cloudflare que guarda la
@@ -44,8 +44,9 @@ export function AIReaderSection() {
 
   return (
     <div className="stack">
+      <PageHeader title="Lectura con IA" subtitle="Leer los productos de las facturas desde la foto (opcional)." />
       <section className="card card-pad stack">
-        <h2 className="row"><Sparkles size={18} aria-hidden /> Lectura de facturas con IA</h2>
+        <h2 className="row"><Sparkles size={18} aria-hidden /> Servidor de lectura</h2>
         <p className="small muted">
           En Facturas, “Leer con IA” manda la foto a tu servidor de Cloudflare, que la lee con Claude y devuelve los productos para revisar.
           La clave de Anthropic queda guardada en Cloudflare: nunca está en la app ni en los celulares.

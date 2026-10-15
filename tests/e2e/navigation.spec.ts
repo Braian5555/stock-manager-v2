@@ -3,14 +3,14 @@ import { go, loadDemo } from './helpers';
 
 const ROUTES: [string, RegExp][] = [
   ['/', /^(Inicio|Hola|Buen día|Buenas tardes|Buenas noches)/], ['/stock', /Stock/], ['/productos', /Productos/], ['/conteo', /Conteo/], ['/produccion', /Producción/],
-  ['/facturas', /Facturas/], ['/ubicaciones', /Ubicaciones/],
+  ['/facturas', /Facturas/], ['/vitrina', /Vitrina/], ['/diagnostico', /Diagnóstico/], ['/ubicaciones', /Ubicaciones/],
   ['/familias', /Familias/], ['/unidades', /Unidades/], ['/movimientos', /Movimientos/],
   ['/exportar', /Exportar/], ['/integraciones', /Integraciones/], ['/nube', /Cuenta y nube/], ['/usuarios', /Usuarios/],
   ['/configuracion', /Configuración/], ['/ayuda', /Ayuda/], ['/acerca', /Información/], ['/mas', /Más/],
   ['/configuracion/empresa', /Empresa y apariencia/], ['/configuracion/navegacion', /Menú y navegación/], ['/configuracion/stock', /Stock/],
   ['/configuracion/productos', /Productos/], ['/configuracion/usuarios', /Usuarios/],
   ['/configuracion/nube', /Cuenta y nube/], ['/configuracion/integraciones', /Integraciones/], ['/configuracion/datos', /Exportar/],
-  ['/configuracion/aplicacion', /Aplicación/], ['/configuracion/diagnostico', /Diagnóstico/],
+  ['/configuracion/aplicacion', /Aplicación/], ['/configuracion/ia', /Lectura con IA/], ['/configuracion/diagnostico', /Diagnóstico/],
 ];
 
 test('todas las rutas existentes y nuevas abren sin errores', async ({ page }) => {
