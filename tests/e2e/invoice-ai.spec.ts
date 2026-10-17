@@ -263,3 +263,86 @@ test('facturas: "Leer factura con IA" lee sola al sacar la foto, y una factura y
   await expect(page).toHaveURL(/#\/facturas\?nueva=1&ia=1$/);
   await expect(dialog(page).getByRole('heading', { name: 'Leer factura con IA' })).toBeVisible();
 });
+
+test('facturas: cargar al stock (bultos, producto nuevo, deshacer) y la próxima vez lo reconoce sola', async ({ page }) => {
+  await loadDemo(page);
+  await page.evaluate(() => {
+    type Cat = { ref: string; name: string };
+    let reads = 0;
+    (globalThis as unknown as { __smInvoiceReader: (d: unknown) => Promise<unknown> }).__smInvoiceReader = async (data) => {
+      const d = data as { catalog: Cat[] };
+      const ref = (name: string) => d.catalog.find((c) => c.name === name)?.ref ?? null;
+      reads++;
+      const amargo = { description: 'AMARGO OBRERO X 950 CC', code: null, quantity: reads === 1 ? 1 : 2, unit: 'B', packSize: null, unitPrice: 2400, lineTotal: 2400, ref: null, confidence: 'ninguna' };
+      return {
+        supplier: { name: 'Distribuidora Ejemplo', cuit: null },
+        invoice: { kind: 'factura', number: `B 0001-0000000${reads}`, date: null, total: null },
+        lines: reads === 1
+          ? [{ description: 'ACEITE GIRASOL 900CC', code: null, quantity: 2, unit: 'caja', unitPrice: 24000, lineTotal: 48000, ref: ref('Aceite de girasol 900 ml'), confidence: 'alta' }, amargo]
+          : [amargo],
+        warnings: [],
+      };
+    };
+  });
+  const stockOf = (name: string) => page.evaluate((n) => new Promise<number | undefined>((res) => {
+    const r = indexedDB.open('stock-manager');
+    r.onsuccess = () => {
+      const q = r.result.transaction('products').objectStore('products').getAll();
+      q.onsuccess = () => res((q.result as { name: string; stock: number }[]).find((p) => p.name === n)?.stock);
+    };
+  }), name);
+  const file = join(mkdtempSync(join(tmpdir(), 'sm-')), 'factura.jpg');
+  writeFileSync(file, Buffer.from(JPEG, 'base64'));
+
+  await go(page, '/facturas');
+  await page.getByRole('button', { name: 'Nueva factura' }).click();
+  const d = dialog(page);
+  await d.getByLabel('Fotos desde la galería').setInputFiles(file);
+  await expect(d.getByRole('img', { name: 'Hoja 1' })).toBeVisible({ timeout: 20_000 });
+  await d.getByRole('button', { name: 'Leer con IA' }).click();
+  await expect(page.getByText('Leí 2 renglones: 1 para revisar')).toBeVisible();
+  await expect(d.getByRole('button', { name: 'Guardar y cargar al stock' })).toHaveCount(0); // falta revisar
+
+  // El amargo no está en el catálogo: se crea ahí mismo, con las 6 unidades que trae el bulto.
+  const amargo = d.getByRole('listitem').filter({ hasText: 'AMARGO OBRERO X 950 CC' });
+  await expect(amargo).toContainText('Sin producto');
+  await amargo.getByRole('button', { name: 'Crear producto' }).click();
+  const form = amargo.getByRole('group', { name: /^Nuevo producto/ });
+  await expect(form.getByLabel('Nombre')).toHaveValue('Amargo Obrero x 950 cc');
+  await form.getByLabel(/^Cada bulto trae/).fill('6');
+  await form.getByRole('button', { name: 'Crear y usar' }).click();
+  await expect(page.getByText('Producto creado')).toBeVisible();
+  await expect(amargo).toContainText('Reconocido');
+  await expect(amargo.getByLabel(/^Cantidad en stock de/)).toHaveValue('6');
+
+  await d.getByRole('button', { name: 'Guardar y cargar al stock' }).click();
+  await expect(page.getByText('Factura guardada y cargada al stock (2 productos)')).toBeVisible();
+  const v = dialog(page);
+  await expect(v.getByText('Cargada al stock')).toBeVisible();
+  expect(await stockOf('Aceite de girasol 900 ml')).toBe(31); // 7 + 2 cajas × 12
+  expect(await stockOf('Amargo Obrero x 950 cc')).toBe(6);
+
+  // Deshacer y volver a cargar: nunca suma dos veces.
+  await v.getByRole('button', { name: 'Deshacer carga' }).click();
+  await page.getByRole('dialog').last().getByRole('button', { name: 'Deshacer carga' }).click();
+  await expect(page.getByText('Carga deshecha')).toBeVisible();
+  expect(await stockOf('Aceite de girasol 900 ml')).toBe(7);
+  expect(await stockOf('Amargo Obrero x 950 cc')).toBe(0);
+  await v.getByRole('button', { name: 'Cargar al stock' }).click();
+  await expect(page.getByText('Cargado al stock: 2 productos')).toBeVisible();
+  expect(await stockOf('Aceite de girasol 900 ml')).toBe(31);
+  await expect(v.getByRole('button', { name: 'Cargar al stock' })).toHaveCount(0);
+  await v.getByRole('button', { name: 'Cerrar' }).click();
+  await expect(page.getByRole('button', { name: /^Factura/ }).first()).toContainText('En stock');
+
+  // Otra factura con el mismo amargo: ya lo reconoce y sabe que el bulto trae 6.
+  await page.getByRole('button', { name: 'Nueva factura' }).click();
+  await d.getByLabel('Fotos desde la galería').setInputFiles(file);
+  await expect(d.getByRole('img', { name: 'Hoja 1' })).toBeVisible({ timeout: 20_000 });
+  await d.getByRole('button', { name: 'Leer con IA' }).click();
+  await expect(page.getByText('Leí 1 renglones, todos reconocidos')).toBeVisible();
+  await expect(d.getByRole('listitem').filter({ hasText: 'AMARGO OBRERO X 950 CC' }).getByLabel(/^Cantidad en stock de/)).toHaveValue('12');
+  await d.getByRole('button', { name: 'Guardar y cargar al stock' }).click();
+  await expect(page.getByText('Factura guardada y cargada al stock (1 producto)')).toBeVisible();
+  expect(await stockOf('Amargo Obrero x 950 cc')).toBe(18);
+});

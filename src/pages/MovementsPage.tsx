@@ -15,7 +15,7 @@ import { Badge, EmptyState, Field, Input, PageHeader, SearchInput, Select } from
 import { fmtDate, fmtDay, fmtNumber, fmtSigned, fmtTime, localYmd, matches } from '../utils/format';
 
 const ORIGIN_LABEL: Record<StockMovement['origin'], string> = {
-  manual: 'Manual', conteo: 'Conteo', pedido: 'Pedido', importacion: 'Importación', sincronizacion: 'Sincronización', deshacer: 'Deshacer', alta: 'Alta de producto', remito: 'Remito interno',
+  manual: 'Manual', conteo: 'Conteo', pedido: 'Pedido', importacion: 'Importación', sincronizacion: 'Sincronización', deshacer: 'Deshacer', alta: 'Alta de producto', remito: 'Remito interno', factura: 'Factura',
 };
 const PAGE = 100;
 
@@ -111,7 +111,7 @@ export function MovementsPage() {
                   <div className="list-sub num">{fmtNumber(m.quantityBefore)} → {fmtNumber(m.quantityAfter)}{m.reason ? ` · ${m.reason}` : ''}{m.performedBy ? ` · ${m.performedBy.name}` : ''}</div>
                 </div>
                 <strong className={`num ${m.delta >= 0 ? 'pos' : 'neg'}`}>{fmtSigned(m.delta)}</strong>
-                {can('stock.move') && m.origin !== 'deshacer' && m.origin !== 'remito' && name.has(m.productId) && !reverted.has(m.id) && (
+                {can('stock.move') && m.origin !== 'deshacer' && m.origin !== 'remito' && m.origin !== 'factura' && name.has(m.productId) && !reverted.has(m.id) && (
                   <button type="button" className="btn btn-sm btn-ghost icon-btn" aria-label="Revertir movimiento" onClick={() => revert(m)}><Undo2 size={16} /></button>
                 )}
               </div>
@@ -141,7 +141,7 @@ export function MovementsPage() {
                       {m.syncId && m.sourceSystem === 'local' && <> <Badge tone="primary">Sync</Badge></>}
                     </td>
                     <td data-label="Acciones">
-                      {can('stock.move') && m.origin !== 'deshacer' && m.origin !== 'remito' && name.has(m.productId) && !reverted.has(m.id) && (
+                      {can('stock.move') && m.origin !== 'deshacer' && m.origin !== 'remito' && m.origin !== 'factura' && name.has(m.productId) && !reverted.has(m.id) && (
                         <button type="button" className="btn btn-sm btn-ghost icon-btn" aria-label="Revertir movimiento" title="Revertir" onClick={() => revert(m)}><Undo2 size={16} /></button>
                       )}
                     </td>

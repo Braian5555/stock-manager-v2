@@ -79,6 +79,8 @@ export interface Product extends BaseEntity {
   recipe?: Recipe;
   /** Plan de producción (panadería): cantidad a producir por fecha YYYY-MM-DD. */
   productionPlan?: Record<string, number>;
+  /** Cómo figura en las facturas de los proveedores (aprendido al confirmar renglones leídos con IA). */
+  invoiceAliases?: string[];
 }
 
 /** Un insumo de la receta: cantidad (en su unidad de stock) por cada tanda. */
@@ -96,7 +98,7 @@ export interface Recipe {
 export const MOVEMENT_TYPES = ['ingreso', 'salida', 'ajuste', 'conteo', 'devolucion', 'perdida', 'consumo', 'produccion'] as const;
 export type MovementType = (typeof MOVEMENT_TYPES)[number];
 
-export type MovementOrigin = 'manual' | 'conteo' | 'pedido' | 'importacion' | 'sincronizacion' | 'deshacer' | 'alta' | 'remito';
+export type MovementOrigin = 'manual' | 'conteo' | 'pedido' | 'importacion' | 'sincronizacion' | 'deshacer' | 'alta' | 'remito' | 'factura';
 export type SourceSystem = 'local' | ExternalSystemId | 'excel';
 
 export interface StockMovement extends BaseEntity {
@@ -344,6 +346,11 @@ export interface Invoice extends BaseEntity {
   /** Cuándo se leyó con IA, y avisos de la lectura (algo borroso, descuento general…). */
   aiReadAt?: string;
   aiWarnings?: string[];
+  /** Cuándo y quién cargó los renglones al stock (ingresos con origen "factura"). */
+  stockAppliedAt?: string;
+  stockAppliedBy?: Actor;
+  /** Movimientos de ingreso que generó la carga (para deshacerla). */
+  stockMovementIds?: ID[];
 }
 
 /**
@@ -360,6 +367,8 @@ export interface InvoiceItem {
   lineTotal?: number;
   productId?: ID;
   stockQty?: number;
+  /** Unidades de stock que trae cada caja/bulto (si el renglón viene en cajas o bultos). */
+  packSize?: number;
   /** ok: reconocido seguro · check: revisar · none: sin producto · ignored: no va al stock. */
   status: 'ok' | 'check' | 'none' | 'ignored';
 }

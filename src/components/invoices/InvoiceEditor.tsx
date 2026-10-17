@@ -6,7 +6,9 @@ import { saveEntity } from '../../services/entityService';
 import type { Invoice, InvoiceItem } from '../../models';
 import { compressImage } from '../../services/imageService';
 import { getInvoiceImage, MAX_PAGES, newPageId, saveInvoice, type PageDraft } from '../../services/invoiceService';
-import { readInvoicePhotos } from '../../services/invoiceAI';
+import { pendingCount, readInvoicePhotos } from '../../services/invoiceAI';
+import { applyInvoiceToStock, learnFromInvoice, loadableItems } from '../../services/invoiceStock';
+import { useSession } from '../../store/session';
 import { useCloud } from '../../cloud/cloudService';
 import { useSettings } from '../../store/settings';
 import { InvoiceItemsReview } from './InvoiceItemsReview';
@@ -35,6 +37,9 @@ export function InvoiceEditor({ open, onClose, invoice, defaults, onSaved, autoR
   const cloud = useCloud();
   const settings = useSettings();
   const { run, notify, confirm } = useFeedback();
+  const { can } = useSession();
+  // Ya cargada al stock: los renglones no se tocan (para cambiarlos, "Deshacer carga" en la factura).
+  const applied = !!invoice?.stockAppliedAt;
   const listId = useId();
   const camRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -124,7 +129,10 @@ export function InvoiceEditor({ open, onClose, invoice, defaults, onSaved, autoR
     }
   };
 
-  const save = async () => {
+  const pending = pendingCount(items, products, lk);
+  const canLoad = !applied && can('stock.move') && !!items?.length && pending === 0 && loadableItems(items).length > 0;
+
+  const save = async (load = false) => {
     setSaving(true);
     const saved = await run(
       async () => {
@@ -135,13 +143,23 @@ export function InvoiceEditor({ open, onClose, invoice, defaults, onSaved, autoR
           supplierId = !name ? '' : (found?.id ?? (await saveEntity(db.suppliers, { name })).id);
         }
         // El pedido vinculado (de antes) se conserva al editar.
-        return saveInvoice({ id: invoice?.id, date, supplierId, orderId: invoice?.orderId ?? defaults?.orderId ?? '', number, total, notes, pages, items, aiReadAt, aiWarnings: warnings });
+        const inv = await saveInvoice({ id: invoice?.id, date, supplierId, orderId: invoice?.orderId ?? defaults?.orderId ?? '', number, total, notes, pages, items, aiReadAt, aiWarnings: warnings });
+        // Lo confirmado se recuerda: la próxima factura reconoce esos productos sola.
+        if (!applied && items?.length) await learnFromInvoice(items);
+        if (!load) return { inv, applied: 0 };
+        // La factura ya quedó guardada: si la carga falla, se avisa y se puede cargar desde la factura.
+        try {
+          return { inv, applied: (await applyInvoiceToStock(inv.id)).applied };
+        } catch (e) {
+          return { inv, applied: 0, loadError: e instanceof Error ? e.message : String(e) };
+        }
       },
-      invoice ? 'Factura actualizada' : 'Factura guardada',
     );
     setSaving(false);
     if (saved) {
-      onSaved?.(saved);
+      if ('loadError' in saved) notify(`Factura guardada, pero no se cargó al stock: ${saved.loadError}`, { tone: 'error' });
+      else notify(load ? `Factura guardada y cargada al stock (${saved.applied} ${saved.applied === 1 ? 'producto' : 'productos'})` : invoice ? 'Factura actualizada' : 'Factura guardada');
+      onSaved?.(saved.inv);
       onClose();
     }
   };
@@ -150,7 +168,8 @@ export function InvoiceEditor({ open, onClose, invoice, defaults, onSaved, autoR
     <Modal open={open} wide title={invoice ? 'Editar factura' : autoRead ? 'Leer factura con IA' : 'Nueva factura'} onClose={onClose}
       footer={<>
         <button type="button" className="btn" onClick={onClose}>Cancelar</button>
-        <button type="button" className="btn btn-primary" disabled={busy > 0 || saving} onClick={save}>Guardar factura</button>
+        <button type="button" className={canLoad ? 'btn' : 'btn btn-primary'} disabled={busy > 0 || saving} onClick={() => void save()}>Guardar factura</button>
+        {canLoad && <button type="button" className="btn btn-primary" disabled={busy > 0 || saving} onClick={() => void save(true)}>Guardar y cargar al stock</button>}
       </>}>
       <div className="stack">
         <div className="row wrap">
@@ -183,7 +202,8 @@ export function InvoiceEditor({ open, onClose, invoice, defaults, onSaved, autoR
             {busy > 0 && <div className="invoice-page-thumb processing" role="status"><Loader2 size={22} className="spin" aria-hidden /> Procesando foto…</div>}
           </div>
         )}
-        {pages.length > 0 && aiConfigured && (
+        {applied && <div className="alert" role="note"><span>Esta factura ya está cargada al stock: los productos no se pueden cambiar. Para corregirlos, tocá “Deshacer carga” en la factura.</span></div>}
+        {pages.length > 0 && aiConfigured && !applied && (
           <div className="inv-ai">
             <Sparkles size={20} aria-hidden />
             <p className="grow small">
@@ -202,7 +222,7 @@ export function InvoiceEditor({ open, onClose, invoice, defaults, onSaved, autoR
         {warnings.length > 0 && (
           <div className="alert" role="note"><span><b>Avisos de la lectura:</b> {warnings.join(' · ')}</span></div>
         )}
-        {items && items.length > 0 && <InvoiceItemsReview items={items} onChange={setItems} products={products} lk={lk} />}
+        {items && items.length > 0 && <InvoiceItemsReview items={items} onChange={setItems} products={products} lk={lk} supplierId={initialSupplierId || undefined} readOnly={applied} />}
         <div className="form-grid cols-2">
           <Field label="Proveedor" hint="elegí o escribí uno nuevo">
             <Input list={listId} value={shownSupplier} onChange={(e) => setSupplierName(e.target.value)} placeholder="Ej.: Lo de Camilo" autoComplete="off" />

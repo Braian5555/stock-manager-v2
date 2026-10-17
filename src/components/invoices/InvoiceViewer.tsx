@@ -1,4 +1,4 @@
-import { Download, Loader2, Pencil, Sparkles, Trash2 } from 'lucide-react';
+import { CheckCircle2, Download, Loader2, PackageCheck, Pencil, Sparkles, Trash2, Undo2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../database/db';
@@ -7,7 +7,8 @@ import { base64ToBlob } from '../../services/imageService';
 import { deleteInvoice, getInvoiceImage, invoiceFileName } from '../../services/invoiceService';
 import { downloadBlob, safeFilename } from '../../exports/download';
 import { useLookups, useProducts } from '../../hooks/useData';
-import { ITEM_STATUS_LABEL } from '../../services/invoiceAI';
+import { ITEM_STATUS_LABEL, pendingCount } from '../../services/invoiceAI';
+import { applyInvoiceToStock, learnFromInvoice, loadableItems, undoInvoiceStock } from '../../services/invoiceStock';
 import { useFeedback } from '../../store/feedback';
 import { useSession } from '../../store/session';
 import { fmtDay, fmtMoney, fmtNumber } from '../../utils/format';
@@ -101,11 +102,67 @@ export function InvoiceViewer({ invoiceId, onClose, onEdit, canReadAI }: { invoi
             {invoice.createdBy && <div><dt>Cargada por</dt><dd>{invoice.createdBy.name}</dd></div>}
           </dl>
           {invoice.notes && <p className="small">{invoice.notes}</p>}
+          {invoice.items?.length ? <InvoiceStockBar invoice={invoice} onReview={() => onEdit(invoice)} /> : null}
           {invoice.items?.length ? <InvoiceItemsTable invoice={invoice} /> : null}
           {invoice.pages.map((p, i) => <PageImage key={p.id} invoice={invoice} index={i} supplierName={supplierName} />)}
         </div>
       )}
     </Modal>
+  );
+}
+
+/** Cargar al stock lo que trajo la factura (una sola vez) o deshacer esa carga. */
+function InvoiceStockBar({ invoice, onReview }: { invoice: Invoice; onReview: () => void }) {
+  const products = useProducts();
+  const lk = useLookups();
+  const { can } = useSession();
+  const { run, confirm, notify } = useFeedback();
+  const [busy, setBusy] = useState(false);
+  const canMove = can('stock.move');
+  const pending = pendingCount(invoice.items, products, lk);
+  const toLoad = loadableItems(invoice.items).length;
+
+  const load = async () => {
+    setBusy(true);
+    const r = await run(async () => {
+      await learnFromInvoice(invoice.items);
+      return applyInvoiceToStock(invoice.id);
+    });
+    setBusy(false);
+    if (r) notify(`Cargado al stock: ${r.applied} ${r.applied === 1 ? 'producto' : 'productos'}`);
+  };
+  const undo = async () => {
+    if (!(await confirm({ title: 'Deshacer carga', message: 'Se resta del stock lo que sumó esta factura (queda registrado en el historial). ¿Continuar?', confirmLabel: 'Deshacer carga' }))) return;
+    setBusy(true);
+    await run(() => undoInvoiceStock(invoice.id), 'Carga deshecha: el stock volvió a como estaba');
+    setBusy(false);
+  };
+
+  if (invoice.stockAppliedAt) {
+    return (
+      <div className="inv-stock done" role="status">
+        <CheckCircle2 size={20} aria-hidden style={{ color: 'var(--ok)' }} />
+        <p className="grow small">
+          <b>Cargada al stock</b> el {new Date(invoice.stockAppliedAt).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' })}
+          {invoice.stockAppliedBy ? ` por ${invoice.stockAppliedBy.name}` : ''}.
+        </p>
+        {canMove && <button type="button" className="btn btn-sm" disabled={busy} onClick={() => void undo()}><Undo2 size={15} aria-hidden /> Deshacer carga</button>}
+      </div>
+    );
+  }
+  if (!canMove) return null;
+  return (
+    <div className="inv-stock">
+      <PackageCheck size={20} aria-hidden />
+      <p className="grow small">
+        {pending > 0
+          ? `Antes de cargar al stock, revisá ${pending} ${pending === 1 ? 'renglón' : 'renglones'}.`
+          : toLoad > 0 ? `Suma al stock ${toLoad} ${toLoad === 1 ? 'producto' : 'productos'}. Se carga una sola vez y se puede deshacer.` : 'Ningún renglón va al stock.'}
+      </p>
+      {pending > 0
+        ? <button type="button" className="btn btn-sm" onClick={onReview}><Pencil size={15} aria-hidden /> Revisar</button>
+        : toLoad > 0 && <button type="button" className="btn btn-primary btn-sm" disabled={busy} onClick={() => void load()}><PackageCheck size={15} aria-hidden /> Cargar al stock</button>}
+    </div>
   );
 }
 
@@ -115,7 +172,7 @@ function InvoiceItemsTable({ invoice }: { invoice: Invoice }) {
   const lk = useLookups();
   const byId = new Map(products.map((p) => [p.id, p]));
   const items = invoice.items ?? [];
-  const pending = items.filter((i) => i.status === 'check' || i.status === 'none').length;
+  const pending = pendingCount(items, products, lk);
   return (
     <section className="card" aria-label="Productos de la factura">
       <div className="card-head">

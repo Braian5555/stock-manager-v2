@@ -13,7 +13,7 @@ import { uuid } from '../utils/id';
 export interface AIReading {
   supplier: { name: string | null; cuit: string | null };
   invoice: { kind: string | null; number: string | null; date: string | null; total: number | null };
-  lines: { description: string; code: string | null; quantity: number; unit: string | null; unitPrice: number | null; lineTotal: number | null; ref: string | null; confidence: 'alta' | 'media' | 'baja' | 'ninguna' }[];
+  lines: { description: string; code: string | null; quantity: number; unit: string | null; packSize?: number | null; unitPrice: number | null; lineTotal: number | null; ref: string | null; confidence: 'alta' | 'media' | 'baja' | 'ninguna' }[];
   warnings: string[];
   model?: string;
 }
@@ -233,10 +233,20 @@ export function similarity(a: string, b: string): number {
   return Math.min(1, score);
 }
 
-const PACK_WORDS = /^(caja|cajas|cj|cja|bulto|bultos|bto|pack|packs|fardo|fardos|bolsa|bolsas|bls|display|paquete|paq|pqt|blister|maple|cajon)$/;
+const PACK_WORDS = /^(caja|cajas|cj|cja|caj|b|bu|bul|bult|bulto|bultos|bto|btos|pack|packs|pk|fardo|fardos|fdo|bolsa|bolsas|bls|display|paquete|paquetes|paq|pqt|blister|maple|cajon)$/;
+
+/** El renglón viene en cajas, bultos, packs… (no en la unidad de stock). */
+export function isPackUnit(invoiceUnit: string | null | undefined): boolean {
+  return PACK_WORDS.test(normalize(invoiceUnit ?? '').replace(/\./g, ''));
+}
+
+/** Unidades por caja/bulto que corresponden: las del producto si las tiene cargadas; si no, las de la factura. */
+export function packFactor(product: Pick<Product, 'purchaseFactor'>, packSize?: number | null): number {
+  return product.purchaseFactor > 1 ? product.purchaseFactor : packSize && packSize > 1 ? packSize : 1;
+}
 
 /** Cantidad en la unidad de stock del producto según la unidad de la factura. */
-export function toStockQty(quantity: number, invoiceUnit: string | null | undefined, product: Product, lk: CatalogLookups): number {
+export function toStockQty(quantity: number, invoiceUnit: string | null | undefined, product: Product, lk: CatalogLookups, packSize?: number | null): number {
   const u = canonUnit(normalize(invoiceUnit ?? '').replace(/\./g, ''));
   const stockUnit = canonUnit(normalize(lk.unit(product.unitId)));
   const buyUnit = product.purchaseUnitId ? canonUnit(normalize(lk.unit(product.purchaseUnitId))) : '';
@@ -247,24 +257,45 @@ export function toStockQty(quantity: number, invoiceUnit: string | null | undefi
     if (u === 'ml' && stockUnit === 'l') return round3(quantity / 1000);
     if (/^(docena|docenas|doc|dz)$/.test(u) && stockUnit === 'u') return round3(quantity * 12);
   }
-  if (product.purchaseFactor > 1 && u && u !== stockUnit && (u === buyUnit || PACK_WORDS.test(u))) return round3(quantity * product.purchaseFactor);
+  if (u && u !== stockUnit && (u === buyUnit || PACK_WORDS.test(u))) return round3(quantity * packFactor(product, packSize));
   return round3(quantity);
 }
 
-/** Decide el producto de cada renglón: la sugerencia de la IA si es válida; si no, el nombre más parecido. */
+/**
+ * El renglón viene en cajas/bultos y no se sabe cuántas unidades trae cada uno (ni el producto lo
+ * tiene cargado ni la factura lo dice): hay que preguntarlo antes de cargar al stock.
+ */
+export function needsPackSize(item: Pick<InvoiceItem, 'unit' | 'packSize' | 'status'>, product: Product | undefined, lk: CatalogLookups): boolean {
+  if (!product || item.status === 'ignored' || !isPackUnit(item.unit)) return false;
+  if (product.purchaseFactor > 1 || (item.packSize ?? 0) >= 1) return false;
+  const stockUnit = normalize(lk.unit(product.unitId)).replace(/\./g, '');
+  return !isPackUnit(stockUnit) && canonUnit(stockUnit) !== canonUnit(normalize(item.unit ?? '').replace(/\./g, ''));
+}
+
+/** Clave para recordar cómo figura un producto en las facturas ("COCA PET 2250" → "coca pet 2250"). */
+export const aliasKey = (description: string) => tokens(description).join(' ');
+
+/**
+ * Decide el producto de cada renglón: primero lo que ya se confirmó antes para ese texto
+ * (equivalencias aprendidas) o el código del proveedor; después la sugerencia de la IA; si no,
+ * el nombre más parecido.
+ */
 export function matchLines(lines: AIReading['lines'], products: Product[], lk: CatalogLookups, byRef: Map<string, string>): InvoiceItem[] {
   const active = products.filter((p) => p.active);
   const byId = new Map(products.map((p) => [p.id, p]));
   const byCode = new Map<string, Product>();
   for (const p of active) for (const c of [p.sku, p.barcode]) if (c) byCode.set(normalize(c), p);
+  const byAlias = new Map<string, Product>();
+  for (const p of active) for (const a of p.invoiceAliases ?? []) byAlias.set(a, p);
 
   return lines.map((l) => {
     let product: Product | undefined;
     let status: InvoiceItem['status'] = 'none';
+    const learned = byAlias.get(aliasKey(l.description));
     const coded = l.code ? byCode.get(normalize(l.code)) : undefined;
     const suggested = l.ref ? byId.get(byRef.get(l.ref) ?? '') : undefined;
-    if (coded) {
-      product = coded;
+    if (learned || coded) {
+      product = learned ?? coded;
       status = 'ok';
     } else if (suggested?.active) {
       product = suggested;
@@ -285,10 +316,11 @@ export function matchLines(lines: AIReading['lines'], products: Product[], lk: C
       code: l.code ?? undefined,
       quantity: round3(l.quantity),
       unit: l.unit ?? undefined,
+      packSize: l.packSize ?? undefined,
       unitPrice: l.unitPrice ?? undefined,
       lineTotal: l.lineTotal ?? undefined,
       productId: product?.id,
-      stockQty: product ? toStockQty(l.quantity, l.unit, product, lk) : undefined,
+      stockQty: product ? toStockQty(l.quantity, l.unit, product, lk, l.packSize) : undefined,
       status,
     };
   });
@@ -300,3 +332,9 @@ export const ITEM_STATUS_LABEL: Record<InvoiceItem['status'], string> = {
   none: 'Sin producto',
   ignored: 'No va al stock',
 };
+
+/** Renglones que faltan resolver antes de cargar al stock (producto sin confirmar o caja sin cantidad). */
+export function pendingCount(items: InvoiceItem[] | undefined, products: Product[], lk: CatalogLookups): number {
+  const byId = new Map(products.map((p) => [p.id, p]));
+  return (items ?? []).filter((i) => i.status === 'check' || i.status === 'none' || (i.status === 'ok' && needsPackSize(i, byId.get(i.productId ?? ''), lk))).length;
+}

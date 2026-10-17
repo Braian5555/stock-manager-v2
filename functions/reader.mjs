@@ -41,12 +41,13 @@ export const READING_SCHEMA = {
       items: {
         type: 'object',
         additionalProperties: false,
-        required: ['description', 'code', 'quantity', 'unit', 'unitPrice', 'lineTotal', 'ref', 'confidence'],
+        required: ['description', 'code', 'quantity', 'unit', 'packSize', 'unitPrice', 'lineTotal', 'ref', 'confidence'],
         properties: {
           description: str,
           code: strOrNull,
           quantity: { type: 'number' },
           unit: strOrNull,
+          packSize: numOrNull,
           unitPrice: numOrNull,
           lineTotal: numOrNull,
           ref: strOrNull,
@@ -65,6 +66,9 @@ Reglas:
 - Si hay un descuento o bonificación en un renglón, usá el precio final del renglón. Si hay un descuento general, anotalo en "warnings".
 - Números con formato argentino: "1.234,56" es 1234.56. Las cantidades pueden tener decimales (kilos).
 - "quantity" es la cantidad tal como figura en la factura, en la unidad de la factura ("unit": por ejemplo u, kg, l, caja, bulto, pack, docena, bolsa). No conviertas unidades.
+- Muchas facturas escriben la cantidad con tres decimales: "1.000" o "2,000" en la columna de cantidad son 1 y 2 (no mil). Verificá con cantidad × precio unitario ≈ importe del renglón.
+- Abreviaturas de unidad: "B", "BU", "BTO", "BULT" = bulto (poné unit "bulto"); "CJ", "CAJ" = caja; "UN", "U" = unidad; "KG", "K" = kg. Ejemplo: "1.000 B AMARGO OBRERO X 950 CC 2400" es quantity 1, unit "bulto".
+- "packSize": cuántas unidades trae cada bulto o caja, sólo si figura en el renglón (ej. "X6", "X 12 U", "C/6", "PACK 6"). Ojo: "X 950 CC", "X 1 KG" o "X 2,25 L" es el tamaño de cada unidad, no la cantidad por caja. Si no figura, null.
 - "description": el texto del producto como figura en la factura (corregí sólo cortes de línea evidentes).
 - "code": el código del artículo del proveedor si aparece; si no, null.
 - "ref": el número de referencia del producto del catálogo del negocio que corresponde a ese renglón, sólo si es el mismo producto (misma marca o tipo, y misma presentación o tamaño). Si dudás entre dos o no está, null. Nunca inventes una referencia que no esté en el catálogo.
@@ -103,7 +107,7 @@ export function buildRequest(images, catalog) {
 export const GEMINI_SHAPE = `Respondé SÓLO con un objeto JSON con esta forma exacta (usá null cuando no se lea un dato):
 {"supplier":{"name":string|null,"cuit":string|null},
  "invoice":{"kind":"factura"|"remito"|"ticket"|"nota_credito"|"otro"|null,"number":string|null,"date":"AAAA-MM-DD"|null,"total":number|null},
- "lines":[{"description":string,"code":string|null,"quantity":number,"unit":string|null,"unitPrice":number|null,"lineTotal":number|null,"ref":string|null,"confidence":"alta"|"media"|"baja"|"ninguna"}],
+ "lines":[{"description":string,"code":string|null,"quantity":number,"unit":string|null,"packSize":number|null,"unitPrice":number|null,"lineTotal":number|null,"ref":string|null,"confidence":"alta"|"media"|"baja"|"ninguna"}],
  "warnings":[string]}`;
 
 /**
@@ -189,6 +193,7 @@ export function parseReading(text, refs) {
         code: s(l?.code, 40),
         quantity: num(l?.quantity) ?? 0,
         unit: s(l?.unit, 20),
+        packSize: num(l?.packSize) && l.packSize > 1 && l.packSize <= 1000 ? Math.round(l.packSize) : null,
         unitPrice: num(l?.unitPrice),
         lineTotal: num(l?.lineTotal),
         ref: ok ? ref : null,

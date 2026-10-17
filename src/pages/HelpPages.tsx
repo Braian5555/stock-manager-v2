@@ -37,6 +37,9 @@ const GUIDES: { title: string; steps: string[] }[] = [
     steps: [
       'En Facturas tocá Nueva factura y sacale fotos (hasta varias hojas).',
       'Elegí o escribí el proveedor, la fecha y el número: queda guardada para el administrativo.',
+      'Con la lectura con IA activada, “Leer con IA” trae los productos de la foto. Revisá los amarillos y rojos: elegí el producto, creálo ahí mismo o marcá “No va al stock”.',
+      'Si un renglón viene por bulto o caja (ej. “1 B”), poné cuántas unidades trae: la app lo recuerda para la próxima.',
+      '“Guardar y cargar al stock” suma todo de una vez (nunca dos veces). Si te equivocaste, abrí la factura y tocá “Deshacer carga”.',
     ],
   },
   {

@@ -50,8 +50,11 @@ export async function saveInvoice(d: InvoiceDraft): Promise<Invoice> {
   const kept = new Set(pages.map((p) => p.id));
   const removed = (prev?.pages ?? []).filter((p) => !kept.has(p.id)).map((p) => p.id);
 
+  // Ya cargada al stock: los renglones quedan como se cargaron (para cambiarlos, "Deshacer carga").
+  if (prev?.stockAppliedAt) d = { ...d, items: prev.items, aiReadAt: prev.aiReadAt, aiWarnings: prev.aiWarnings };
   const invoice: Invoice = {
     id,
+    ...(prev?.stockAppliedAt ? { stockAppliedAt: prev.stockAppliedAt, stockAppliedBy: prev.stockAppliedBy, stockMovementIds: prev.stockMovementIds } : {}),
     createdAt: prev?.createdAt ?? t,
     updatedAt: t,
     date: d.date,
@@ -81,6 +84,7 @@ export async function saveInvoice(d: InvoiceDraft): Promise<Invoice> {
 export async function deleteInvoice(id: string): Promise<void> {
   const inv = await db.invoices.get(id);
   if (!inv) return;
+  if (inv.stockAppliedAt) throw new Error('Esta factura está cargada al stock. Para eliminarla, primero tocá “Deshacer carga”.');
   await db.transaction('rw', db.invoices, db.invoiceImages, async () => {
     await db.invoices.delete(id);
     await db.invoiceImages.where('invoiceId').equals(id).delete();

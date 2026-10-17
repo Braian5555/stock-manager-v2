@@ -48,7 +48,9 @@ export async function saveProduct(draft: Draft<Product>, initialStock = 0): Prom
     const prev = await db.products.get(draft.id);
     // El stock se deriva de los movimientos y el plan de panadería se edita en su pantalla:
     // un formulario abierto con datos viejos no los pisa.
-    return saveEntity(db.products, { ...clean, stock: prev?.stock ?? clean.stock, productionPlan: prev?.productionPlan });
+    // Lo mismo con las equivalencias aprendidas de las facturas (se suman, no se pisan).
+    const aliases = [...new Set([...(prev?.invoiceAliases ?? []), ...(clean.invoiceAliases ?? [])])];
+    return saveEntity(db.products, { ...clean, stock: prev?.stock ?? clean.stock, productionPlan: prev?.productionPlan, invoiceAliases: aliases.length ? aliases : undefined });
   }
   const created = await saveEntity(db.products, { ...clean, stock: 0 });
   if (initialStock) {

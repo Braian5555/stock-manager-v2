@@ -978,6 +978,13 @@ div.plan-row { cursor: default; }
 .inv-item-qty .input { width: 90px; }
 .inv-search { display: flex; flex-direction: column; gap: 6px; padding-top: 4px; }
 .inv-search .list { max-height: 260px; overflow: auto; border: 1px solid var(--border); border-radius: var(--radius-sm); }
+.inv-item-pack { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; align-self: flex-start; padding: 4px 8px; border-radius: var(--radius-sm); background: var(--surface-2, var(--bg)); }
+.inv-item-pack .input { width: 72px; }
+.inv-item-pack.missing { outline: 2px solid var(--low); background: var(--low-bg); font-weight: 600; }
+.inv-new { background: var(--surface-2, var(--bg)); box-shadow: none; }
+.inv-stock { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 12px 14px; border-radius: var(--radius); border: 1px solid var(--border); }
+.inv-stock.done { background: color-mix(in srgb, var(--ok) 10%, var(--surface)); border-color: color-mix(in srgb, var(--ok) 40%, var(--border)); }
+.inv-stock p { margin: 0; }
 
 /* ═════════════════════════ Inicio (centro de control) ═════════════════════════
    Paleta del Inicio: verde petróleo (marca), esmeralda, azul intenso y ámbar.

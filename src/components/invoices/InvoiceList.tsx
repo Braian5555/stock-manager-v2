@@ -15,7 +15,10 @@ export function InvoiceList({ invoices, onOpen }: { invoices: Invoice[]; onOpen:
             {thumb ? <img className="invoice-thumb" src={thumb} alt="" /> : <span className="invoice-thumb stat-icon" aria-hidden><Receipt size={18} /></span>}
             <div className="grow">
               <div className="list-title truncate">{sup}{i.number ? ` · ${i.number}` : ''}</div>
-              <div className="list-sub">{fmtDay(i.date)} · {i.pages.length} {i.pages.length === 1 ? 'foto' : 'fotos'}</div>
+              <div className="list-sub">
+                {fmtDay(i.date)} · {i.pages.length} {i.pages.length === 1 ? 'foto' : 'fotos'}
+                {i.stockAppliedAt ? <> · <span className="badge badge-ok">En stock</span></> : i.items?.length ? <> · <span className="badge">Sin cargar</span></> : null}
+              </div>
             </div>
             {i.total !== undefined && <span className="num invoice-total">{fmtMoney(i.total)}</span>}
           </button>
