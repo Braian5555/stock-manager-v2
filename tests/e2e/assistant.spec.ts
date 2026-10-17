@@ -27,10 +27,14 @@ async function fakeGemini(page: Page, log: Req[]) {
     if (resp?.name === 'reponer') {
       const provs = (resp.response.resultado as { proveedores: { proveedor: string; productos: { nombre: string; pedir: string }[] }[] }).proveedores;
       parts = [{ text: `Para reponer:\n${provs.flatMap((p) => p.productos.map((x) => `- **${x.nombre}**: pedir ${x.pedir}`)).join('\n')}` }];
+    } else if (resp?.name === 'cargar_factura') {
+      parts = [{ text: resp.response.error ? `No se pudo: ${resp.response.error}` : 'Listo: la factura quedó en Facturas y en el stock.' }];
     } else if (resp?.name === 'registrar_movimientos') {
       parts = [{ text: resp.response.error ? `No se pudo: ${resp.response.error}` : 'Listo, cargué el remito.' }];
     } else if (/reponer/i.test(text)) {
       parts = [{ functionCall: { name: 'reponer', args: {} }, thoughtSignature: 'sig-1' }];
+    } else if (/factura/i.test(text) && last.parts.some((p) => p.inlineData)) {
+      parts = [{ functionCall: { name: 'cargar_factura', args: { proveedor: 'Distribuidora Ejemplo', numero: 'B 0001-00000077', fecha: '2026-10-17', total: 48000, tipo: 'factura', renglones: [{ descripcion: 'ACEITE GIRASOL 900CC', producto: ref('Aceite de girasol 900 ml'), cantidad: 2, unidad: 'caja', precio_unitario: 24000, total_renglon: 48000 }] } }, thoughtSignature: 'sig-3' }];
     } else if (/remito/i.test(text) && last.parts.some((p) => p.inlineData)) {
       parts = [{ text: 'Leí el remito: 2 cajas de aceite.' }, { functionCall: { name: 'registrar_movimientos', args: { referencia: 'Remito 0001-77', movimientos: [{ producto: ref('Aceite de girasol 900 ml'), tipo: 'ingreso', cantidad: 2, unidad: 'compra' }] } }, thoughtSignature: 'sig-2' }];
     } else {
@@ -137,4 +141,35 @@ test('asistente: cancelar un cambio no toca el stock', async ({ page }) => {
   await expect(card).toContainText('Cancelado');
   expect(await stockOf(page, 'Aceite de girasol 900 ml')).toBe(before);
   expect(log).toHaveLength(1); // cancelar no gasta otra consulta
+});
+
+test('asistente: la foto de una factura queda guardada en Facturas y cargada al stock', async ({ page }) => {
+  const log: Req[] = [];
+  await fakeGemini(page, log);
+  await setup(page);
+  await go(page, '/asistente');
+  const before = await stockOf(page, 'Aceite de girasol 900 ml');
+  const file = join(mkdtempSync(join(tmpdir(), 'sm-')), 'factura.jpg');
+  writeFileSync(file, Buffer.from(JPEG, 'base64'));
+  await page.getByLabel('Fotos desde la galería').setInputFiles(file);
+  await expect(page.getByRole('img', { name: 'Foto 1' })).toBeVisible({ timeout: 20_000 });
+  await page.getByLabel('Mensaje para el asistente').fill('Guardá esta factura');
+  await page.getByRole('button', { name: 'Enviar' }).click();
+  const card = page.getByRole('region', { name: 'Cambios para confirmar' });
+  await expect(card).toContainText('Guardar la factura y cargarla al stock');
+  await expect(card).toContainText('+24 bot · Aceite de girasol 900 ml (2 caja)');
+  await card.getByRole('button', { name: 'Confirmar' }).click();
+  await expect(page.getByText('Listo: la factura quedó en Facturas y en el stock.')).toBeVisible();
+  await expect(card).toContainText('Guardada en Facturas y cargada al stock (1 producto)');
+  expect(await stockOf(page, 'Aceite de girasol 900 ml')).toBe(before! + 24);
+
+  // En Facturas, con la foto, como cargada.
+  await go(page, '/facturas');
+  const row = page.getByRole('button', { name: /^Factura B 0001-00000077 de Distribuidora Ejemplo/ });
+  await expect(row).toContainText('En stock');
+  await row.click();
+  const v = dialog(page);
+  await expect(v.getByText('Cargada al stock')).toBeVisible();
+  await expect(v.getByRole('region', { name: 'Productos de la factura' })).toContainText('24 bot');
+  await expect(v.getByRole('img', { name: 'Factura, hoja 1' })).toBeVisible({ timeout: 20_000 });
 });

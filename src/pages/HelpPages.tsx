@@ -48,7 +48,8 @@ const GUIDES: { title: string; steps: string[] }[] = [
       'Tocá el botón con destellos (arriba) o “Asistente IA” en el Inicio. Escribí o dictá con el micrófono lo que necesitás.',
       'Podés preguntar (“¿qué tengo que reponer?”, “¿cuánta harina se usó esta semana?”, “¿qué aumentó?”) o pedir cosas: cargar un remito con una foto, anotar un conteo dictado, pasar una receta, anotar producción.',
       'Antes de cambiar algo te muestra exactamente qué va a hacer y espera que toques Confirmar. Si después ves que se equivocó, tocá Deshacer en esa misma tarjeta. Sólo puede hacer lo que tu perfil tiene permitido.',
-      'Si cargás un remito con el asistente, después no cargues la factura de la misma mercadería: la app te avisa si parece repetida.',
+      'Si le mandás al asistente la foto de una factura o un remito, queda guardada en Facturas con la foto y se carga al stock (si algún renglón no lo reconoce, queda para revisar en Facturas).',
+      'Si una factura trae mercadería que ya habías cargado antes, la app te avisa: tocá “Ya estaba en el stock” para guardarla sin sumar dos veces.',
     ],
   },
   {

@@ -21,6 +21,7 @@ const SUGGESTIONS: Suggestion[] = [
   { text: '¿Cuánta harina se usó esta semana?', perms: ['movements.view'] },
   { text: '¿Qué aumentó en las últimas compras?', perms: ['invoices'] },
   { text: 'Anotá en el conteo: 12 cocas y 3 cajas de aceite', perms: ['count.do'] },
+  { text: 'Te mando la foto de una factura: guardala y cargala al stock', perms: ['invoices'], photo: true },
   { text: 'Llegó mercadería: te mando la foto del remito para cargarla', perms: ['stock.move'], photo: true },
   { text: 'Pasá a la app la receta de esta foto', perms: ['recipes', 'catalog.manage'], photo: true },
   { text: 'Anotá que salieron 40 medialunas', perms: ['production'] },
@@ -113,7 +114,7 @@ export function AssistantPage() {
       for (const f of list) {
         try {
           const img = await compressImage(f);
-          setImages((xs) => [...xs, { data: img.data, type: img.type, thumb: img.thumb }].slice(0, 4));
+          setImages((xs) => [...xs, { data: img.data, type: img.type, thumb: img.thumb, width: img.width, height: img.height, bytes: img.bytes }].slice(0, 4));
         } catch (e) {
           notify(e instanceof Error ? e.message : 'No se pudo leer la imagen.', { tone: 'error' });
         }

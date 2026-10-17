@@ -54,7 +54,7 @@ export async function saveInvoice(d: InvoiceDraft): Promise<Invoice> {
   if (prev?.stockAppliedAt) d = { ...d, items: prev.items, aiReadAt: prev.aiReadAt, aiWarnings: prev.aiWarnings };
   const invoice: Invoice = {
     id,
-    ...(prev?.stockAppliedAt ? { stockAppliedAt: prev.stockAppliedAt, stockAppliedBy: prev.stockAppliedBy, stockMovementIds: prev.stockMovementIds } : {}),
+    ...(prev?.stockAppliedAt ? { stockAppliedAt: prev.stockAppliedAt, stockAppliedBy: prev.stockAppliedBy, stockMovementIds: prev.stockMovementIds, ...(prev.stockElsewhere ? { stockElsewhere: true } : {}) } : {}),
     createdAt: prev?.createdAt ?? t,
     updatedAt: t,
     date: d.date,
@@ -84,7 +84,7 @@ export async function saveInvoice(d: InvoiceDraft): Promise<Invoice> {
 export async function deleteInvoice(id: string): Promise<void> {
   const inv = await db.invoices.get(id);
   if (!inv) return;
-  if (inv.stockAppliedAt) throw new Error('Esta factura está cargada al stock. Para eliminarla, primero tocá “Deshacer carga”.');
+  if (inv.stockAppliedAt && !inv.stockElsewhere) throw new Error('Esta factura está cargada al stock. Para eliminarla, primero tocá “Deshacer carga”.');
   await db.transaction('rw', db.invoices, db.invoiceImages, async () => {
     await db.invoices.delete(id);
     await db.invoiceImages.where('invoiceId').equals(id).delete();

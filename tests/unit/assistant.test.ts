@@ -387,3 +387,104 @@ describe('misma mercadería cargada dos veces (remito y factura)', () => {
     expect(e.getState().messages.at(-1)?.proposals?.[0].notes[0]).toMatch(/ya entró por Factura A-9 el .*\(\+12\): fijate que no sea la misma mercadería/);
   });
 });
+
+describe('asistente: facturas por foto quedan en Facturas', () => {
+  const img = { data: 'QUJDRA==', type: 'image/jpeg', thumb: 'data:image/jpeg;base64,AA==', width: 10, height: 20, bytes: 6 };
+
+  it('guarda la factura con la foto, la carga al stock y se puede deshacer todo', async () => {
+    setCurrentActor({ id: 'u1', name: 'Braian' });
+    const { aceite, coca } = await seed();
+    const { transport, requests } = scripted([say('placeholder')]);
+    const e = engine(ROLE_PERMISSIONS.manager, transport);
+    await e.send('hola');
+    const refAceite = refOf(requests[0], 'Aceite de girasol 900 ml')!;
+    const refCoca = refOf(requests[0], 'Coca-Cola 2,25 L')!;
+    const s2 = scripted([
+      call({ name: 'cargar_factura', args: {
+        proveedor: 'Distribuidora Santarossa', numero: '0011-00065063', fecha: '2026-10-17', total: 52000, tipo: 'factura',
+        renglones: [
+          { descripcion: 'ACEITE GIRASOL 900', producto: refAceite, cantidad: 2, unidad: 'caja', precio_unitario: 24000, total_renglon: 48000 },
+          { descripcion: 'COCA COLA 2250', producto: refCoca, cantidad: 1, unidad: 'B', unidades_por_caja: 6, precio_unitario: 3500, total_renglon: 3500 },
+          { descripcion: 'FLETE', cantidad: 1, precio_unitario: 500, no_va_al_stock: true },
+        ],
+      } }),
+      say('Listo: guardé la factura y cargué el stock.'),
+    ]);
+    e.setDeps({ user: { name: 'Braian', role: 'custom' }, can: () => true, permissions: ROLE_PERMISSIONS.manager, settings: normalizeSettings(undefined), transport: s2.transport, today: () => '2026-10-17' });
+    await e.send('Guardá esta factura', [img]);
+    const msg = e.getState().messages.at(-1)!;
+    expect(msg.proposals?.[0].title).toBe('Guardar la factura y cargarla al stock');
+    expect(msg.proposals?.[0].lines.map((l) => l.replace(/\u00a0/g, ' '))).toEqual([
+      'Distribuidora Santarossa (proveedor nuevo) · 0011-00065063 · 17/10/2026 · $ 52.000,00',
+      '+24 u · Aceite de girasol 900 ml (2 caja)',
+      '+6 u · Coca-Cola 2,25 L (1 B)',
+      'No va al stock: FLETE',
+      'Se guarda en Facturas con la foto y se carga al stock.',
+    ]);
+    expect(await db.invoices.count()).toBe(0);
+    await e.confirm(msg.id);
+
+    const [inv] = await db.invoices.toArray();
+    expect(inv).toMatchObject({ number: '0011-00065063', date: '2026-10-17', total: 52000, stockMovementIds: expect.any(Array) });
+    expect(inv.stockAppliedAt).toBeTruthy();
+    expect(inv.items?.map((i) => [i.status, i.stockQty])).toEqual([['ok', 24], ['ok', 6], ['ignored', undefined]]);
+    expect((await db.suppliers.get(inv.supplierId!))?.name).toBe('Distribuidora Santarossa');
+    expect((await db.invoiceImages.where('invoiceId').equals(inv.id).toArray())[0]).toMatchObject({ data: 'QUJDRA==', uploaded: 0 });
+    expect((await db.products.get(aceite.id))?.stock).toBe(24);
+    expect((await db.products.get(coca.id))?.stock).toBe(8);
+    expect((await db.movements.where('refId').equals(inv.id).toArray()).every((m) => m.origin === 'factura')).toBe(true);
+    // Aprendió que el bulto de coca trae 6.
+    expect((await db.products.get(coca.id))?.purchaseFactor).toBe(6);
+    expect(lastResponse(s2.requests[1]).resultado).toMatchObject({ guardada_en_facturas: true, cargada_al_stock: true, productos_cargados: 2 });
+
+    await e.undo(msg.id, 0);
+    expect(await db.invoices.count()).toBe(0);
+    expect((await db.products.get(aceite.id))?.stock).toBe(0);
+    expect((await db.products.get(coca.id))?.stock).toBe(2);
+  });
+
+  it('no guarda dos veces la misma factura, pide la foto y deja para revisar lo que no reconoce', async () => {
+    await seed();
+    const args = { proveedor: 'Lo de Camilo', numero: 'A-1', renglones: [{ descripcion: 'HARINA 000', producto: 'Harina 000', cantidad: 25, unidad: 'kg' }, { descripcion: 'LEVADURA FRESCA', cantidad: 1, unidad: 'kg' }] };
+    // Sin foto: no se puede guardar en Facturas.
+    const a = scripted([call({ name: 'cargar_factura', args }), say('Mandame la foto.')]);
+    const e1 = engine(ROLE_PERMISSIONS.manager, a.transport);
+    await e1.send('cargá la factura A-1 de Camilo');
+    expect(String(lastResponse(a.requests[1]).error)).toMatch(/hace falta la foto/);
+
+    // Con foto y un renglón desconocido: se guarda para revisar, sin tocar el stock.
+    const b = scripted([call({ name: 'cargar_factura', args }), say('Guardada; falta la levadura.')]);
+    const e2 = engine(ROLE_PERMISSIONS.manager, b.transport);
+    await e2.send('esta', [img]);
+    const msg = e2.getState().messages.at(-1)!;
+    expect(msg.proposals?.[0].title).toBe('Guardar la factura en Facturas');
+    expect(msg.proposals?.[0].lines.at(-1)).toBe('Se guarda en Facturas con la foto. El stock se carga cuando se revisen el renglón pendiente (en Facturas).');
+    await e2.confirm(msg.id);
+    const [inv] = await db.invoices.toArray();
+    expect(inv.stockAppliedAt).toBeUndefined();
+    expect(inv.items?.map((i) => i.status)).toEqual(['ok', 'none']);
+
+    // La misma factura otra vez: no se repite.
+    const c = scripted([call({ name: 'cargar_factura', args }), say('Ya estaba.')]);
+    const e3 = engine(ROLE_PERMISSIONS.manager, c.transport);
+    await e3.send('de nuevo', [img]);
+    expect(String(lastResponse(c.requests[1]).error)).toMatch(/ya está guardada en Facturas/);
+    expect(await db.invoices.count()).toBe(1);
+  });
+
+  it('una factura cuya mercadería ya entró se marca sin sumar al stock', async () => {
+    const { aceite } = await seed();
+    const { saveInvoice, deleteInvoice } = await import('../../src/services/invoiceService');
+    const { markAlreadyInStock, undoInvoiceStock } = await import('../../src/services/invoiceStock');
+    const inv = await saveInvoice({ date: '2026-10-17', pages: [{ id: 'pgx', image: { ...img, type: 'image/jpeg' as const, width: 1, height: 1, bytes: 6 } }], items: [{ id: 'i1', description: 'ACEITE', quantity: 2, productId: aceite.id, stockQty: 24, status: 'ok' }] });
+    await markAlreadyInStock(inv.id);
+    const marked = await db.invoices.get(inv.id);
+    expect(marked).toMatchObject({ stockElsewhere: true, stockMovementIds: [] });
+    expect((await db.products.get(aceite.id))?.stock).toBe(0);
+    await undoInvoiceStock(inv.id);
+    expect((await db.invoices.get(inv.id))?.stockElsewhere).toBeUndefined();
+    await markAlreadyInStock(inv.id);
+    await deleteInvoice(inv.id); // marcada (sin stock propio): se puede borrar
+    expect(await db.invoices.count()).toBe(0);
+  });
+});

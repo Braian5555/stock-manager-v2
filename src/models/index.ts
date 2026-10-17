@@ -351,6 +351,8 @@ export interface Invoice extends BaseEntity {
   stockAppliedBy?: Actor;
   /** Movimientos de ingreso que generó la carga (para deshacerla). */
   stockMovementIds?: ID[];
+  /** Marcada como ya cargada: la mercadería había entrado antes (p. ej. por remito con el asistente). */
+  stockElsewhere?: boolean;
 }
 
 /**

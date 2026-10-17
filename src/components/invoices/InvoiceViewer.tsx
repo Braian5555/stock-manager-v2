@@ -9,7 +9,7 @@ import { downloadBlob, safeFilename } from '../../exports/download';
 import { useLookups, useProducts } from '../../hooks/useData';
 import { ITEM_STATUS_LABEL, pendingCount } from '../../services/invoiceAI';
 import { changeForItem, priceHistory } from '../../services/priceService';
-import { applyInvoiceToStock, doubleLoadWarning, learnFromInvoice, loadableItems, undoInvoiceStock } from '../../services/invoiceStock';
+import { applyInvoiceToStock, doubleLoadWarning, learnFromInvoice, loadableItems, markAlreadyInStock, undoInvoiceStock } from '../../services/invoiceStock';
 import { useFeedback } from '../../store/feedback';
 import { useSession } from '../../store/session';
 import { fmtDay, fmtMoney, fmtNumber } from '../../utils/format';
@@ -135,7 +135,19 @@ function InvoiceStockBar({ invoice, onReview }: { invoice: Invoice; onReview: ()
     setBusy(false);
     if (r) notify(`Cargado al stock: ${r.applied} ${r.applied === 1 ? 'producto' : 'productos'}`);
   };
+  const markElsewhere = async () => {
+    if (!(await confirm({ title: 'Ya estaba en el stock', message: 'La factura queda como cargada, sin sumar nada al stock (la mercadería ya había entrado). ¿Continuar?', confirmLabel: 'Marcar como cargada' }))) return;
+    setBusy(true);
+    await run(async () => { await learnFromInvoice(invoice.items); await markAlreadyInStock(invoice.id); }, 'Marcada como ya cargada: el stock no cambió');
+    setBusy(false);
+  };
   const undo = async () => {
+    if (invoice.stockElsewhere) {
+      setBusy(true);
+      await run(() => undoInvoiceStock(invoice.id), 'Marca quitada');
+      setBusy(false);
+      return;
+    }
     if (!(await confirm({ title: 'Deshacer carga', message: 'Se resta del stock lo que sumó esta factura (queda registrado en el historial). ¿Continuar?', confirmLabel: 'Deshacer carga' }))) return;
     setBusy(true);
     await run(() => undoInvoiceStock(invoice.id), 'Carga deshecha: el stock volvió a como estaba');
@@ -147,17 +159,22 @@ function InvoiceStockBar({ invoice, onReview }: { invoice: Invoice; onReview: ()
       <div className="inv-stock done" role="status">
         <CheckCircle2 size={20} aria-hidden style={{ color: 'var(--ok)' }} />
         <p className="grow small">
-          <b>Cargada al stock</b> el {new Date(invoice.stockAppliedAt).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' })}
-          {invoice.stockAppliedBy ? ` por ${invoice.stockAppliedBy.name}` : ''}.
+          <b>{invoice.stockElsewhere ? 'Ya estaba en el stock' : 'Cargada al stock'}</b>{invoice.stockElsewhere ? ': marcada' : ''} el {new Date(invoice.stockAppliedAt).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' })}
+          {invoice.stockAppliedBy ? ` por ${invoice.stockAppliedBy.name}` : ''}.{invoice.stockElsewhere ? ' Esta factura no sumó nada al stock.' : ''}
         </p>
-        {canMove && <button type="button" className="btn btn-sm" disabled={busy} onClick={() => void undo()}><Undo2 size={15} aria-hidden /> Deshacer carga</button>}
+        {canMove && <button type="button" className="btn btn-sm" disabled={busy} onClick={() => void undo()}><Undo2 size={15} aria-hidden /> {invoice.stockElsewhere ? 'Quitar marca' : 'Deshacer carga'}</button>}
       </div>
     );
   }
   if (!canMove) return null;
   return (
     <>
-    {warning && pending === 0 && toLoad > 0 && <div className="alert" role="note"><span><b>Ojo:</b> {warning}</span></div>}
+    {warning && toLoad > 0 && (
+      <div className="alert row wrap" role="note">
+        <span className="grow"><b>Ojo:</b> {warning}</span>
+        <button type="button" className="btn btn-sm" disabled={busy} onClick={() => void markElsewhere()}><CheckCircle2 size={15} aria-hidden /> Ya estaba en el stock</button>
+      </div>
+    )}
     <div className="inv-stock">
       <PackageCheck size={20} aria-hidden />
       <p className="grow small">

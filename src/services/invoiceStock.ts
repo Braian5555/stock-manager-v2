@@ -91,9 +91,20 @@ export async function undoInvoiceStock(invoiceId: string): Promise<number> {
       const { duplicate } = await revertMovement(m);
       if (!duplicate) n++;
     }
-    await db.invoices.update(inv.id, { stockAppliedAt: undefined, stockAppliedBy: undefined, stockMovementIds: undefined, updatedAt: nowIso() });
+    await db.invoices.update(inv.id, { stockAppliedAt: undefined, stockAppliedBy: undefined, stockMovementIds: undefined, stockElsewhere: undefined, updatedAt: nowIso() });
     return n;
   });
+}
+
+/**
+ * Marca la factura como ya cargada sin tocar el stock: la mercadería había entrado antes (por
+ * remito, con el asistente o a mano). Así no se carga dos veces y la factura queda en orden.
+ */
+export async function markAlreadyInStock(invoiceId: string): Promise<void> {
+  const inv = await db.invoices.get(invoiceId);
+  if (!inv) throw new Error('La factura no existe.');
+  if (inv.stockAppliedAt) throw new Error('Esta factura ya figura cargada al stock.');
+  await db.invoices.update(inv.id, { stockAppliedAt: nowIso(), stockAppliedBy: getCurrentActor(), stockMovementIds: [], stockElsewhere: true, updatedAt: nowIso() });
 }
 
 /**

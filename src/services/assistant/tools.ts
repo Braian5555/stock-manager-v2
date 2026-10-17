@@ -7,13 +7,17 @@
  *   en pantalla. Recién ahí se aplica (con clave fija, así un doble toque no duplica nada).
  */
 import { db } from '../../database/db';
-import type { InventoryCount, MovementType, Permission, Product, Settings, StockMovement, Unit } from '../../models';
+import type { InventoryCount, InvoiceItem, MovementType, Permission, Product, Settings, StockMovement, Unit } from '../../models';
 import { MODULE_PATH, MODULE_PERMISSIONS, moduleEnabled } from '../../layouts/modules';
 import { fmtDay, fmtMoney, fmtNumber, matches, normalize, round3 } from '../../utils/format';
 import { MODULES } from '../settingsService';
 import { discardCount, setCounted, startCount } from '../countService';
-import { pendingCount, similarity } from '../invoiceAI';
-import { recentIngresos } from '../invoiceStock';
+import { needsPackSize, pendingCount, similarity, toStockQty } from '../invoiceAI';
+import { applyInvoiceToStock, learnFromInvoice, recentIngresos, undoInvoiceStock } from '../invoiceStock';
+import { deleteInvoice, newPageId, saveInvoice, type PageDraft } from '../invoiceService';
+import { saveEntity } from '../entityService';
+import { base64Bytes } from '../imageService';
+import { uuid } from '../../utils/id';
 import { suggestOrders } from '../orderService';
 import { priceHistory, priceIncreases } from '../priceService';
 import { deleteProduct, emptyProduct, saveProduct } from '../productService';
@@ -45,7 +49,11 @@ export interface ToolContext {
   today: string;
   /** Referencias cortas de productos que conoce la IA (p12 → id) y al revés. */
   refs: RefMap;
+  /** Fotos del último mensaje de la persona que traía fotos (para guardar facturas). */
+  images?: ContextImage[];
 }
+
+export interface ContextImage { data: string; type: string; thumb: string; width?: number; height?: number; bytes?: number }
 
 export class RefMap {
   private byRef = new Map<string, string>();
@@ -378,9 +386,133 @@ export const TOOLS: ToolDef[] = [
   // ───────── Cambios (con confirmación) ─────────
 
   {
+    name: 'cargar_factura',
+    label: 'Preparó una factura',
+    description: 'Guarda en Facturas la factura o remito de la foto que mandó la persona (con la foto, proveedor, número, fecha, total y renglones) y la carga al stock. Usala siempre que manden la foto de una factura o remito de proveedor. Leé TODOS los renglones. Cantidades como figuran: "1.000" con tres decimales es 1; "B"/"BU"/"BTO" es bulto, "CJ" es caja; "X 950 CC" es el tamaño, no las unidades por caja. La persona confirma antes de guardar.',
+    parameters: obj({
+      proveedor: str('Nombre del proveedor como figura en el comprobante.'),
+      numero: str('Número del comprobante (p. ej. "0011-00065063").'),
+      fecha: str('Fecha del comprobante AAAA-MM-DD.'),
+      total: num('Total del comprobante.'),
+      tipo: str('Tipo de comprobante.', ['factura', 'remito']),
+      renglones: arr(obj({
+        descripcion: str('Texto del renglón tal como figura.'),
+        producto: str('Referencia del catálogo (p12) si lo reconocés; vacío si no está en el catálogo.'),
+        cantidad: num('Cantidad como figura en el comprobante.'),
+        unidad: str('Unidad como figura (u, kg, bulto, caja…).'),
+        unidades_por_caja: num('Si viene por caja/bulto y está impreso o la persona lo dijo: unidades que trae.'),
+        precio_unitario: num('Precio unitario.'),
+        total_renglon: num('Total del renglón.'),
+        no_va_al_stock: { type: 'BOOLEAN', description: 'true para fletes, envases, descuentos y cosas que no se controlan en el stock.' },
+      }, ['descripcion', 'cantidad']), 'Todos los renglones de productos.'),
+      cargar_stock: { type: 'BOOLEAN', description: 'false para guardarla sin cargar al stock (p. ej. si la mercadería ya se cargó antes).' },
+    }, ['proveedor', 'renglones']),
+    perms: ['invoices'],
+    prepare: async (a, ctx) => {
+      const images = ctx.images ?? [];
+      if (!images.length) throw new ToolError('Para guardar la factura en Facturas hace falta la foto: pedile que la mande (o que la cargue en Facturas).');
+      const lk = await lookups();
+      const unitLk = { unit: (id?: string) => (id ? lk.units.find((u) => u.id === id)?.abbreviation ?? '' : '') };
+      const supplierName = s(a.proveedor);
+      const supplier = supplierName ? lk.suppliers.find((x) => normalize(x.name) === normalize(supplierName)) ?? lk.suppliers.find((x) => matches(supplierName, x.name) || matches(x.name, supplierName)) : undefined;
+      const number = s(a.numero) || undefined;
+      const date = ymd(a.fecha) ?? ctx.today;
+      const total = n(a.total);
+      const remito = s(a.tipo) === 'remito';
+      // La misma factura dos veces (por ejemplo, la foto mandada de nuevo): no se vuelve a cargar.
+      if (number) {
+        const dupe = (await db.invoices.toArray()).find((i) => i.number && normalize(i.number) === normalize(number) && (!supplier || !i.supplierId || i.supplierId === supplier.id));
+        if (dupe) throw new ToolError(`Esa factura (${number}) ya está guardada en Facturas, del ${fmtDay(dupe.date)}${dupe.stockAppliedAt ? ', y ya está cargada al stock' : ''}. No la cargo de nuevo.`);
+      }
+      const items: InvoiceItem[] = [];
+      const lines: string[] = [];
+      const notes: string[] = [];
+      for (const r of list(a.renglones)) {
+        const description = s(r.descripcion) || s(r.producto) || 'Renglón';
+        const quantity = n(r.cantidad);
+        if (quantity === undefined || quantity <= 0) { notes.push(`Sin cantidad: “${description}”.`); continue; }
+        const unit = s(r.unidad) || undefined;
+        const base: InvoiceItem = { id: uuid(), description, quantity: round3(quantity), unit, unitPrice: n(r.precio_unitario), lineTotal: n(r.total_renglon), status: 'none' };
+        const pack = n(r.unidades_por_caja);
+        if (pack && pack >= 1) base.packSize = Math.round(pack);
+        if (r.no_va_al_stock === true) {
+          items.push({ ...base, status: 'ignored' });
+          lines.push(`No va al stock: ${description}`);
+          continue;
+        }
+        let p: Product | undefined;
+        if (s(r.producto)) {
+          try { p = await resolveProduct(r.producto, ctx); } catch (e) { notes.push(`${description}: ${e instanceof Error ? e.message : String(e)}`); }
+        } else notes.push(`“${description}” no está en el catálogo.`);
+        if (!p) { items.push(base); lines.push(`Sin producto: ${description}`); continue; }
+        const item: InvoiceItem = { ...base, productId: p.id, stockQty: toStockQty(quantity, unit, p, unitLk, base.packSize), status: 'ok' };
+        if (needsPackSize(item, p, unitLk)) {
+          item.status = 'check';
+          notes.push(`Falta cuántas unidades trae cada ${unit ?? 'caja'} de “${p.name}”.`);
+          lines.push(`${p.name}: ${fmtNumber(quantity)} ${unit ?? ''} (falta cuántas trae cada uno)`);
+        } else {
+          lines.push(`+${fmtNumber(item.stockQty!)} ${lk.unit(p.unitId)} · ${p.name}${unit && item.stockQty !== quantity ? ` (${fmtNumber(quantity)} ${unit})` : ''}`);
+        }
+        items.push(item);
+      }
+      if (!items.length) throw new ToolError(notes.join(' ') || 'La factura no tiene renglones.');
+      const pending = items.filter((i) => i.status === 'none' || i.status === 'check').length;
+      const loadable = items.filter((i) => i.status === 'ok' && (i.stockQty ?? 0) > 0);
+      const wantStock = a.cargar_stock !== false;
+      const canStock = ctx.can('stock.move');
+      const willLoad = wantStock && canStock && !pending && loadable.length > 0;
+      // ¿Ya entró esta mercadería por otro lado en estos días? (p. ej. cargada antes con el asistente)
+      if (willLoad) {
+        const recent = await recentIngresos(loadable.map((i) => i.productId!), ['asistente', 'manual'], 10);
+        const names = [...new Set(recent.map((r) => r.name))];
+        if (names.length) notes.push(`Ojo: en estos días ya entró ${names.slice(0, 4).join(', ')}${names.length > 4 ? ` y ${names.length - 4} más` : ''} sin factura. Si es la misma mercadería, guardala sin cargar al stock.`);
+      }
+      const head = [supplier?.name ?? (supplierName ? `${supplierName} (proveedor nuevo)` : 'Sin proveedor'), number, fmtDay(date), total !== undefined ? fmtMoney(total) : undefined].filter(Boolean).join(' · ');
+      const how = willLoad ? 'Se guarda en Facturas con la foto y se carga al stock.'
+        : !wantStock ? 'Se guarda en Facturas con la foto, sin cargar al stock.'
+        : !canStock ? 'Se guarda en Facturas con la foto; cargarla al stock lo hace alguien con permiso.'
+        : pending ? `Se guarda en Facturas con la foto. El stock se carga cuando se revisen ${pending === 1 ? 'el renglón pendiente' : `los ${pending} renglones pendientes`} (en Facturas).`
+        : 'Se guarda en Facturas con la foto.';
+      return {
+        title: willLoad ? `Guardar ${remito ? 'el remito' : 'la factura'} y cargarla al stock` : `Guardar ${remito ? 'el remito' : 'la factura'} en Facturas`,
+        lines: [head, ...lines, how],
+        notes,
+        execute: async () => {
+          if (!ctx.can('invoices')) throw new ToolError('Ya no tenés permiso para cargar facturas.');
+          if (number && (await db.invoices.toArray()).some((i) => i.number && normalize(i.number) === normalize(number) && (!supplier || !i.supplierId || i.supplierId === supplier.id))) {
+            throw new ToolError('Esa factura ya está guardada.');
+          }
+          const supplierId = supplier?.id ?? (supplierName ? (await saveEntity(db.suppliers, { name: supplierName })).id : undefined);
+          const pages: PageDraft[] = images.slice(0, 6).map((img) => ({
+            id: newPageId(),
+            image: { data: img.data, type: 'image/jpeg', width: img.width ?? 0, height: img.height ?? 0, bytes: img.bytes ?? base64Bytes(img.data), thumb: img.thumb },
+          }));
+          const inv = await saveInvoice({
+            date, supplierId, number, total, pages, items, aiReadAt: new Date().toISOString(),
+            notes: `${remito ? 'Remito cargado' : 'Cargada'} con el Asistente IA`,
+          });
+          await learnFromInvoice(items);
+          let loaded = 0;
+          if (willLoad && ctx.can('stock.move')) loaded = (await applyInvoiceToStock(inv.id)).applied;
+          return {
+            result: { ok: true, guardada_en_facturas: true, cargada_al_stock: loaded > 0, productos_cargados: loaded, renglones_a_revisar: pending },
+            done: loaded ? `Guardada en Facturas y cargada al stock (${loaded} ${loaded === 1 ? 'producto' : 'productos'})` : 'Guardada en Facturas',
+            undo: async () => {
+              const cur = await db.invoices.get(inv.id);
+              if (!cur) return 'Deshecho: la factura ya no estaba';
+              if (cur.stockAppliedAt) await undoInvoiceStock(inv.id);
+              await deleteInvoice(inv.id);
+              return loaded ? 'Deshecho: se sacó del stock y se borró la factura' : 'Deshecho: se borró la factura';
+            },
+          };
+        },
+      };
+    },
+  },
+  {
     name: 'registrar_movimientos',
     label: 'Preparó movimientos de stock',
-    description: 'Registra movimientos de stock (mercadería que entra, salidas, mermas, consumos o ajuste a una cantidad). Para remitos o compras sin factura, varios renglones juntos. La persona confirma antes de aplicar.',
+    description: 'Registra movimientos de stock sin comprobante: salidas, mermas, consumos, ajuste a una cantidad, o mercadería que entró sin factura ni remito. Si la persona manda la foto de una factura o remito, NO uses esta: usá cargar_factura. La persona confirma antes de aplicar.',
     parameters: obj({
       movimientos: arr(obj({
         producto: str('Referencia (p12) o nombre.'),
