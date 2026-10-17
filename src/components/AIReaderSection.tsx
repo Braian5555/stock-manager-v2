@@ -9,7 +9,7 @@ import { Field, Input, PageHeader } from './ui';
 
 /**
  * Configuración → Lectura de facturas con IA: dirección del servidor de Cloudflare que guarda la
- * clave de Anthropic. Se guarda en la configuración del negocio (llega a todos los dispositivos).
+ * clave de la IA (Gemini de Google, gratis; o Claude). Se guarda en la configuración del negocio (llega a todos los dispositivos).
  */
 export function AIReaderSection() {
   const settings = useSettings();
@@ -28,7 +28,9 @@ export function AIReaderSection() {
     setTesting(true);
     try {
       const r = await testReader(target);
-      setStatus(r.configured ? { ok: true, text: 'Conectado. La clave de Anthropic está cargada: ya podés leer facturas.' } : { ok: false, text: 'El servidor responde, pero falta cargar la clave (secreto ANTHROPIC_API_KEY en Cloudflare).' });
+      setStatus(r.configured
+        ? { ok: true, text: `Conectado con ${r.provider === 'anthropic' ? 'Claude (Anthropic)' : 'Gemini (Google)'}: ya podés leer facturas.` }
+        : { ok: false, text: 'El servidor responde, pero falta cargar la clave (secreto GEMINI_API_KEY en Cloudflare).' });
     } catch (e) {
       setStatus({ ok: false, text: e instanceof Error ? e.message : 'No se pudo conectar.' });
     } finally {
@@ -49,7 +51,7 @@ export function AIReaderSection() {
         <h2 className="row"><Sparkles size={18} aria-hidden /> Servidor de lectura</h2>
         <p className="small muted">
           En Facturas, “Leer con IA” manda la foto a tu servidor de Cloudflare, que la lee con Claude y devuelve los productos para revisar.
-          La clave de Anthropic queda guardada en Cloudflare: nunca está en la app ni en los celulares.
+          Usa Gemini de Google con su plan gratis (tiene un límite de lecturas por día, y en ese plan Google puede usar lo que se envía para mejorar sus productos). La clave queda guardada en Cloudflare: nunca está en la app ni en los celulares.
         </p>
         {cloud.phase !== 'linked' && <div className="alert"><span>Este dispositivo no está conectado a la nube: hace falta para leer facturas (Cuenta y nube).</span></div>}
         <Field label="Dirección del servidor" hint="la que te da Cloudflare, termina en .workers.dev">
@@ -69,13 +71,13 @@ export function AIReaderSection() {
       <section className="card card-pad stack">
         <h3 style={{ margin: 0 }}>Cómo se instala (una sola vez)</h3>
         <ol className="small" style={{ margin: 0, paddingLeft: 20, display: 'grid', gap: 6 }}>
-          <li>En <b>console.anthropic.com</b> cargá saldo, creá una clave en <b>API Keys</b> y poné un límite de gasto mensual.</li>
+          <li>En <b>aistudio.google.com</b>, con tu cuenta de Google, tocá <b>Get API key → Create API key</b> (gratis, sin tarjeta) y copiala.</li>
           <li>En <b>dash.cloudflare.com</b> (cuenta gratis): <b>Workers & Pages → Create → Worker</b>, ponele de nombre <i>stock-manager-ia</i> y tocá <b>Deploy</b>.</li>
           <li><b>Edit code</b>: borrá todo, pegá el archivo <i>worker.js</i> de Stock Manager y tocá <b>Deploy</b>.</li>
-          <li><b>Settings → Variables and Secrets → Add</b>: tipo <b>Secret</b>, nombre <code>ANTHROPIC_API_KEY</code>, valor la clave. Guardá.</li>
+          <li><b>Settings → Variables and Secrets → Add</b>: tipo <b>Secret</b>, nombre <code>GEMINI_API_KEY</code>, valor la clave. Guardá.</li>
           <li>Copiá la dirección del worker (termina en <i>.workers.dev</i>), pegala arriba y tocá <b>Guardar</b>.</li>
         </ol>
-        <button type="button" className="btn btn-sm btn-ghost" style={{ alignSelf: 'flex-start' }} onClick={() => void navigator.clipboard?.writeText('ANTHROPIC_API_KEY').then(() => notify('Copiado: ANTHROPIC_API_KEY'))}>
+        <button type="button" className="btn btn-sm btn-ghost" style={{ alignSelf: 'flex-start' }} onClick={() => void navigator.clipboard?.writeText('GEMINI_API_KEY').then(() => notify('Copiado: GEMINI_API_KEY'))}>
           <Copy size={15} aria-hidden /> Copiar el nombre del secreto
         </button>
       </section>

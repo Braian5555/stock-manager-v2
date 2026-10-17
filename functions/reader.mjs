@@ -99,6 +99,47 @@ export function buildRequest(images, catalog) {
   };
 }
 
+/** Forma de la respuesta, explicada en texto (Gemini la recibe así además de responseMimeType JSON). */
+export const GEMINI_SHAPE = `Respondé SÓLO con un objeto JSON con esta forma exacta (usá null cuando no se lea un dato):
+{"supplier":{"name":string|null,"cuit":string|null},
+ "invoice":{"kind":"factura"|"remito"|"ticket"|"nota_credito"|"otro"|null,"number":string|null,"date":"AAAA-MM-DD"|null,"total":number|null},
+ "lines":[{"description":string,"code":string|null,"quantity":number,"unit":string|null,"unitPrice":number|null,"lineTotal":number|null,"ref":string|null,"confidence":"alta"|"media"|"baja"|"ninguna"}],
+ "warnings":[string]}`;
+
+/**
+ * Pedido para Gemini (Google). Empieza con "systemInstruction" a propósito: el servidor de
+ * Cloudflare verifica ese comienzo sin interpretar el resto (poco tiempo de CPU en el plan gratis).
+ */
+export function buildGeminiRequest(images, catalog) {
+  const catalogText = catalog
+    .map((c) => `${c.ref}: ${c.name}${c.unit ? ` (${c.unit}${c.buy ? `; se compra en ${c.buy}` : ''})` : ''}`)
+    .join('\n');
+  return {
+    systemInstruction: { parts: [{ text: `${SYSTEM_PROMPT}\n\n${GEMINI_SHAPE}` }] },
+    contents: [
+      {
+        role: 'user',
+        parts: [
+          ...images.map((img) => ({ inlineData: { mimeType: img.type, data: img.data } })),
+          { text: `Catálogo de productos del negocio (referencia: nombre):\n${catalogText || '(vacío)'}\n\nLeé ${images.length === 1 ? 'la factura de la foto' : `la factura de estas ${images.length} fotos`} y devolvé los renglones.` },
+        ],
+      },
+    ],
+    generationConfig: { responseMimeType: 'application/json', temperature: 0, maxOutputTokens: 16000 },
+  };
+}
+
+/** Texto de la respuesta de Gemini + avisos según por qué terminó. Lanza error si fue bloqueada. */
+export function geminiText(response) {
+  const block = response?.promptFeedback?.blockReason;
+  if (block) throw new Error('La IA no procesó estas fotos.');
+  const cand = response?.candidates?.[0];
+  if (!cand) throw new Error('La lectura no devolvió un resultado válido.');
+  if (['SAFETY', 'RECITATION', 'PROHIBITED_CONTENT', 'BLOCKLIST', 'SPII'].includes(cand.finishReason)) throw new Error('La IA no procesó estas fotos.');
+  const text = (cand.content?.parts ?? []).filter((p) => typeof p.text === 'string' && !p.thought).map((p) => p.text).join('');
+  return { text, truncated: cand.finishReason === 'MAX_TOKENS' };
+}
+
 const cut = (v, n) => (typeof v === 'string' ? v.slice(0, n) : '');
 
 /** Valida y limpia lo que manda la app (no se confía en el cliente). */
@@ -131,7 +172,10 @@ const s = (v, n = 200) => (typeof v === 'string' && v.trim() ? v.trim().slice(0,
 export function parseReading(text, refs) {
   let raw;
   try {
-    raw = JSON.parse(text);
+    // Algunos modelos envuelven el JSON en ```json … ```: se toma el objeto de adentro.
+    const t = String(text ?? '').trim();
+    const body = t.startsWith('{') ? t : t.slice(t.indexOf('{'), t.lastIndexOf('}') + 1);
+    raw = JSON.parse(body);
   } catch {
     throw new Error('La lectura no devolvió un resultado válido.');
   }

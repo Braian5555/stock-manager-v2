@@ -94,3 +94,58 @@ describe('servidor de Cloudflare para leer facturas', () => {
     expect(o.headers.get('Access-Control-Allow-Headers')).toContain('X-Workspace');
   });
 });
+
+describe('servidor de Cloudflare: Gemini (gratis)', () => {
+  const genv = { GEMINI_API_KEY: 'AIza-secreta' };
+  const gbody = async () => JSON.stringify((await import('../../functions/reader.mjs')).buildGeminiRequest([{ type: 'image/jpeg', data: 'AAAA' }], [{ ref: '1', name: 'Coca', unit: 'u', buy: '' }]));
+  const greq = async (opts: { body?: string } = {}) =>
+    new Request('https://worker.example/gemini', {
+      method: 'POST',
+      headers: { Origin: ORIGIN, Authorization: `Bearer ${await token()}`, 'X-Workspace': 'ws_123', 'Content-Type': 'application/json' },
+      body: opts.body ?? (await gbody()),
+    });
+  function geminiNet(statusByModel: Record<string, number>) {
+    const calls: { url: string; key: string | null }[] = [];
+    const base = fakeNet();
+    const f = async (url: string, init?: RequestInit) => {
+      if (url.startsWith('https://generativelanguage.googleapis.com/')) {
+        calls.push({ url, key: new Headers(init?.headers).get('x-goog-api-key') });
+        const model = /models\/([^:]+):/.exec(url)![1];
+        const status = statusByModel[model] ?? 200;
+        return new Response(status === 200 ? '{"candidates":[{"content":{"parts":[{"text":"{}"}]},"finishReason":"STOP"}]}' : '{"error":{"status":"NOT_FOUND"}}', { status });
+      }
+      return base.f(url, init);
+    };
+    return { f, calls };
+  }
+
+  it('reenvía a Google con la clave en el encabezado y avisa qué IA tiene', async () => {
+    const net = geminiNet({});
+    const r = await handle(await greq(), genv, net.f);
+    expect(r.status).toBe(200);
+    expect(net.calls).toEqual([{ url: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent', key: 'AIza-secreta' }]);
+    expect(await r.text()).not.toContain('AIza');
+    const g = await handle(new Request('https://worker.example/', { headers: { Origin: ORIGIN } }), genv, net.f);
+    expect(await g.json()).toMatchObject({ configured: true, provider: 'gemini', model: 'gemini-3.8-flash' });
+  });
+
+  it('si un modelo no existe o no está en el plan gratis, prueba el siguiente', async () => {
+    const net = geminiNet({ 'gemini-3.8-flash': 404, 'gemini-3.5-flash-lite': 429 });
+    const r = await handle(await greq(), genv, net.f);
+    expect(r.status).toBe(200);
+    expect(net.calls.map((c) => /models\/([^:]+):/.exec(c.url)![1])).toEqual(['gemini-3.8-flash', 'gemini-3.5-flash-lite', 'gemini-2.5-flash']);
+    // Con GEMINI_MODEL fijo, sólo ese.
+    const net2 = geminiNet({});
+    await handle(await greq(), { ...genv, GEMINI_MODEL: 'gemini-x' }, net2.f);
+    expect(net2.calls.map((c) => /models\/([^:]+):/.exec(c.url)![1])).toEqual(['gemini-x']);
+  });
+
+  it('rechaza pedidos que no son de lectura, sesiones falsas y servidor sin clave', async () => {
+    expect((await handle(await greq({ body: '{"contents":[]}' }), genv, geminiNet({}).f)).status).toBe(400);
+    const bad = new Request('https://worker.example/gemini', { method: 'POST', headers: { Origin: ORIGIN, Authorization: 'Bearer basura', 'X-Workspace': 'ws_123' }, body: await gbody() });
+    expect((await handle(bad, genv, geminiNet({}).f)).status).toBe(401);
+    const none = await handle(await greq(), {}, geminiNet({}).f);
+    expect(none.status).toBe(503);
+    expect((await none.json()).error).toContain('GEMINI_API_KEY');
+  });
+});

@@ -103,3 +103,25 @@ describe('lectura de facturas con IA: función de la nube', () => {
     expect(() => parseReading('no json', [])).toThrow('no devolvió');
   });
 });
+
+describe('lectura de facturas con IA: Gemini', () => {
+  it('arma el pedido para Gemini (empieza con systemInstruction y pide JSON)', async () => {
+    const { buildGeminiRequest } = await import('../../functions/reader.mjs');
+    const r = buildGeminiRequest([{ type: 'image/jpeg', data: 'AAAA' }], [{ ref: '1', name: 'Coca', unit: 'u', buy: 'caja x6' }]);
+    expect(JSON.stringify(r).startsWith('{"systemInstruction":')).toBe(true);
+    expect(r.contents[0].parts[0]).toEqual({ inlineData: { mimeType: 'image/jpeg', data: 'AAAA' } });
+    expect(r.contents[0].parts[1].text).toContain('1: Coca (u; se compra en caja x6)');
+    expect(r.generationConfig.responseMimeType).toBe('application/json');
+  });
+
+  it('lee la respuesta de Gemini, aunque venga con ```json, y avisa si quedó cortada o bloqueada', async () => {
+    const { geminiText, parseReading } = await import('../../functions/reader.mjs');
+    const json = JSON.stringify({ supplier: { name: 'Sur', cuit: null }, invoice: { kind: 'factura', number: null, date: '2026-10-17', total: 100 }, lines: [{ description: 'COCA', code: null, quantity: 2, unit: 'caja', unitPrice: 50, lineTotal: 100, ref: '1', confidence: 'alta' }], warnings: [] });
+    const { text, truncated } = geminiText({ candidates: [{ content: { parts: [{ text: 'pensando…', thought: true }, { text: '```json\n' + json + '\n```' }] }, finishReason: 'MAX_TOKENS' }] });
+    expect(truncated).toBe(true);
+    const r = parseReading(text, ['1']);
+    expect(r.lines[0]).toMatchObject({ ref: '1', quantity: 2, unit: 'caja' });
+    expect(() => geminiText({ promptFeedback: { blockReason: 'SAFETY' } })).toThrow('no procesó');
+    expect(() => geminiText({ candidates: [{ finishReason: 'SAFETY', content: { parts: [] } }] })).toThrow('no procesó');
+  });
+});

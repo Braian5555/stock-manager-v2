@@ -3,7 +3,7 @@
  * Claude, y acá se decide a qué producto del catálogo corresponde cada renglón y cuánto suma en
  * la unidad de stock. Nada se carga al stock sin que una persona lo revise.
  */
-import { buildRequest, parseReading } from '../../functions/reader.mjs';
+import { buildGeminiRequest, buildRequest, geminiText, parseReading } from '../../functions/reader.mjs';
 import { callCloudFunction, cloudSession } from '../cloud/cloudService';
 import type { InvoiceItem, Product } from '../models';
 import { normalize, round3 } from '../utils/format';
@@ -97,21 +97,57 @@ function readerError(status: number, body: unknown): Error {
   return new Error(`No se pudo leer la factura (error ${status}). Probá de nuevo.`);
 }
 
+/** Errores de Gemini (Google), en castellano. */
+function geminiError(status: number, body: unknown): Error {
+  const b = body as { error?: string | { message?: string; status?: string } } | null;
+  if (typeof b?.error === 'string') return new Error(b.error); // mensaje del servidor de Cloudflare
+  const msg = typeof b?.error === 'object' ? `${b.error?.status ?? ''} ${b.error?.message ?? ''}` : '';
+  if (/API key not valid|API_KEY_INVALID/i.test(msg)) return new Error('La clave de Google no es válida. Revisala en Cloudflare (secreto GEMINI_API_KEY).');
+  if (status === 429 || /RESOURCE_EXHAUSTED/.test(msg)) return new Error('Se alcanzó el límite gratis de Gemini por ahora. Probá de nuevo en un rato.');
+  if (status === 403 || /PERMISSION_DENIED/.test(msg)) return new Error('La clave de Google no tiene permiso para usar Gemini.');
+  if (status === 404) return new Error('El modelo de Gemini no está disponible. Revisá el secreto GEMINI_MODEL en Cloudflare.');
+  if (status === 413) return new Error('Las fotos son demasiado grandes. Probá con menos hojas.');
+  if (status === 400) return new Error('La IA no pudo procesar estas fotos.');
+  if (status === 503 || status === 500) return new Error('Gemini está ocupado. Probá de nuevo en un minuto.');
+  return new Error(`No se pudo leer la factura (error ${status}). Probá de nuevo.`);
+}
+
+/** Qué IA tiene configurada el servidor (se consulta una vez cada 10 minutos). */
+const providerCache = new Map<string, { provider: 'gemini' | 'anthropic'; until: number }>();
+async function workerProvider(url: string): Promise<'gemini' | 'anthropic'> {
+  const hit = providerCache.get(url);
+  if (hit && hit.until > Date.now()) return hit.provider;
+  const r = await testReader(url);
+  if (!r.configured) throw new Error('El servidor de lectura no tiene ninguna clave cargada (GEMINI_API_KEY o ANTHROPIC_API_KEY).');
+  const provider = r.provider === 'anthropic' ? 'anthropic' : 'gemini';
+  providerCache.set(url, { provider, until: Date.now() + 10 * 60_000 });
+  return provider;
+}
+
 /** Lectura a través del servidor de Cloudflare: el pedido se arma acá y el servidor sólo agrega la clave. */
-async function readViaWorker(url: string, images: { type: string; data: string }[], catalog: CatalogEntry[]): Promise<AIReading> {
+async function readViaWorker(rawUrl: string, images: { type: string; data: string }[], catalog: CatalogEntry[]): Promise<AIReading> {
   if (typeof navigator !== 'undefined' && navigator.onLine === false) throw new Error('Sin conexión: la lectura con IA necesita Internet.');
+  const url = rawUrl.replace(/\/+$/, '');
+  const provider = await workerProvider(url);
   const { token, wsId } = await cloudSession();
   let r: Response;
   try {
-    r = await fetch(url, {
+    r = await fetch(provider === 'gemini' ? `${url}/gemini` : url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, 'X-Workspace': wsId },
-      body: JSON.stringify(buildRequest(images, catalog)),
+      body: JSON.stringify(provider === 'gemini' ? buildGeminiRequest(images, catalog) : buildRequest(images, catalog)),
     });
   } catch (e) {
     throw new Error('No se pudo conectar con el servidor de lectura. Revisá la dirección en Configuración → Lectura con IA.', { cause: e });
   }
   const body = await r.json().catch(() => null);
+  if (provider === 'gemini') {
+    if (!r.ok) throw geminiError(r.status, body);
+    const { text, truncated } = geminiText(body);
+    const reading = parseReading(text, catalog.map((c) => c.ref)) as AIReading;
+    if (truncated) reading.warnings.push('La factura es muy larga: puede faltar algún renglón al final.');
+    return reading;
+  }
   if (!r.ok) throw readerError(r.status, body);
   const msg = body as { stop_reason?: string; content?: { type: string; text?: string }[] };
   if (msg.stop_reason === 'refusal') throw new Error('La IA no procesó estas fotos.');
@@ -122,16 +158,18 @@ async function readViaWorker(url: string, images: { type: string; data: string }
 }
 
 /** Prueba de conexión con el servidor (Configuración → Lectura con IA). */
-export async function testReader(url: string): Promise<{ configured: boolean; model?: string }> {
+export async function testReader(url: string): Promise<{ configured: boolean; provider?: 'gemini' | 'anthropic'; model?: string }> {
   let r: Response;
   try {
-    r = await fetch(url, { method: 'GET' });
+    r = await fetch(url.replace(/\/+$/, ''), { method: 'GET' });
   } catch (e) {
     throw new Error('No se pudo conectar. Revisá que la dirección esté bien copiada.', { cause: e });
   }
-  const b = (await r.json().catch(() => null)) as { service?: string; configured?: boolean; model?: string } | null;
+  const b = (await r.json().catch(() => null)) as { service?: string; configured?: boolean; provider?: string | null; model?: string } | null;
   if (!r.ok || b?.service !== 'stock-manager-invoice-reader') throw new Error('Esa dirección no es el servidor de lectura de Stock Manager.');
-  return { configured: !!b.configured, model: b.model };
+  // Servidores viejos (sólo Claude) no informan `provider`.
+  const provider = b.provider === 'gemini' ? 'gemini' : b.provider === 'anthropic' || (b.configured && !('provider' in b)) ? 'anthropic' : undefined;
+  return { configured: !!b.configured, provider, model: b.model };
 }
 
 // ───────────── Reconocimiento de productos ─────────────
