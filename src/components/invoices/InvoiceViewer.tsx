@@ -9,7 +9,7 @@ import { downloadBlob, safeFilename } from '../../exports/download';
 import { useLookups, useProducts } from '../../hooks/useData';
 import { ITEM_STATUS_LABEL, pendingCount } from '../../services/invoiceAI';
 import { changeForItem, priceHistory } from '../../services/priceService';
-import { applyInvoiceToStock, learnFromInvoice, loadableItems, undoInvoiceStock } from '../../services/invoiceStock';
+import { applyInvoiceToStock, doubleLoadWarning, learnFromInvoice, loadableItems, undoInvoiceStock } from '../../services/invoiceStock';
 import { useFeedback } from '../../store/feedback';
 import { useSession } from '../../store/session';
 import { fmtDay, fmtMoney, fmtNumber } from '../../utils/format';
@@ -122,8 +122,11 @@ function InvoiceStockBar({ invoice, onReview }: { invoice: Invoice; onReview: ()
   const canMove = can('stock.move');
   const pending = pendingCount(invoice.items, products, lk);
   const toLoad = loadableItems(invoice.items).length;
+  // ¿Ya entró esta mercadería por remito (asistente o a mano)? Se avisa para no cargarla dos veces.
+  const warning = useLiveQuery(() => (invoice.stockAppliedAt ? undefined : doubleLoadWarning(invoice.id, invoice.items)), [invoice.id, invoice.updatedAt, invoice.stockAppliedAt]);
 
   const load = async () => {
+    if (warning && !(await confirm({ title: 'Puede estar repetida', message: warning, confirmLabel: 'Cargar igual' }))) return;
     setBusy(true);
     const r = await run(async () => {
       await learnFromInvoice(invoice.items);
@@ -153,6 +156,8 @@ function InvoiceStockBar({ invoice, onReview }: { invoice: Invoice; onReview: ()
   }
   if (!canMove) return null;
   return (
+    <>
+    {warning && pending === 0 && toLoad > 0 && <div className="alert" role="note"><span><b>Ojo:</b> {warning}</span></div>}
     <div className="inv-stock">
       <PackageCheck size={20} aria-hidden />
       <p className="grow small">
@@ -164,6 +169,7 @@ function InvoiceStockBar({ invoice, onReview }: { invoice: Invoice; onReview: ()
         ? <button type="button" className="btn btn-sm" onClick={onReview}><Pencil size={15} aria-hidden /> Revisar</button>
         : toLoad > 0 && <button type="button" className="btn btn-primary btn-sm" disabled={busy} onClick={() => void load()}><PackageCheck size={15} aria-hidden /> Cargar al stock</button>}
     </div>
+    </>
   );
 }
 

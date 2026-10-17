@@ -1248,7 +1248,11 @@ a.hm-row:hover { background: var(--surface-2); }
 .asst-prop-result { margin: 0; font-size: 0.88rem; font-weight: 650; }
 .asst-prop.is-done .asst-prop-result { color: var(--ok); }
 .asst-prop.is-error .asst-prop-result { color: var(--out); }
-.asst-confirm-actions { gap: 8px; }
+.asst-confirm-actions { gap: 8px; align-items: center; }
+.asst-confirm-hint { flex-basis: 100%; }
+.asst-undo { align-self: flex-start; }
+.asst-prop.is-undone { opacity: 0.75; }
+.asst-prop.is-undone .asst-prop-lines li { text-decoration: line-through; text-decoration-color: var(--text-3); }
 
 .asst-composer {
   position: sticky; bottom: calc(var(--bottom-h) + var(--safe-bottom) + 8px); z-index: 5;

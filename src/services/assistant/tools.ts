@@ -7,17 +7,18 @@
  *   en pantalla. Recién ahí se aplica (con clave fija, así un doble toque no duplica nada).
  */
 import { db } from '../../database/db';
-import type { InventoryCount, MovementType, Permission, Product, Settings, Unit } from '../../models';
+import type { InventoryCount, MovementType, Permission, Product, Settings, StockMovement, Unit } from '../../models';
 import { MODULE_PATH, MODULE_PERMISSIONS, moduleEnabled } from '../../layouts/modules';
 import { fmtDay, fmtMoney, fmtNumber, matches, normalize, round3 } from '../../utils/format';
 import { MODULES } from '../settingsService';
-import { setCounted } from '../countService';
+import { discardCount, setCounted, startCount } from '../countService';
 import { pendingCount, similarity } from '../invoiceAI';
+import { recentIngresos } from '../invoiceStock';
 import { suggestOrders } from '../orderService';
 import { priceHistory, priceIncreases } from '../priceService';
-import { emptyProduct, saveProduct } from '../productService';
-import { recipeConsumption, registerProduction } from '../productionService';
-import { applyMovement, MOVEMENT_LABEL, statusOf, STATUS_LABEL } from '../stockService';
+import { deleteProduct, emptyProduct, saveProduct } from '../productService';
+import { recipeConsumption, registerProduction, undoProduction } from '../productionService';
+import { applyMovement, MOVEMENT_LABEL, revertMovement, statusOf, STATUS_LABEL } from '../stockService';
 import { ymdAdd } from '../bakeryService';
 
 // ───────────── Esquemas (formato de Gemini) ─────────────
@@ -77,8 +78,11 @@ export interface Proposal {
   lines: string[];
   /** Avisos (productos que no se encontraron, etc.). */
   notes?: string[];
-  /** Aplica los cambios. Devuelve el resultado para la IA y un texto corto para la pantalla. */
-  execute: (key: string) => Promise<{ result: unknown; done: string }>;
+  /**
+   * Aplica los cambios. Devuelve el resultado para la IA, un texto corto para la pantalla y,
+   * si se puede, cómo deshacerlo (para corregir enseguida si la IA se equivocó).
+   */
+  execute: (key: string) => Promise<{ result: unknown; done: string; undo?: () => Promise<string> }>;
 }
 
 export interface ToolDef {
@@ -124,19 +128,19 @@ export async function resolveProduct(raw: unknown, ctx: ToolContext): Promise<Pr
   const id = ctx.refs.id(text);
   if (id) {
     const p = await db.products.get(id);
-    if (p) return p;
+    if (p?.active) return p;
+    if (p) throw new ToolError(`“${p.name}” está desactivado en el catálogo.`);
   }
   const all = (await db.products.toArray()).filter((p) => p.active);
-  const exact = all.find((p) => normalize(p.name) === normalize(text));
+  const key = normalize(text);
+  const exact = all.find((p) => normalize(p.name) === key) ?? all.find((p) => (p.sku && normalize(p.sku) === key) || (p.barcode && p.barcode === text));
   if (exact) return exact;
-  let best: Product | undefined;
-  let score = 0;
-  for (const p of all) {
-    const sc = similarity(text, p.name);
-    if (sc > score) { score = sc; best = p; }
-  }
-  if (best && score >= 0.6) return best;
-  throw new ToolError(`No encontré el producto “${text}”. Pedile a la persona que lo confirme o buscalo con buscar_productos.`);
+  // Por parecido, sólo si no hay dudas: "coca" con dos tamaños de Coca-Cola no se adivina.
+  const ranked = all.map((p) => ({ p, sc: similarity(text, p.name) })).filter((x) => x.sc >= 0.45).sort((a, b) => b.sc - a.sc);
+  const [first, second] = ranked;
+  if (first && ((first.sc >= 0.6 && (!second || first.sc - second.sc >= 0.12)) || (first.sc >= 0.5 && !second))) return first.p;
+  if (ranked.length) throw new ToolError(`No sé cuál es “${text}”: puede ser ${ranked.slice(0, 4).map((x) => `“${x.p.name}”`).join(', ')}.`);
+  throw new ToolError(`No encontré “${text}” en el catálogo.`);
 }
 
 /** Cantidad en unidad de stock: con unidad "compra" se multiplica por las unidades por caja. */
@@ -408,6 +412,12 @@ export const TOOLS: ToolDef[] = [
         plan.push({ p, type, qty, reason });
       }
       if (!plan.length) throw new ToolError(notes.join(' ') || 'No hay movimientos válidos.');
+      // Remito de algo que ya entró por factura en estos días: se avisa (puede ser la misma mercadería).
+      const viaInvoice = await recentIngresos(plan.filter((x) => x.type === 'ingreso').map((x) => x.p.id), ['factura'], 10);
+      for (const id of new Set(viaInvoice.map((r) => r.productId))) {
+        const r = viaInvoice.find((x) => x.productId === id)!;
+        notes.push(`“${r.name}” ya entró por ${r.reason ?? 'una factura'} el ${new Date(r.at).toLocaleDateString('es-AR')} (+${fmtNumber(r.qty)}): fijate que no sea la misma mercadería.`);
+      }
       const lines = plan.map(({ p, type, qty }) => {
         const before = projected.get(p.id) ?? p.stock;
         const after = type === 'ajuste' ? qty : type === 'ingreso' ? before + qty : before - qty;
@@ -420,19 +430,32 @@ export const TOOLS: ToolDef[] = [
         lines, notes,
         execute: async (key) => {
           if (!ctx.can('stock.move')) throw new ToolError('Ya no tenés permiso para registrar movimientos.');
-          const done = await db.transaction('rw', db.products, db.movements, async () => {
+          const created = await db.transaction('rw', db.products, db.movements, async () => {
+            const out: StockMovement[] = [];
             let i = 0;
             for (const { p, type, qty, reason } of plan) {
-              await applyMovement({
+              const r = await applyMovement({
                 productId: p.id, type,
                 ...(type === 'ajuste' ? { newQuantity: qty } : { delta: type === 'ingreso' ? qty : -qty }),
                 origin: 'asistente', reason, idempotencyKey: `${key}:${i++}`,
               });
+              if (!r.duplicate) out.push(r.movement);
             }
-            return i;
+            return out;
           });
+          const done = plan.length;
           const after = await db.products.bulkGet(plan.map((x) => x.p.id));
-          return { result: { ok: true, registrados: done, stock_actual: after.map((p) => p && { producto: p.name, stock: p.stock }) }, done: `Registrados ${done} ${done === 1 ? 'movimiento' : 'movimientos'}` };
+          return {
+            result: { ok: true, registrados: done, stock_actual: after.map((p) => p && { producto: p.name, stock: p.stock }) },
+            done: done === 1 ? 'Registrado 1 movimiento' : `Registrados ${done} movimientos`,
+            undo: async () => {
+              if (!ctx.can('stock.move')) throw new ToolError('No tenés permiso para registrar movimientos.');
+              await db.transaction('rw', db.products, db.movements, async () => {
+                for (const m of [...created].reverse()) await revertMovement(m);
+              });
+              return `Deshecho: el stock volvió a como estaba (${created.length} ${created.length === 1 ? 'movimiento revertido' : 'movimientos revertidos'})`;
+            },
+          };
         },
       };
     },
@@ -440,7 +463,7 @@ export const TOOLS: ToolDef[] = [
   {
     name: 'cargar_conteo',
     label: 'Preparó cantidades del conteo',
-    description: 'Anota lo contado en un conteo abierto (p. ej. lo que la persona dicta: "12 cocas, 3 cajas de aceite"). Si hay un solo conteo abierto se usa ese. La persona confirma antes de guardar.',
+    description: 'Anota lo contado (p. ej. lo que la persona dicta: "12 cocas, 3 cajas de aceite"). Si hay un solo conteo abierto se usa ese; si no hay ninguno, se empieza uno nuevo con esos productos. La persona confirma antes de guardar.',
     parameters: obj({
       conteo: str('Id o nombre del conteo (opcional si hay uno solo abierto).'),
       cantidades: arr(obj({ producto: str('Referencia o nombre.'), cantidad: num('Cantidad contada.'), unidad: str('"stock" o "compra" (cajas: se multiplica).', ['stock', 'compra']) }, ['producto', 'cantidad']), 'Lo contado.'),
@@ -450,17 +473,16 @@ export const TOOLS: ToolDef[] = [
       const open = (await db.counts.toArray()).filter((c) => c.status === 'abierto');
       const wanted = s(a.conteo);
       let count: InventoryCount | undefined;
-      if (wanted) count = open.find((c) => c.id === wanted || normalize(c.name) === normalize(wanted)) ?? open.find((c) => matches(wanted, c.name));
-      else if (open.length === 1) count = open[0];
-      if (!count) {
-        if (!open.length) throw new ToolError('No hay conteos abiertos. Hay que empezar uno en Conteo.');
-        throw new ToolError(`Hay ${open.length} conteos abiertos: ${open.map((c) => `“${c.name}”`).join(', ')}. Preguntá en cuál anotar.`);
-      }
-      const items = await db.countItems.where('countId').equals(count.id).toArray();
+      if (wanted) {
+        count = open.find((c) => c.id === wanted || normalize(c.name) === normalize(wanted)) ?? open.find((c) => matches(wanted, c.name));
+        if (!count) throw new ToolError(`No hay un conteo abierto que se llame “${wanted}”.${open.length ? ` Abiertos: ${open.map((c) => `“${c.name}”`).join(', ')}.` : ''}`);
+      } else if (open.length === 1) count = open[0];
+      else if (open.length > 1) throw new ToolError(`Hay ${open.length} conteos abiertos: ${open.map((c) => `“${c.name}”`).join(', ')}. Preguntá en cuál anotar.`);
+      // Sin conteo abierto: se empieza uno nuevo sólo con lo que se dictó (después se aplica en Conteo).
+      const items = count ? await db.countItems.where('countId').equals(count.id).toArray() : [];
       const byProduct = new Map(items.map((i) => [i.productId, i]));
       const lk = await lookups();
-      const plan: { itemId: string; qty: number }[] = [];
-      const lines: string[] = [];
+      const plan = new Map<string, { p: Product; qty: number; before?: number }>();
       const notes: string[] = [];
       for (const r of list(a.cantidades)) {
         let p: Product;
@@ -468,23 +490,50 @@ export const TOOLS: ToolDef[] = [
         const raw = n(r.cantidad);
         if (raw === undefined || raw < 0) { notes.push(`Cantidad inválida para “${p.name}”.`); continue; }
         const item = byProduct.get(p.id);
-        if (!item) { notes.push(`“${p.name}” no está en este conteo.`); continue; }
-        const qty = stockQty(p, raw, r.unidad);
-        plan.push({ itemId: item.id, qty });
-        lines.push(`${p.name}: ${fmtNumber(qty)} ${lk.unit(p.unitId)}${item.counted !== undefined ? ` (antes ${fmtNumber(item.counted)})` : ''}`);
+        if (count && !item) { notes.push(`“${p.name}” no está en “${count.name}”.`); continue; }
+        if (plan.has(p.id)) notes.push(`“${p.name}” se dijo dos veces: queda la última cantidad.`);
+        plan.set(p.id, { p, qty: stockQty(p, raw, r.unidad), before: item?.counted });
       }
-      if (!plan.length) throw new ToolError(notes.join(' ') || 'No hay cantidades para anotar.');
+      if (!plan.size) throw new ToolError(notes.join(' ') || 'No hay cantidades para anotar.');
+      const rows = [...plan.values()];
+      const lines = rows.map(({ p, qty, before }) => `${p.name}: ${fmtNumber(qty)} ${lk.unit(p.unitId)}${before !== undefined ? ` (antes ${fmtNumber(before)})` : ''}`);
       return {
-        title: `Anotar en “${count.name}”`,
-        lines, notes,
+        title: count ? `Anotar en “${count.name}”` : `Empezar un conteo nuevo con ${rows.length} ${rows.length === 1 ? 'producto' : 'productos'}`,
+        lines,
+        notes: count ? notes : [...notes, 'No había ningún conteo abierto: se crea uno con estos productos. Para que cambie el stock, después hay que aplicarlo en Conteo.'],
         execute: async () => {
           if (!ctx.can('count.do')) throw new ToolError('Ya no tenés permiso para contar.');
-          const fresh = await db.counts.get(count.id);
-          if (fresh?.status !== 'abierto') throw new ToolError('El conteo ya no está abierto.');
-          for (const x of plan) await setCounted(x.itemId, x.qty);
-          const after = await db.countItems.where('countId').equals(count.id).toArray();
+          let target = count;
+          if (target) {
+            const fresh = await db.counts.get(target.id);
+            if (fresh?.status !== 'abierto') throw new ToolError('El conteo ya no está abierto.');
+          } else {
+            target = await startCount({ name: `Conteo dictado ${new Date().toLocaleDateString('es-AR')}`, productIds: rows.map((r) => r.p.id) });
+          }
+          const its = await db.countItems.where('countId').equals(target.id).toArray();
+          const itemOf = new Map(its.map((i) => [i.productId, i]));
+          const prev = new Map<string, number | undefined>();
+          for (const r of rows) {
+            const it = itemOf.get(r.p.id);
+            if (!it) continue;
+            prev.set(it.id, it.counted);
+            await setCounted(it.id, r.qty);
+          }
+          const after = await db.countItems.where('countId').equals(target.id).toArray();
           const counted = after.filter((i) => i.counted !== undefined).length;
-          return { result: { ok: true, anotados: plan.length, contados: counted, total: after.length }, done: `Anotados ${plan.length} · van ${counted} de ${after.length}` };
+          const created = !count;
+          const countId = target.id;
+          return {
+            result: { ok: true, conteo: target.name, conteo_nuevo: created, anotados: prev.size, contados: counted, total: after.length },
+            done: `${created ? `Conteo “${target.name}” creado. ` : ''}Anotados ${prev.size} · van ${counted} de ${after.length}`,
+            undo: async () => {
+              const c = await db.counts.get(countId);
+              if (c?.status !== 'abierto') throw new ToolError('El conteo ya no está abierto: corregilo desde Conteo.');
+              if (created) { await discardCount(countId); return 'Deshecho: se descartó el conteo nuevo'; }
+              for (const [itemId, v] of prev) await setCounted(itemId, v);
+              return 'Deshecho: las cantidades volvieron a como estaban';
+            },
+          };
         },
       };
     },
@@ -540,7 +589,15 @@ export const TOOLS: ToolDef[] = [
             ...emptyProduct(), name, unitId: unit.id, categoryId: fam?.id, supplierId: sup?.id,
             purchaseFactor: pack > 1 ? pack : 1, purchaseUnitId: pack > 1 ? caja?.id : undefined, minStock: min, maxStock: max,
           });
-          return { result: { ok: true, ref: ctx.refs.add(p.id), nombre: p.name }, done: `Creado “${p.name}”` };
+          return {
+            result: { ok: true, ref: ctx.refs.add(p.id), nombre: p.name }, done: `Creado “${p.name}”`,
+            undo: async () => {
+              const used = (await db.movements.where('productId').equals(p.id).count()) > 0 || (await db.products.toArray()).some((x) => x.recipe?.items.some((i) => i.productId === p.id));
+              if (used) throw new ToolError('Ya se usó (tiene movimientos o está en una receta): desactivalo desde Productos.');
+              await deleteProduct(p.id);
+              return `Deshecho: se borró “${p.name}”`;
+            },
+          };
         },
       };
     },
@@ -590,8 +647,17 @@ export const TOOLS: ToolDef[] = [
           if (!ctx.can('catalog.manage')) throw new ToolError('Ya no tenés permiso para editar productos.');
           const cur = await db.products.get(p.id);
           if (!cur) throw new ToolError('El producto ya no existe.');
+          const before = Object.fromEntries(Object.keys(patch).map((k) => [k, cur[k as keyof Product]])) as Partial<Product>;
           await saveProduct({ ...cur, ...patch });
-          return { result: { ok: true }, done: `Guardado “${patch.name ?? p.name}”` };
+          return {
+            result: { ok: true }, done: `Guardado “${patch.name ?? p.name}”`,
+            undo: async () => {
+              const now = await db.products.get(p.id);
+              if (!now) throw new ToolError('El producto ya no existe.');
+              await saveProduct({ ...now, ...before });
+              return 'Deshecho: el producto volvió a como estaba';
+            },
+          };
         },
       };
     },
@@ -635,8 +701,17 @@ export const TOOLS: ToolDef[] = [
           if (!ctx.can('recipes') && !ctx.can('catalog.manage')) throw new ToolError('Ya no tenés permiso para editar recetas.');
           const cur = await db.products.get(p.id);
           if (!cur) throw new ToolError('El producto ya no existe.');
+          const previous = cur.recipe;
           await saveProduct({ ...cur, recipe: { yield: yieldQty, items } });
-          return { result: { ok: true, insumos: items.length }, done: `Receta guardada (${items.length} insumos)` };
+          return {
+            result: { ok: true, insumos: items.length }, done: `Receta guardada (${items.length} insumos)`,
+            undo: async () => {
+              const now = await db.products.get(p.id);
+              if (!now) throw new ToolError('El producto ya no existe.');
+              await saveProduct({ ...now, recipe: previous });
+              return previous ? 'Deshecho: volvió la receta anterior' : 'Deshecho: el producto quedó sin receta';
+            },
+          };
         },
       };
     },
@@ -661,7 +736,14 @@ export const TOOLS: ToolDef[] = [
         execute: async () => {
           if (!ctx.can('production')) throw new ToolError('Ya no tenés permiso para anotar producción.');
           const r = await registerProduction(p.id, qty);
-          return { result: { ok: true, insumos_descontados: r.consumed.length }, done: `Anotado: ${fmtNumber(qty)} ${lk.unit(p.unitId)} de ${p.name}` };
+          return {
+            result: { ok: true, insumos_descontados: r.consumed.length }, done: `Anotado: ${fmtNumber(qty)} ${lk.unit(p.unitId)} de ${p.name}`,
+            undo: async () => {
+              if (!ctx.can('production')) throw new ToolError('No tenés permiso para anotar producción.');
+              await undoProduction(r.movement);
+              return 'Deshecho: se sacó la producción y volvieron los insumos';
+            },
+          };
         },
       };
     },

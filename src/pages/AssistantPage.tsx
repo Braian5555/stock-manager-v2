@@ -1,5 +1,5 @@
 import {
-  ArrowUp, Camera, Check, CheckCircle2, ClipboardList, Copy, ImagePlus, Loader2, Mic, MicOff, RotateCcw, Sparkles, SquarePen, X, XCircle,
+  ArrowUp, Camera, Check, CheckCircle2, ClipboardList, Copy, ImagePlus, Loader2, Mic, MicOff, RotateCcw, Sparkles, SquarePen, Undo2, X, XCircle,
 } from 'lucide-react';
 import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link } from 'react-router';
@@ -61,7 +61,25 @@ export function AssistantPage() {
     const id = requestAnimationFrame(() => window.scrollTo({ top: document.documentElement.scrollHeight }));
     return () => cancelAnimationFrame(id);
   }, [state.messages.length, state.busy, lastProposals]);
-  useEffect(() => () => recRef.current?.stop(), []);
+  /** Corta el dictado sin que lleguen resultados tarde (si no, reescribe el cuadro ya enviado). */
+  const stopMic = () => {
+    const rec = recRef.current;
+    if (!rec) return;
+    rec.onresult = null;
+    rec.onend = null;
+    rec.onerror = null;
+    recRef.current = null;
+    setListening(false);
+    try { rec.stop(); } catch { /* ya estaba detenido */ }
+  };
+  useEffect(() => () => stopMic(), []);
+  // Altura según el texto (para navegadores sin "field-sizing").
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el || CSS.supports?.('field-sizing', 'content')) return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+  }, [text]);
 
   if (!available) {
     return (
@@ -79,7 +97,7 @@ export function AssistantPage() {
 
   const send = async (value = text) => {
     if (!engine || busy || offline || (!value.trim() && !images.length)) return;
-    recRef.current?.stop();
+    stopMic();
     const imgs = images;
     setText('');
     setImages([]);
@@ -106,7 +124,7 @@ export function AssistantPage() {
   };
 
   const toggleMic = () => {
-    if (listening) { recRef.current?.stop(); return; }
+    if (listening) { recRef.current?.stop(); return; } // termina normal: conserva lo dictado
     const Rec = SpeechRecognition();
     if (!Rec) return;
     const rec = new Rec();
@@ -182,7 +200,8 @@ export function AssistantPage() {
 
         {state.messages.map((m) => (
           <Message key={m.id} m={m} busy={state.busy}
-            onConfirm={() => void engine?.confirm(m.id)} onCancel={() => engine?.cancel(m.id)} onRetry={() => void engine?.retry(m.id)} />
+            onConfirm={() => void engine?.confirm(m.id)} onCancel={() => engine?.cancel(m.id)} onRetry={() => void engine?.retry(m.id)}
+            onUndo={(i) => void engine?.undo(m.id, i)} />
         ))}
         {state.busy && (
           <div className="asst-msg is-ai" role="status">
@@ -208,6 +227,7 @@ export function AssistantPage() {
             ref={inputRef}
             value={text}
             rows={1}
+            maxLength={4000}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); void send(); } }}
             placeholder={listening ? 'Te escucho…' : 'Escribí o dictá lo que necesitás'}
@@ -233,7 +253,7 @@ export function AssistantPage() {
   );
 }
 
-function Message({ m, busy, onConfirm, onCancel, onRetry }: { m: ChatMessage; busy: boolean; onConfirm: () => void; onCancel: () => void; onRetry: () => void }) {
+function Message({ m, busy, onConfirm, onCancel, onRetry, onUndo }: { m: ChatMessage; busy: boolean; onConfirm: () => void; onCancel: () => void; onRetry: () => void; onUndo: (i: number) => void }) {
   const { notify } = useFeedback();
   if (m.role === 'user') {
     return (
@@ -251,11 +271,12 @@ function Message({ m, busy, onConfirm, onCancel, onRetry }: { m: ChatMessage; bu
       {m.text && <div className="asst-text"><RichText text={m.text} /></div>}
       {!!m.proposals?.length && (
         <section className="asst-confirm" aria-label="Cambios para confirmar">
-          {m.proposals.map((p, i) => <ProposalView key={i} p={p} />)}
+          {m.proposals.map((p, i) => <ProposalView key={i} p={p} busy={busy} onUndo={() => onUndo(i)} />)}
           {pending && (
             <div className="row wrap asst-confirm-actions">
               <button type="button" className="btn btn-primary" disabled={busy} onClick={onConfirm}><Check size={17} aria-hidden /> Confirmar</button>
               <button type="button" className="btn" disabled={busy} onClick={onCancel}>Cancelar</button>
+              <span className="small muted asst-confirm-hint">Si escribís otra cosa, esto se cancela.</span>
             </div>
           )}
         </section>
@@ -280,9 +301,11 @@ const STATUS: Record<ChatProposal['status'], { label: string; icon?: ReactNode }
   done: { label: 'Hecho', icon: <CheckCircle2 size={15} aria-hidden /> },
   cancelled: { label: 'Cancelado', icon: <XCircle size={15} aria-hidden /> },
   error: { label: 'No se pudo', icon: <XCircle size={15} aria-hidden /> },
+  undoing: { label: 'Deshaciendo…', icon: <Loader2 size={15} className="spin" aria-hidden /> },
+  undone: { label: 'Deshecho', icon: <Undo2 size={15} aria-hidden /> },
 };
 
-function ProposalView({ p }: { p: ChatProposal }) {
+function ProposalView({ p, busy, onUndo }: { p: ChatProposal; busy: boolean; onUndo: () => void }) {
   const st = STATUS[p.status];
   return (
     <div className={`asst-prop is-${p.status}`}>
@@ -293,6 +316,9 @@ function ProposalView({ p }: { p: ChatProposal }) {
       <ul className="asst-prop-lines">{p.lines.map((l, i) => <li key={i}>{l}</li>)}</ul>
       {p.notes.length > 0 && <ul className="asst-prop-notes">{p.notes.map((l, i) => <li key={i}>{l}</li>)}</ul>}
       {p.result && p.status !== 'pending' && <p className="asst-prop-result">{p.result}</p>}
+      {p.status === 'done' && p.canUndo && (
+        <button type="button" className="btn btn-sm btn-ghost asst-undo" disabled={busy} onClick={onUndo}><Undo2 size={15} aria-hidden /> Deshacer</button>
+      )}
     </div>
   );
 }

@@ -162,7 +162,7 @@ describe('asistente: consultas y cambios', () => {
     const msg = e.getState().messages.at(-1)!;
     expect(msg.proposals?.[0].title).toBe('Anotar en “Conteo sábado”');
     expect(msg.proposals?.[0].lines).toEqual(['Coca-Cola 2,25 L: 12 u', 'Aceite de girasol 900 ml: 36 u']);
-    expect(msg.proposals?.[0].notes[0]).toMatch(/No encontré el producto “Fernet”/);
+    expect(msg.proposals?.[0].notes[0]).toBe("No encontré “Fernet” en el catálogo.");
     await e.confirm(msg.id);
     const items = await db.countItems.where('countId').equals(count.id).toArray();
     expect(items.find((i) => i.productId === coca.id)?.counted).toBe(12);
@@ -240,5 +240,150 @@ describe('precios de compra', () => {
     const p = { id: 'x' } as Product;
     const h = priceHistory([inv('a', '2026-10-01', [{ id: '1', description: 'flete', quantity: 1, unitPrice: 500, status: 'ignored' }, { id: '2', description: 'y', productId: p.id, quantity: 1, status: 'ok', stockQty: 1 }])]);
     expect(h.size).toBe(0);
+  });
+});
+
+describe('asistente: revisión a fondo', () => {
+  it('no adivina productos ambiguos y acepta nombre exacto o código', async () => {
+    await seed();
+    await saveProduct({ ...emptyProduct(), name: 'Coca-Cola 1,5 L', unitId: 'u', sku: 'COC15' });
+    const { resolveProduct, RefMap } = await import('../../src/services/assistant/tools');
+    const ctx = { can: () => true, settings: normalizeSettings(undefined), today: '2026-10-17', refs: new RefMap(await db.products.toArray()) };
+    await expect(resolveProduct('coca cola', ctx)).rejects.toThrow(/No sé cuál es “coca cola”: puede ser .*Coca-Cola 2,25 L.*Coca-Cola 1,5 L|No sé cuál es “coca cola”: puede ser .*Coca-Cola 1,5 L.*Coca-Cola 2,25 L/);
+    expect((await resolveProduct('coca-cola 1,5 l', ctx)).name).toBe('Coca-Cola 1,5 L');
+    expect((await resolveProduct('COC15', ctx)).name).toBe('Coca-Cola 1,5 L');
+    expect((await resolveProduct('harina 000 kg', ctx)).name).toBe('Harina 000');
+    await expect(resolveProduct('Fernet', ctx)).rejects.toThrow('No encontré “Fernet” en el catálogo.');
+  });
+
+  it('deshacer: el stock vuelve, y la IA se entera en el próximo mensaje', async () => {
+    const { aceite } = await seed();
+    const { transport, requests } = scripted([
+      call({ name: 'registrar_movimientos', args: { movimientos: [{ producto: 'Aceite de girasol 900 ml', tipo: 'ingreso', cantidad: 2, unidad: 'compra' }, { producto: 'Fernet', tipo: 'ingreso', cantidad: 1 }] } }),
+      say('Listo, cargué el aceite. No encontré el Fernet.'),
+      say('Ok.'),
+    ]);
+    const e = engine(ROLE_PERMISSIONS.manager, transport);
+    await e.send('Llegaron 2 cajas de aceite y un fernet');
+    const msg = e.getState().messages.at(-1)!;
+    await e.confirm(msg.id);
+    // Lo que no se encontró se le informa a la IA junto con el resultado.
+    expect(lastResponse(requests[1]).avisos).toEqual(['No encontré “Fernet” en el catálogo.']);
+    expect((await db.products.get(aceite.id))?.stock).toBe(24);
+    expect(e.getState().messages.find((m) => m.id === msg.id)?.proposals?.[0].canUndo).toBe(true);
+    await e.undo(msg.id, 0);
+    expect((await db.products.get(aceite.id))?.stock).toBe(0);
+    const prop = e.getState().messages.find((m) => m.id === msg.id)?.proposals?.[0];
+    expect(prop).toMatchObject({ status: 'undone', canUndo: false });
+    await e.undo(msg.id, 0); // dos veces: no hace nada
+    expect((await db.products.get(aceite.id))?.stock).toBe(0);
+    await e.send('gracias');
+    const last = requests[2].contents.at(-1)!;
+    expect(last.parts[0].text).toMatch(/^\[Aviso de la app.*deshizo “Registrar 1 movimiento”/);
+    expect(last.parts.at(-1)).toEqual({ text: 'gracias' });
+  });
+
+  it('conteo dictado sin conteo abierto: crea uno con esos productos (y se puede deshacer)', async () => {
+    const { coca } = await seed();
+    const { transport } = scripted([
+      call({ name: 'cargar_conteo', args: { cantidades: [{ producto: 'Coca-Cola 2,25 L', cantidad: 10 }, { producto: 'Coca-Cola 2,25 L', cantidad: 12 }] } }),
+      say('Listo.'),
+    ]);
+    const e = engine(ROLE_PERMISSIONS.staff, transport);
+    await e.send('conté 10 cocas, no, 12');
+    const msg = e.getState().messages.at(-1)!;
+    expect(msg.proposals?.[0].title).toBe('Empezar un conteo nuevo con 1 producto');
+    expect(msg.proposals?.[0].lines).toEqual(['Coca-Cola 2,25 L: 12 u']);
+    expect(msg.proposals?.[0].notes.join(' ')).toMatch(/se dijo dos veces.*No había ningún conteo abierto/);
+    await e.confirm(msg.id);
+    const [count] = (await db.counts.toArray()).filter((c) => c.status === 'abierto');
+    expect(count.name).toMatch(/^Conteo dictado/);
+    const items = await db.countItems.where('countId').equals(count.id).toArray();
+    expect(items).toHaveLength(1);
+    expect(items[0]).toMatchObject({ productId: coca.id, counted: 12 });
+    await e.undo(msg.id, 0);
+    expect((await db.counts.get(count.id))?.status).toBe('descartado');
+  });
+
+  it('respuesta vacía o mal armada: reintenta una vez y si se repite avisa', async () => {
+    await seed();
+    const empty = { candidates: [{ content: { role: 'model', parts: [] }, finishReason: 'STOP' }] };
+    const malformed = { candidates: [{ finishReason: 'MALFORMED_FUNCTION_CALL' }] };
+    const a = scripted([empty, say('Hola!')]);
+    const e1 = engine(ROLE_PERMISSIONS.manager, a.transport);
+    await e1.send('hola');
+    expect(e1.getState().messages.at(-1)?.text).toBe('Hola!');
+    expect(a.requests).toHaveLength(2);
+    const b = scripted([malformed, malformed]);
+    const e2 = engine(ROLE_PERMISSIONS.manager, b.transport);
+    await e2.send('hola');
+    expect(e2.getState().messages.at(-1)).toMatchObject({ error: true, text: 'La IA armó mal el pedido.' });
+    expect(e2.getState().messages[0].retry?.text).toBe('hola');
+  });
+
+  it('si le sacan el permiso mientras espera confirmación, no aplica nada', async () => {
+    const { harina } = await seed();
+    const { transport } = scripted([call({ name: 'registrar_movimientos', args: { movimientos: [{ producto: 'Harina 000', tipo: 'salida', cantidad: 5 }] } }), say('No se pudo.')]);
+    let perms = new Set<Permission>(ROLE_PERMISSIONS.manager);
+    const e = new AssistantEngine({ user: { name: 'Nico', role: 'custom' }, can: (p) => perms.has(p), permissions: [...perms], settings: normalizeSettings(undefined), transport, today: () => '2026-10-17' });
+    await e.send('Sacá 5 kilos de harina');
+    perms = new Set<Permission>(ROLE_PERMISSIONS.staff);
+    e.setDeps({ user: { name: 'Nico', role: 'custom' }, can: (p) => perms.has(p), permissions: [...perms], settings: normalizeSettings(undefined), transport, today: () => '2026-10-17' });
+    const msg = e.getState().messages.at(-1)!;
+    await e.confirm(msg.id);
+    expect(e.getState().messages.find((m) => m.id === msg.id)?.proposals?.[0].status).toBe('error');
+    expect((await db.products.get(harina.id))?.stock).toBe(50);
+  });
+
+  it('el catálogo no se rompe con nombres raros', async () => {
+    await seed();
+    await saveProduct({ ...emptyProduct(), name: 'Vino | tinto\nmalbec', unitId: 'u' });
+    const { transport, requests } = scripted([say('ok')]);
+    await engine(ROLE_PERMISSIONS.manager, transport).send('hola');
+    expect(requests[0].systemInstruction.parts[0].text).toMatch(/^p\d+\|Vino tinto malbec\|u\|\|$/m);
+  });
+});
+
+describe('facturas: equivalencias y precios (revisión)', () => {
+  it('un texto de factura queda en un solo producto, y no se aprenden textos genéricos', async () => {
+    await seed();
+    const a = await saveProduct({ ...emptyProduct(), name: 'Agua mineral 500 ml', unitId: 'u' });
+    const b = await saveProduct({ ...emptyProduct(), name: 'Agua con gas 500 ml', unitId: 'u' });
+    const { learnFromInvoice, learnableAlias } = await import('../../src/services/invoiceStock');
+    const item = (productId: string, description: string) => ({ id: description, description, quantity: 1, status: 'ok' as const, productId, stockQty: 1 });
+    await learnFromInvoice([item(a.id, 'AGUA VILLAVICENCIO 500')]);
+    expect((await db.products.get(a.id))?.invoiceAliases).toEqual(['agua villavicencio 500']);
+    // Corrección: ese texto era el agua con gas.
+    await learnFromInvoice([item(b.id, 'AGUA VILLAVICENCIO 500')]);
+    expect((await db.products.get(a.id))?.invoiceAliases).toEqual([]);
+    expect((await db.products.get(b.id))?.invoiceAliases).toEqual(['agua villavicencio 500']);
+    await learnFromInvoice([item(a.id, 'VARIOS'), item(a.id, 'FLETE'), item(a.id, 'X 12')]);
+    expect((await db.products.get(a.id))?.invoiceAliases).toEqual([]);
+    expect(learnableAlias('promo coca')).toBe(true);
+    expect(learnableAlias('promo')).toBe(false);
+  });
+
+  it('los precios sólo salen de renglones confirmados', () => {
+    const inv = (id: string, date: string, status: 'ok' | 'check'): Invoice => ({ id, date, pages: [], createdAt: t, updatedAt: t, items: [{ id: `${id}1`, description: 'x', productId: 'p', quantity: 1, unitPrice: id === 'a' ? 100 : 500, stockQty: 1, status }] } as Invoice);
+    expect(priceHistory([inv('a', '2026-10-01', 'ok'), inv('b', '2026-10-02', 'check')]).get('p')).toHaveLength(1);
+    expect(priceIncreases([inv('a', '2026-10-01', 'ok'), inv('b', '2026-10-02', 'check')])).toHaveLength(0);
+  });
+});
+
+describe('misma mercadería cargada dos veces (remito y factura)', () => {
+  it('avisa en la factura si ya entró por remito, y en el remito si ya entró por factura', async () => {
+    const { aceite } = await seed();
+    const { doubleLoadWarning } = await import('../../src/services/invoiceStock');
+    const { applyMovement } = await import('../../src/services/stockService');
+    const items = [{ id: 'i1', description: 'ACEITE', quantity: 2, unit: 'caja', productId: aceite.id, stockQty: 24, status: 'ok' as const }];
+    expect(await doubleLoadWarning('inv1', items)).toBeUndefined();
+    await applyMovement({ productId: aceite.id, type: 'ingreso', delta: 24, origin: 'asistente', reason: 'Remito 0001-77', idempotencyKey: 'ia:x:0:0' });
+    expect(await doubleLoadWarning('inv1', items)).toMatch(/Aceite de girasol 900 ml \(\+24 el .*Remito 0001-77\)/);
+
+    await applyMovement({ productId: aceite.id, type: 'ingreso', delta: 12, origin: 'factura', reason: 'Factura A-9', refId: 'inv9', idempotencyKey: 'factura:inv9:i1' });
+    const { transport } = scripted([call({ name: 'registrar_movimientos', args: { movimientos: [{ producto: 'Aceite de girasol 900 ml', tipo: 'ingreso', cantidad: 1, unidad: 'compra' }] } })]);
+    const e = engine(ROLE_PERMISSIONS.manager, transport);
+    await e.send('Llegó una caja de aceite');
+    expect(e.getState().messages.at(-1)?.proposals?.[0].notes[0]).toMatch(/ya entró por Factura A-9 el .*\(\+12\): fijate que no sea la misma mercadería/);
   });
 });

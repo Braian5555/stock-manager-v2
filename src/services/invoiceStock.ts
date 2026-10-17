@@ -7,7 +7,7 @@
  * - Deshacer revierte esos ingresos con ajustes inversos (no se borra historia).
  */
 import { db } from '../database/db';
-import type { Invoice, InvoiceItem, Product, Unit } from '../models';
+import type { Invoice, InvoiceItem, MovementOrigin, Product, Unit } from '../models';
 import { normalize, round3 } from '../utils/format';
 import { nowIso } from '../utils/id';
 import { aliasKey, isPackUnit, needsPackSize, toStockQty, type CatalogLookups } from './invoiceAI';
@@ -109,8 +109,13 @@ export async function learnFromInvoice(items: InvoiceItem[] = []): Promise<numbe
     if (!p) continue;
     const key = aliasKey(item.description);
     const patch: Partial<Product> = {};
-    if (key && !(p.invoiceAliases ?? []).includes(key) && normalize(p.name) !== normalize(item.description)) {
+    if (learnableAlias(key) && !(p.invoiceAliases ?? []).includes(key) && normalize(p.name) !== normalize(item.description)) {
       patch.invoiceAliases = [key, ...(p.invoiceAliases ?? [])].slice(0, MAX_ALIASES);
+      // Un texto de factura corresponde a un solo producto: si antes se había asignado a otro
+      // (una corrección), se le quita a ese.
+      for (const other of (await db.products.toArray()).filter((x) => x.id !== p.id && x.invoiceAliases?.includes(key))) {
+        await db.products.update(other.id, { invoiceAliases: other.invoiceAliases!.filter((k) => k !== key), updatedAt: nowIso() });
+      }
     }
     if (isPackUnit(item.unit) && item.packSize && item.packSize > 1 && !(p.purchaseFactor > 1)) {
       patch.purchaseFactor = item.packSize;
@@ -122,6 +127,16 @@ export async function learnFromInvoice(items: InvoiceItem[] = []): Promise<numbe
     }
   }
   return changed;
+}
+
+/** Palabras que no identifican un producto: no se aprenden ("VARIOS", "FLETE", "PROMO"…). */
+const GENERIC = new Set(['varios', 'varias', 'flete', 'fletes', 'envio', 'promo', 'promocion', 'bonificacion', 'bonif', 'descuento', 'dto', 'envase', 'envases', 'retornable', 'retornables', 'articulo', 'articulos', 'producto', 'productos', 'mercaderia', 'item', 'otros', 'iva', 'percepcion', 'redondeo']);
+
+/** El texto alcanza para reconocer el producto la próxima vez (no es genérico ni muy corto). */
+export function learnableAlias(key: string): boolean {
+  const words = key.split(' ').filter(Boolean);
+  const meaningful = words.filter((w) => /[a-z]{3,}/.test(w) && !GENERIC.has(w));
+  return key.length >= 5 && meaningful.length >= 1 && !(words.length === 1 && GENERIC.has(words[0]));
 }
 
 /** Unidad de compra para un renglón en cajas o bultos (la "Caja" de base si no hay una más parecida). */
@@ -166,7 +181,7 @@ export async function createProductFromLine(item: InvoiceItem, data: NewProductF
     purchaseFactor: pack,
     purchaseUnitId: pack > 1 ? packUnitId(units, item.unit) : undefined,
     supplierId: data.supplierId || undefined,
-    invoiceAliases: [aliasKey(item.description)].filter(Boolean),
+    invoiceAliases: [aliasKey(item.description)].filter(learnableAlias),
   });
   return { product, item: { ...item, productId: product.id, packSize: given ?? item.packSize, stockQty: toStockQty(item.quantity, item.unit, product, lk, pack), status: 'ok' } };
 }
@@ -174,3 +189,33 @@ export async function createProductFromLine(item: InvoiceItem, data: NewProductF
 /** Texto para mostrar el estado de carga de una factura. */
 export const stockState = (inv: Pick<Invoice, 'items' | 'stockAppliedAt'>) =>
   inv.stockAppliedAt ? 'cargada' : !inv.items?.length ? 'sin-renglones' : pendingItems(inv.items).length ? 'a-revisar' : 'lista';
+
+export interface RecentEntry { productId: string; name: string; qty: number; at: string; origin: MovementOrigin; reason?: string }
+
+/**
+ * Ingresos recientes (no deshechos) de estos productos con ciertos orígenes. Sirve para avisar
+ * si la misma mercadería podría cargarse dos veces: por remito (asistente o a mano) y por factura.
+ */
+export async function recentIngresos(productIds: string[], origins: MovementOrigin[], days = 10, excludeRef?: string): Promise<RecentEntry[]> {
+  const ids = [...new Set(productIds)];
+  if (!ids.length) return [];
+  const since = new Date(Date.now() - days * 86_400_000).toISOString();
+  const ms = await db.movements.where('productId').anyOf(ids).toArray();
+  const undone = new Set(ms.filter((m) => m.idempotencyKey?.startsWith('undo:')).map((m) => m.idempotencyKey.slice(5)));
+  return ms
+    .filter((m) => m.type === 'ingreso' && m.createdAt >= since && origins.includes(m.origin) && !undone.has(m.id) && !m.outletId && (!excludeRef || m.refId !== excludeRef))
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .map((m) => ({ productId: m.productId, name: m.productName ?? '', qty: m.delta, at: m.createdAt, origin: m.origin, reason: m.reason }));
+}
+
+/** Aviso antes de cargar una factura: lo mismo pudo haber entrado ya por remito en estos días. */
+export async function doubleLoadWarning(invoiceId: string | undefined, items: InvoiceItem[] = []): Promise<string | undefined> {
+  const recent = await recentIngresos(loadableItems(items).map((i) => i.productId!), ['asistente', 'manual'], 10, invoiceId);
+  if (!recent.length) return undefined;
+  const byProduct = new Map<string, RecentEntry>();
+  for (const r of recent) if (!byProduct.has(r.productId)) byProduct.set(r.productId, r);
+  const list = [...byProduct.values()].slice(0, 5).map((r) => `${r.name} (+${fmtQty(r.qty)} el ${new Date(r.at).toLocaleDateString('es-AR')}${r.reason ? `, ${r.reason}` : ''})`);
+  return `En los últimos días ya entró mercadería de: ${list.join('; ')}${byProduct.size > 5 ? ` y ${byProduct.size - 5} más` : ''}. Si es la misma de esta factura, no la cargues de nuevo.`;
+}
+
+const fmtQty = (n: number) => String(round3(n)).replace('.', ',');

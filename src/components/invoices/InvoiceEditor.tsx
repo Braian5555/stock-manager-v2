@@ -7,7 +7,7 @@ import type { Invoice, InvoiceItem } from '../../models';
 import { compressImage } from '../../services/imageService';
 import { getInvoiceImage, MAX_PAGES, newPageId, saveInvoice, type PageDraft } from '../../services/invoiceService';
 import { pendingCount, readInvoicePhotos } from '../../services/invoiceAI';
-import { applyInvoiceToStock, learnFromInvoice, loadableItems } from '../../services/invoiceStock';
+import { applyInvoiceToStock, doubleLoadWarning, learnFromInvoice, loadableItems } from '../../services/invoiceStock';
 import { useSession } from '../../store/session';
 import { useCloud } from '../../cloud/cloudService';
 import { useSettings } from '../../store/settings';
@@ -133,6 +133,10 @@ export function InvoiceEditor({ open, onClose, invoice, defaults, onSaved, autoR
   const canLoad = !applied && can('stock.move') && !!items?.length && pending === 0 && loadableItems(items).length > 0;
 
   const save = async (load = false) => {
+    if (load) {
+      const warning = await doubleLoadWarning(invoice?.id, items);
+      if (warning && !(await confirm({ title: 'Puede estar repetida', message: warning, confirmLabel: 'Cargar igual' }))) return;
+    }
     setSaving(true);
     const saved = await run(
       async () => {

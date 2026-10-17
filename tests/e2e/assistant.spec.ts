@@ -102,6 +102,10 @@ test('asistente: consulta, foto de remito con confirmación y conversación que 
   await expect(card).toContainText('Hecho');
   expect(await stockOf(page, 'Aceite de girasol 900 ml')).toBe(before! + 24);
   await expect(card.getByRole('button', { name: 'Confirmar' })).toHaveCount(0);
+  // Si la IA se equivocó, se deshace ahí mismo.
+  await card.getByRole('button', { name: 'Deshacer' }).click();
+  await expect(card).toContainText('Deshecho: el stock volvió a como estaba');
+  expect(await stockOf(page, 'Aceite de girasol 900 ml')).toBe(before);
 
   // Queda en el historial como hecho por el asistente.
   await go(page, '/movimientos');

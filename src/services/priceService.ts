@@ -21,7 +21,8 @@ export interface PricePoint {
 
 /** Costo por unidad de stock de un renglón (undefined si falta el precio o la cantidad). */
 export function itemCost(item: InvoiceItem): number | undefined {
-  if (item.status === 'ignored' || !item.productId) return undefined;
+  // Sólo renglones confirmados: una sugerencia sin revisar podría ser otro producto.
+  if (item.status !== 'ok' || !item.productId) return undefined;
   const total = item.lineTotal != null && item.lineTotal > 0 ? item.lineTotal : item.unitPrice != null && item.quantity > 0 ? item.unitPrice * item.quantity : undefined;
   const qty = item.stockQty;
   if (total === undefined || !qty || qty <= 0) return undefined;
