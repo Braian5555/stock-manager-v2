@@ -98,7 +98,7 @@ export interface Recipe {
 export const MOVEMENT_TYPES = ['ingreso', 'salida', 'ajuste', 'conteo', 'devolucion', 'perdida', 'consumo', 'produccion'] as const;
 export type MovementType = (typeof MOVEMENT_TYPES)[number];
 
-export type MovementOrigin = 'manual' | 'conteo' | 'pedido' | 'importacion' | 'sincronizacion' | 'deshacer' | 'alta' | 'remito' | 'factura';
+export type MovementOrigin = 'manual' | 'conteo' | 'pedido' | 'importacion' | 'sincronizacion' | 'deshacer' | 'alta' | 'remito' | 'factura' | 'asistente';
 export type SourceSystem = 'local' | ExternalSystemId | 'excel';
 
 export interface StockMovement extends BaseEntity {

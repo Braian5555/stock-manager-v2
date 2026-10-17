@@ -114,7 +114,7 @@ function geminiError(status: number, body: unknown): Error {
 
 /** Qué IA tiene configurada el servidor (se consulta una vez cada 10 minutos). */
 const providerCache = new Map<string, { provider: 'gemini' | 'anthropic'; until: number }>();
-async function workerProvider(url: string): Promise<'gemini' | 'anthropic'> {
+export async function workerProvider(url: string): Promise<'gemini' | 'anthropic'> {
   const hit = providerCache.get(url);
   if (hit && hit.until > Date.now()) return hit.provider;
   const r = await testReader(url);

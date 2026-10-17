@@ -104,6 +104,11 @@ test('cuenta con email y contraseña: los datos vuelven al entrar desde un naveg
   await page.getByRole('button', { name: 'Cargar datos de ejemplo' }).click();
   await expect(page.getByText('Datos de ejemplo cargados')).toBeVisible();
 
+  // Espera a que la subida termine (los datos de ejemplo se suben en segundo plano).
+  await expect.poll(() => page.evaluate(() => {
+    const s = (globalThis as unknown as { __smFakeCloud: { data: Map<string, Map<string, unknown>> } }).__smFakeCloud;
+    return JSON.stringify([...s.data].map(([k, v]) => [k, [...v]])).includes('Sal fina');
+  }), { timeout: 15_000 }).toBe(true);
   // Simula otro navegador/dispositivo (almacenamiento vacío) con la misma "nube".
   const snapshot = await page.evaluate(() => {
     const s = (globalThis as unknown as { __smFakeCloud: { workspaces: Map<string, unknown>; data: Map<string, Map<string, unknown>>; accounts: Map<string, unknown> } }).__smFakeCloud;

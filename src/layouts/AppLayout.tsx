@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight, CloudOff, HelpCircle, LayoutGrid, Search, UploadCloud } from 'lucide-react';
+import { ChevronLeft, ChevronRight, CloudOff, HelpCircle, LayoutGrid, Search, Sparkles, UploadCloud } from 'lucide-react';
 import { Suspense, useEffect, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router';
 import { GlobalSearch } from '../components/GlobalSearch';
@@ -13,6 +13,7 @@ import { useAutoSync } from '../hooks/useAutoSync';
 import { SyncBadge } from '../components/SyncBadge';
 import { UserMenu } from '../components/auth/UserMenu';
 import { useSession } from '../store/session';
+import { useAssistantAvailable } from '../store/assistant';
 import type { ModuleKey } from '../models';
 
 /**
@@ -71,6 +72,7 @@ export function AppLayout() {
   const connected = integration && integration.mode !== 'disabled' && integration.mode !== 'excel' && integration.status !== 'desconectado';
   // En el Inicio los accesos ya están en la pantalla: sin barra lateral (en las demás, sí).
   const isHome = location.pathname === '/';
+  const assistant = useAssistantAvailable();
 
   return (
     <div className={`app ${collapsed ? 'side-collapsed' : ''} ${isHome ? 'no-side' : ''}`}>
@@ -93,11 +95,17 @@ export function AppLayout() {
             <kbd className="search-trigger-kbd">Ctrl K</kbd>
           </button>
         )}
+        {assistant && (
+          <NavLink to="/asistente" className="asst-trigger" aria-label="Asistente IA" title="Asistente IA">
+            <Sparkles size={18} aria-hidden />
+            <span className="asst-trigger-text">Asistente</span>
+          </NavLink>
+        )}
         <SyncBadge compact />
         <UserMenu />
       </header>
 
-      {!isHome && <Sidebar sections={sections} active={section?.key ?? (/^\/(ayuda|acerca)/.test(location.pathname) ? 'ayuda' : undefined)} collapsed={collapsed} onToggle={toggleSidebar} />}
+      {!isHome && <Sidebar sections={sections} assistant={assistant} active={section?.key ?? (/^\/(ayuda|acerca)/.test(location.pathname) ? 'ayuda' : location.pathname.startsWith('/asistente') ? 'asistente' : undefined)} collapsed={collapsed} onToggle={toggleSidebar} />}
       {section && section.tabs.length > 1 && <SectionTabs tabs={section.tabs} label={section.label} />}
 
       <UpdatePrompt />
@@ -159,7 +167,7 @@ function writeCollapsed(v: boolean) {
 }
 
 /** Barra lateral (computadora): una entrada por sección; abajo, Configuración y Ayuda. */
-function Sidebar({ sections, active, collapsed, onToggle }: { sections: VisibleSection[]; active?: string; collapsed: boolean; onToggle: () => void }) {
+function Sidebar({ sections, active, collapsed, onToggle, assistant }: { sections: VisibleSection[]; active?: string; collapsed: boolean; onToggle: () => void; assistant: boolean }) {
   const settings = useSettings();
   const item = (sec: VisibleSection) => {
     const Icon = sec.icon;
@@ -183,6 +191,12 @@ function Sidebar({ sections, active, collapsed, onToggle }: { sections: VisibleS
       </div>
       <nav className="side-nav" aria-label="Navegación principal">
         {sections.filter((s) => !s.bottom).map(item)}
+        {assistant && (
+          <Link to="/asistente" className={`side-item ${active === 'asistente' ? 'active' : ''}`} aria-current={active === 'asistente' ? 'page' : undefined} title={collapsed ? 'Asistente IA' : undefined}>
+            <Sparkles size={20} aria-hidden />
+            <span className="side-label">Asistente IA</span>
+          </Link>
+        )}
         <span className="grow" />
         {sections.filter((s) => s.bottom).map(item)}
         <Link to="/ayuda" className={`side-item ${active === 'ayuda' ? 'active' : ''}`} title={collapsed ? 'Ayuda' : undefined}>

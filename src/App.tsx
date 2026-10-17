@@ -36,6 +36,7 @@ const ReportsPage = lazyPage(() => import('./pages/ReportsPage'), 'ReportsPage')
 const HelpPage = lazyPage(() => import('./pages/HelpPages'), 'HelpPage');
 const AboutPage = lazyPage(() => import('./pages/HelpPages'), 'AboutPage');
 const MovementsPage = lazyPage(() => import('./pages/MovementsPage'), 'MovementsPage');
+const AssistantPage = lazyPage(() => import('./pages/AssistantPage'), 'AssistantPage');
 
 /**
  * HashRouter: las rutas viven después de "#", así GitHub Pages siempre sirve
@@ -102,6 +103,7 @@ export function App() {
                 <Route path="configuracion" element={<Guard module="settings"><SettingsPage /></Guard>} />
                 <Route path="configuracion/:section" element={<Guard module="settings"><SettingsPage /></Guard>} />
                 <Route path="reportes" element={<Guard module="reports"><ReportsPage /></Guard>} />
+                <Route path="asistente" element={<AssistantPage />} />
                 <Route path="ayuda" element={<HelpPage />} />
                 <Route path="acerca" element={<AboutPage />} />
                 <Route path="integraciones" element={<Guard module="integrations"><IntegrationsPage /></Guard>} />

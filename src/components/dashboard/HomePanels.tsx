@@ -1,6 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
-  AlertTriangle, ArrowDownToLine, ArrowUpFromLine, ChefHat, ChevronRight, ClipboardCheck, History, Receipt, RotateCcw, Scale, Store,
+  AlertTriangle, ArrowDownToLine, ArrowUpFromLine, ChefHat, ChevronRight, ClipboardCheck, History, Receipt, RotateCcw, Scale, Store, TrendingUp,
   type LucideIcon,
 } from 'lucide-react';
 import { useMemo, type ReactNode } from 'react';
@@ -11,6 +11,7 @@ import { startOfDayIso, useToday } from '../../hooks/useToday';
 import type { Invoice, MovementType, Product, StockStatus } from '../../models';
 import { planOf, productionFamilyIds, ymdAdd } from '../../services/bakeryService';
 import { MOVEMENT_LABEL, statusOf } from '../../services/stockService';
+import { priceIncreases } from '../../services/priceService';
 import { useSettings } from '../../store/settings';
 import { fmtDay, fmtMoney, fmtNumber, fmtSigned, fmtTime, localYmd } from '../../utils/format';
 
@@ -247,6 +248,38 @@ export function InvoicesWeekCard({ d, limit = 5 }: { d: HomePanels; limit?: numb
         </>
       )}
       {d.week.length > limit && <More to="/facturas">Ver las {d.week.length} facturas</More>}
+    </Panel>
+  );
+}
+
+/** Aumentos de precios: productos cuya última compra (últimos 30 días) salió más cara que la anterior. */
+export function PriceIncreasesCard({ limit = 5 }: { limit?: number }) {
+  const products = useProducts();
+  const lk = useLookups();
+  const today = useToday();
+  const invoices = (useLiveQuery(() => db.invoices.toArray(), []) ?? EMPTY) as Invoice[];
+  const ups = useMemo(() => priceIncreases(invoices, { sinceYmd: ymdAdd(today, -30), minPct: 5 }), [invoices, today]);
+  if (!ups.length) return null;
+  const byId = new Map(products.map((p) => [p.id, p]));
+  return (
+    <Panel id="home-precios" icon={TrendingUp} tone="rose" title="Aumentos de precios">
+      <ul className="hm-list">
+        {ups.slice(0, limit).map((c) => {
+          const p = byId.get(c.productId);
+          return (
+            <li key={c.productId}>
+              <div className="hm-row">
+                <div className="grow">
+                  <div className="hm-row-title truncate">{p?.name ?? 'Producto'}</div>
+                  <div className="hm-row-sub">{fmtMoney(c.previous.costPerUnit)} → {fmtMoney(c.current.costPerUnit)} por {lk.unit(p?.unitId) || 'u'} · {lk.supplier(c.current.supplierId) || fmtDay(c.current.date)}</div>
+                </div>
+                <strong className="num hm-up">+{fmtNumber(Math.round(c.pct))}%</strong>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+      {ups.length > limit && <p className="hm-empty">Y {ups.length - limit} más. Preguntale al asistente por el detalle.</p>}
     </Panel>
   );
 }

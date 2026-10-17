@@ -1,0 +1,136 @@
+import { expect, test, type Page } from '@playwright/test';
+import { mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { dialog, go, loadDemo } from './helpers';
+
+const WORKER = 'https://stock-manager-ia.ejemplo.workers.dev';
+const JPEG = '/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/wAALCAABAAEBAREA/8QAFAABAAAAAAAAAAAAAAAAAAAACf/EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAD8AKp//2Q==';
+
+type Part = { text?: string; inlineData?: unknown; functionCall?: { name: string }; functionResponse?: { name: string; response: Record<string, unknown> } };
+type Req = { systemInstruction: { parts: { text: string }[] }; contents: { role: string; parts: Part[] }[]; tools: { functionDeclarations: { name: string }[] }[] };
+const reply = (parts: unknown[]) => JSON.stringify({ candidates: [{ content: { role: 'model', parts }, finishReason: 'STOP' }] });
+
+/** Gemini simulado: responde según el último mensaje, como lo haría la IA de verdad. */
+async function fakeGemini(page: Page, log: Req[]) {
+  await page.route(`${WORKER}/**`, async (r) => {
+    const req = r.request();
+    if (req.method() === 'GET') return r.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true, service: 'stock-manager-invoice-reader', configured: true, provider: 'gemini', model: 'gemini-3.8-flash' }) });
+    expect(req.headers().authorization).toBe('Bearer fake-id-token');
+    const body = req.postDataJSON() as Req;
+    log.push(body);
+    const last = body.contents[body.contents.length - 1];
+    const text = last.parts.find((p) => p.text)?.text ?? '';
+    const resp = last.parts.find((p) => p.functionResponse)?.functionResponse;
+    const ref = (name: string) => new RegExp(`^(p\\d+)\\|${name}\\|`, 'm').exec(body.systemInstruction.parts[0].text)?.[1];
+    let parts: unknown[];
+    if (resp?.name === 'reponer') {
+      const provs = (resp.response.resultado as { proveedores: { proveedor: string; productos: { nombre: string; pedir: string }[] }[] }).proveedores;
+      parts = [{ text: `Para reponer:\n${provs.flatMap((p) => p.productos.map((x) => `- **${x.nombre}**: pedir ${x.pedir}`)).join('\n')}` }];
+    } else if (resp?.name === 'registrar_movimientos') {
+      parts = [{ text: resp.response.error ? `No se pudo: ${resp.response.error}` : 'Listo, cargué el remito.' }];
+    } else if (/reponer/i.test(text)) {
+      parts = [{ functionCall: { name: 'reponer', args: {} }, thoughtSignature: 'sig-1' }];
+    } else if (/remito/i.test(text) && last.parts.some((p) => p.inlineData)) {
+      parts = [{ text: 'Leí el remito: 2 cajas de aceite.' }, { functionCall: { name: 'registrar_movimientos', args: { referencia: 'Remito 0001-77', movimientos: [{ producto: ref('Aceite de girasol 900 ml'), tipo: 'ingreso', cantidad: 2, unidad: 'compra' }] } }, thoughtSignature: 'sig-2' }];
+    } else {
+      parts = [{ text: 'Hola, ¿en qué te ayudo?' }];
+    }
+    return r.fulfill({ contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: reply(parts) });
+  });
+}
+
+async function setup(page: Page) {
+  await page.route('**/firebase-config.json', (r) => r.fulfill({ contentType: 'application/json', body: JSON.stringify({ provider: 'fake' }) }));
+  await loadDemo(page);
+  // Sin IA configurada no aparece el asistente.
+  await expect(page.getByRole('link', { name: 'Asistente IA' })).toHaveCount(0);
+  await go(page, '/nube');
+  await page.getByRole('button', { name: 'Entrar con una cuenta de Google' }).click();
+  await page.getByRole('button', { name: 'Crear y subir mis datos' }).click();
+  await dialog(page).getByRole('button', { name: 'Crear y subir datos' }).click();
+  await expect(page.getByText('Sincronizado').first()).toBeVisible();
+  await go(page, '/configuracion');
+  await page.getByRole('link', { name: /Lectura con IA/ }).first().click();
+  await page.getByLabel(/^Dirección del servidor/).fill(WORKER);
+  await page.getByRole('button', { name: 'Guardar' }).click();
+  await expect(page.getByText('Conectado con Gemini (Google)')).toBeVisible();
+}
+
+const stockOf = (page: Page, name: string) => page.evaluate((n) => new Promise<number | undefined>((res) => {
+  const r = indexedDB.open('stock-manager');
+  r.onsuccess = () => {
+    const q = r.result.transaction('products').objectStore('products').getAll();
+    q.onsuccess = () => res((q.result as { name: string; stock: number }[]).find((p) => p.name === n)?.stock);
+  };
+}), name);
+
+test('asistente: consulta, foto de remito con confirmación y conversación que sigue al cambiar de pantalla', async ({ page }) => {
+  const log: Req[] = [];
+  await fakeGemini(page, log);
+  await setup(page);
+
+  // Se abre desde el encabezado (y también está en el Inicio).
+  await go(page, '/');
+  await expect(page.getByRole('navigation', { name: 'Acciones rápidas' }).getByRole('link', { name: /Asistente IA/ })).toBeVisible();
+  await page.getByRole('link', { name: 'Asistente IA' }).first().click();
+  await expect(page).toHaveURL(/#\/asistente$/);
+  await expect(page.getByRole('heading', { name: 'Asistente' })).toBeVisible();
+
+  // 1) Consulta con una idea sugerida: usa datos reales (sugerencia de pedido).
+  await page.getByRole('button', { name: '¿Qué tengo que reponer?' }).click();
+  const thread = page.getByRole('log', { name: 'Conversación con el asistente' });
+  await expect(thread.getByText('Para reponer:')).toBeVisible();
+  await expect(thread).toContainText('Armó la sugerencia de pedido');
+  expect(log[0].tools[0].functionDeclarations.map((d) => d.name)).toContain('registrar_movimientos'); // admin: todo
+  expect(log[1].contents[1].parts[0]).toMatchObject({ thoughtSignature: 'sig-1' });
+
+  // 2) Foto de un remito: propone el ingreso y no toca nada hasta confirmar.
+  const before = await stockOf(page, 'Aceite de girasol 900 ml');
+  const file = join(mkdtempSync(join(tmpdir(), 'sm-')), 'remito.jpg');
+  writeFileSync(file, Buffer.from(JPEG, 'base64'));
+  await page.getByLabel('Fotos desde la galería').setInputFiles(file);
+  await expect(page.getByRole('img', { name: 'Foto 1' })).toBeVisible({ timeout: 20_000 });
+  await page.getByLabel('Mensaje para el asistente').fill('Cargá este remito');
+  await page.getByRole('button', { name: 'Enviar' }).click();
+  const card = thread.getByRole('region', { name: 'Cambios para confirmar' });
+  await expect(card).toContainText('Registrar 1 movimiento');
+  await expect(card).toContainText(`Ingreso +24 bot · Aceite de girasol 900 ml (${before} → ${before! + 24})`);
+  expect(await stockOf(page, 'Aceite de girasol 900 ml')).toBe(before);
+  await card.getByRole('button', { name: 'Confirmar' }).click();
+  await expect(thread.getByText('Listo, cargué el remito.')).toBeVisible();
+  await expect(card).toContainText('Hecho');
+  expect(await stockOf(page, 'Aceite de girasol 900 ml')).toBe(before! + 24);
+  await expect(card.getByRole('button', { name: 'Confirmar' })).toHaveCount(0);
+
+  // Queda en el historial como hecho por el asistente.
+  await go(page, '/movimientos');
+  await expect(page.getByText('Remito 0001-77').locator('visible=true').first()).toBeVisible();
+
+  // 3) Volver: la conversación sigue ahí.
+  await page.getByRole('link', { name: 'Asistente IA' }).first().click();
+  await expect(thread.getByText('Listo, cargué el remito.')).toBeVisible();
+  await page.getByRole('button', { name: 'Nueva conversación' }).click();
+  await dialog(page).getByRole('button', { name: 'Empezar de nuevo' }).click();
+  await expect(thread.getByText('Listo, cargué el remito.')).toHaveCount(0);
+});
+
+test('asistente: cancelar un cambio no toca el stock', async ({ page }) => {
+  const log: Req[] = [];
+  await fakeGemini(page, log);
+  await setup(page);
+  await go(page, '/asistente');
+  const before = await stockOf(page, 'Aceite de girasol 900 ml');
+  const file = join(mkdtempSync(join(tmpdir(), 'sm-')), 'remito.jpg');
+  writeFileSync(file, Buffer.from(JPEG, 'base64'));
+  await page.getByLabel('Fotos desde la galería').setInputFiles(file);
+  await expect(page.getByRole('img', { name: 'Foto 1' })).toBeVisible({ timeout: 20_000 });
+  await page.getByLabel('Mensaje para el asistente').fill('Cargá este remito');
+  await page.getByLabel('Mensaje para el asistente').press('Enter');
+  const card = page.getByRole('region', { name: 'Cambios para confirmar' });
+  await card.getByRole('button', { name: 'Cancelar' }).click();
+  await expect(page.getByText('Listo, no hice ningún cambio.')).toBeVisible();
+  await expect(card).toContainText('Cancelado');
+  expect(await stockOf(page, 'Aceite de girasol 900 ml')).toBe(before);
+  expect(log).toHaveLength(1); // cancelar no gasta otra consulta
+});

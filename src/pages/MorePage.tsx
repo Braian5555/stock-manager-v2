@@ -1,4 +1,4 @@
-import { ChevronRight, HelpCircle, Info, Lock, LogOut } from 'lucide-react';
+import { ChevronRight, HelpCircle, Info, Lock, LogOut, Sparkles } from 'lucide-react';
 import { Link } from 'react-router';
 import { MODULE_GROUPS, MODULE_ICON, MODULE_PATH, bottomNavModules, navLabel, visibleModules } from '../layouts/modules';
 import { ROLE_LABEL } from '../services/userService';
@@ -7,6 +7,7 @@ import { useSettings } from '../store/settings';
 import { PageHeader } from '../components/ui';
 import { UserAvatar } from '../components/auth/UserAvatar';
 import { SyncBadge } from '../components/SyncBadge';
+import { useAssistantAvailable } from '../store/assistant';
 
 /** "Más" del celular: lo que no está en la barra inferior, agrupado por tema. */
 export function MorePage() {
@@ -15,6 +16,7 @@ export function MorePage() {
   const visible = visibleModules(settings, canAny);
   const inBar = new Set(bottomNavModules(settings, visible));
   const allowed = new Set(visible.filter((k) => !inBar.has(k)));
+  const assistant = useAssistantAvailable();
   const groups = MODULE_GROUPS.map((g) => ({ ...g, keys: g.keys.filter((k) => allowed.has(k)) })).filter((g) => g.keys.length);
 
   return (
@@ -29,6 +31,19 @@ export function MorePage() {
           </div>
           <SyncBadge compact />
         </section>
+      )}
+
+      {assistant && (
+        <nav className="card list more-section" aria-label="Asistente IA">
+          <Link to="/asistente" className="list-item more-row">
+            <span className="stat-icon" aria-hidden><Sparkles size={19} /></span>
+            <span className="grow">
+              <span className="list-title">Asistente IA</span>
+              <span className="list-sub" style={{ display: 'block' }}>Preguntá o pedí cosas de la app</span>
+            </span>
+            <ChevronRight size={18} className="muted" aria-hidden />
+          </Link>
+        </nav>
       )}
 
       {groups.map((g) => (

@@ -43,6 +43,14 @@ const GUIDES: { title: string; steps: string[] }[] = [
     ],
   },
   {
+    title: 'Asistente IA',
+    steps: [
+      'Tocá el botón con destellos (arriba) o “Asistente IA” en el Inicio. Escribí o dictá con el micrófono lo que necesitás.',
+      'Podés preguntar (“¿qué tengo que reponer?”, “¿cuánta harina se usó esta semana?”, “¿qué aumentó?”) o pedir cosas: cargar un remito con una foto, anotar un conteo dictado, pasar una receta, anotar producción.',
+      'Antes de cambiar algo te muestra exactamente qué va a hacer y espera que toques Confirmar. Sólo puede hacer lo que tu perfil tiene permitido.',
+    ],
+  },
+  {
     title: 'Trabajar con varios dispositivos',
     steps: [
       'En Cuenta y nube iniciá sesión y usá el mismo espacio en todos los dispositivos.',

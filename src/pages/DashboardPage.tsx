@@ -1,15 +1,16 @@
-import { AlertTriangle, Boxes, Camera, ChefHat, ClipboardCheck, Lock, LogOut, Package, Receipt, Search, Store, type LucideIcon } from 'lucide-react';
+import { AlertTriangle, Boxes, Camera, ChefHat, ClipboardCheck, Lock, LogOut, Package, Receipt, Search, Sparkles, Store, type LucideIcon } from 'lucide-react';
 import { Link } from 'react-router';
 import { useProducts } from '../hooks/useData';
 import { DESKTOP_QUERY, openGlobalSearch, useMediaQuery } from '../hooks/useMediaQuery';
 import { MODULE_PERMISSIONS, moduleEnabled } from '../layouts/modules';
-import type { ModuleKey, Permission, StockStatus } from '../models';
+import { PERMISSIONS, type ModuleKey, type Permission, type StockStatus } from '../models';
+import { useAssistantAvailable } from '../store/assistant';
 import { useSession } from '../store/session';
 import { useSettings } from '../store/settings';
 import { WelcomeCard } from '../components/WelcomeCard';
 import { useSyncView } from '../components/SyncBadge';
 import {
-  ActivityCard, BakeryTodayCard, InvoicesWeekCard, RestockCard, ShowcaseCard, useHomePanels, type HomePanels, type Tone,
+  ActivityCard, BakeryTodayCard, InvoicesWeekCard, PriceIncreasesCard, RestockCard, ShowcaseCard, useHomePanels, type HomePanels, type Tone,
 } from '../components/dashboard/HomePanels';
 import { fmtMoney, fmtNumber } from '../utils/format';
 
@@ -24,8 +25,9 @@ export function DashboardPage() {
   const settings = useSettings();
   const products = useProducts();
   const d = useHomePanels();
+  const assistantOn = useAssistantAvailable();
   const allowed = (m: ModuleKey) => moduleEnabled(m) && canAny(MODULE_PERMISSIONS[m]);
-  const actions = ACTIONS.filter((a) => canAny(a.perms) && (!a.module || moduleEnabled(a.module)))
+  const actions = ACTIONS.filter((a) => canAny(a.perms) && (!a.module || moduleEnabled(a.module)) && (a.to !== '/asistente' || assistantOn))
     // Con la lectura con IA configurada, la foto de factura ya abre con la IA.
     .map((a) => (a.to === '/facturas?nueva=1' && settings.aiReaderUrl ? { ...a, to: '/facturas?nueva=1&ia=1', hint: 'La IA lee los productos' } : a));
   const kpis = buildKpis(d).filter((k) => allowed(k.module));
@@ -35,10 +37,11 @@ export function DashboardPage() {
   const restock = allowed('stock') && <RestockCard key="r" d={d} limit={desktop ? 6 : 4} />;
   const showcase = allowed('showcase') && <ShowcaseCard key="v" d={d} limit={desktop ? 6 : 4} />;
   const invoices = allowed('invoices') && <InvoicesWeekCard key="f" d={d} limit={desktop ? 5 : 3} />;
+  const prices = allowed('invoices') && <PriceIncreasesCard key="p" limit={desktop ? 5 : 3} />;
   const main = [bakery, activity].filter(Boolean);
-  const side = [restock, showcase, invoices].filter(Boolean);
+  const side = [restock, showcase, invoices, prices].filter(Boolean);
   // En el celular, primero lo urgente (reponer), después el día y la actividad.
-  const mobileOrder = [restock, bakery, showcase, activity, invoices].filter(Boolean);
+  const mobileOrder = [restock, bakery, showcase, activity, invoices, prices].filter(Boolean);
 
   return (
     <div className="hm">
@@ -155,6 +158,7 @@ const ACTIONS: Action[] = [
   { label: 'Ver stock', hint: 'Existencias y alertas', to: '/stock', icon: Boxes, tone: 'slate', perms: ['stock.view'], module: 'stock' },
   { label: 'Productos', hint: 'Catálogo y recetas', to: '/productos', icon: Package, tone: 'slate', perms: MODULE_PERMISSIONS.products, module: 'products' },
   { label: 'Buscar producto', hint: 'También con Ctrl + K', to: '', icon: Search, tone: 'slate', perms: ['stock.view'] },
+  { label: 'Asistente IA', hint: 'Preguntá o pedí cosas', to: '/asistente', icon: Sparkles, tone: 'petrol', perms: [...PERMISSIONS] },
 ];
 
 const HEALTH_ORDER: StockStatus[] = ['normal', 'bajo', 'critico', 'sin_stock'];

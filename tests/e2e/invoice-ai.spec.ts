@@ -253,8 +253,9 @@ test('facturas: "Leer factura con IA" lee sola al sacar la foto, y una factura y
   await page.getByRole('button', { name: /^Factura/ }).filter({ hasNotText: '0001-' }).first().click();
   const v = dialog(page);
   await v.getByRole('button', { name: 'Leer con IA' }).click();
-  await expect(page.getByText('Leí 1 renglones, todos reconocidos')).toBeVisible({ timeout: 20_000 });
-  expect(reads).toBe(2);
+  // (el aviso de la lectura anterior puede seguir en pantalla: se espera la segunda lectura)
+  await expect.poll(() => reads, { timeout: 20_000 }).toBe(2);
+  await expect(page.getByText('Leí 1 renglones, todos reconocidos').last()).toBeVisible({ timeout: 20_000 });
 
   // 3) Desde el Inicio, "Foto de factura" ya abre con la IA.
   await dialog(page).getByRole('button', { name: 'Cancelar' }).click();

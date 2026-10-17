@@ -1,5 +1,5 @@
 import { CheckCircle2, Download, Loader2, PackageCheck, Pencil, Sparkles, Trash2, Undo2 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../database/db';
 import type { Invoice } from '../../models';
@@ -8,6 +8,7 @@ import { deleteInvoice, getInvoiceImage, invoiceFileName } from '../../services/
 import { downloadBlob, safeFilename } from '../../exports/download';
 import { useLookups, useProducts } from '../../hooks/useData';
 import { ITEM_STATUS_LABEL, pendingCount } from '../../services/invoiceAI';
+import { changeForItem, priceHistory } from '../../services/priceService';
 import { applyInvoiceToStock, learnFromInvoice, loadableItems, undoInvoiceStock } from '../../services/invoiceStock';
 import { useFeedback } from '../../store/feedback';
 import { useSession } from '../../store/session';
@@ -173,6 +174,9 @@ function InvoiceItemsTable({ invoice }: { invoice: Invoice }) {
   const byId = new Map(products.map((p) => [p.id, p]));
   const items = invoice.items ?? [];
   const pending = pendingCount(items, products, lk);
+  // Variación de precio contra la compra anterior de cada producto.
+  const all = useLiveQuery(() => db.invoices.toArray(), []);
+  const history = useMemo(() => priceHistory(all ?? []), [all]);
   return (
     <section className="card" aria-label="Productos de la factura">
       <div className="card-head">
@@ -186,7 +190,10 @@ function InvoiceItemsTable({ invoice }: { invoice: Invoice }) {
             <div key={i.id} className={`list-item ${i.status === 'ignored' ? 'production-undone' : ''}`}>
               <div className="grow">
                 <div className="list-title truncate">{p?.name ?? i.description}</div>
-                <div className="list-sub">{p ? i.description : ITEM_STATUS_LABEL[i.status]}{i.unitPrice != null ? ` · $${fmtNumber(i.unitPrice)} c/u` : ''}</div>
+                <div className="list-sub">
+                  {p ? i.description : ITEM_STATUS_LABEL[i.status]}{i.unitPrice != null ? ` · $${fmtNumber(i.unitPrice)} c/u` : ''}
+                  <PriceDelta pct={changeForItem(invoice, i, history)} />
+                </div>
               </div>
               <strong className="num">{i.status === 'ignored' ? '—' : p && i.stockQty != null ? `${fmtNumber(i.stockQty)} ${lk.unit(p.unitId) || 'u'}` : `${fmtNumber(i.quantity)} ${i.unit ?? ''}`}</strong>
             </div>
@@ -195,4 +202,11 @@ function InvoiceItemsTable({ invoice }: { invoice: Invoice }) {
       </div>
     </section>
   );
+}
+
+/** "▲ 12% vs. la compra anterior" (sólo si cambió al menos 1%). */
+function PriceDelta({ pct }: { pct?: number }) {
+  if (pct === undefined || Math.abs(pct) < 1) return null;
+  const up = pct > 0;
+  return <span className={up ? 'price-up' : 'price-down'} title="Comparado con la compra anterior del mismo producto"> · {up ? '▲' : '▼'} {fmtNumber(Math.abs(Math.round(pct)))}% vs. anterior</span>;
 }

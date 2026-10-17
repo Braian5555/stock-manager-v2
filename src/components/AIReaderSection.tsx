@@ -46,11 +46,11 @@ export function AIReaderSection() {
 
   return (
     <div className="stack">
-      <PageHeader title="Lectura con IA" subtitle="Leer los productos de las facturas desde la foto (opcional)." />
+      <PageHeader title="Lectura con IA" subtitle="Leer facturas desde la foto y usar el Asistente IA (opcional)." />
       <section className="card card-pad stack">
         <h2 className="row"><Sparkles size={18} aria-hidden /> Servidor de lectura</h2>
         <p className="small muted">
-          En Facturas, “Leer con IA” manda la foto a tu servidor de Cloudflare, que la lee con Claude y devuelve los productos para revisar.
+          En Facturas, “Leer con IA” manda la foto a tu servidor de Cloudflare, que la lee y devuelve los productos para revisar. El mismo servidor activa el <b>Asistente IA</b>: cada persona le escribe o dicta lo que necesita, según los permisos de su perfil.
           Usa Gemini de Google con su plan gratis (tiene un límite de lecturas por día, y en ese plan Google puede usar lo que se envía para mejorar sus productos). La clave queda guardada en Cloudflare: nunca está en la app ni en los celulares.
         </p>
         {cloud.phase !== 'linked' && <div className="alert"><span>Este dispositivo no está conectado a la nube: hace falta para leer facturas (Cuenta y nube).</span></div>}
