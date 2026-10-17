@@ -1,4 +1,4 @@
-import { Download, Loader2, Pencil, Trash2 } from 'lucide-react';
+import { Download, Loader2, Pencil, Sparkles, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../database/db';
@@ -65,7 +65,7 @@ function PageImage({ invoice, index, supplierName }: { invoice: Invoice; index: 
   );
 }
 
-export function InvoiceViewer({ invoiceId, onClose, onEdit }: { invoiceId?: string; onClose: () => void; onEdit: (inv: Invoice) => void }) {
+export function InvoiceViewer({ invoiceId, onClose, onEdit, canReadAI }: { invoiceId?: string; onClose: () => void; onEdit: (inv: Invoice, ai?: boolean) => void; canReadAI?: boolean }) {
   const invoice = useLiveQuery(async () => (invoiceId ? ((await db.invoices.get(invoiceId)) ?? null) : undefined), [invoiceId]);
   const order = useLiveQuery(() => (invoice?.orderId ? db.orders.get(invoice.orderId) : undefined), [invoice?.orderId]);
   const lk = useLookups();
@@ -85,6 +85,7 @@ export function InvoiceViewer({ invoiceId, onClose, onEdit }: { invoiceId?: stri
     <Modal open={!!invoiceId} wide title={title} onClose={onClose}
       footer={invoice && <>
         {canDelete && <button type="button" className="btn btn-danger" onClick={remove}><Trash2 size={16} aria-hidden /> Eliminar</button>}
+        {canReadAI && !invoice.items?.length && <button type="button" className="btn btn-primary" onClick={() => onEdit(invoice, true)}><Sparkles size={16} aria-hidden /> Leer con IA</button>}
         <button type="button" className="btn" onClick={() => onEdit(invoice)}><Pencil size={16} aria-hidden /> Editar datos</button>
       </>}>
       {invoiceId && invoice === undefined && <p className="muted">Cargando…</p>}

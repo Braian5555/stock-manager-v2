@@ -25,9 +25,11 @@ interface Props {
   /** Valores iniciales para una factura nueva (p. ej. desde un pedido). */
   defaults?: { supplierId?: string; orderId?: string };
   onSaved?: (inv: Invoice) => void;
+  /** Leer con IA apenas haya fotos (desde "Leer factura con IA"). */
+  autoRead?: boolean;
 }
 
-export function InvoiceEditor({ open, onClose, invoice, defaults, onSaved }: Props) {
+export function InvoiceEditor({ open, onClose, invoice, defaults, onSaved, autoRead }: Props) {
   const lk = useLookups();
   const products = useProducts();
   const cloud = useCloud();
@@ -69,7 +71,17 @@ export function InvoiceEditor({ open, onClose, invoice, defaults, onSaved }: Pro
     setItems(invoice?.items);
     setAiReadAt(invoice?.aiReadAt);
     setWarnings(invoice?.aiWarnings ?? []);
-  }, [open, invoice, defaults?.supplierId]);
+    setPendingAuto(!!autoRead);
+  }, [open, invoice, defaults?.supplierId, autoRead]);
+
+  // "Leer factura con IA": en cuanto termina de procesarse la primera foto, se lee sola.
+  const [pendingAuto, setPendingAuto] = useState(false);
+  useEffect(() => {
+    if (!open || !pendingAuto || !aiAvailable || reading || busy > 0 || pages.length === 0) return;
+    setPendingAuto(false);
+    void readAI();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, pendingAuto, aiAvailable, reading, busy, pages.length]);
 
   const readAI = async () => {
     if (items?.length && !(await confirm({ title: 'Volver a leer', message: 'Se reemplazan los renglones que ya revisaste por una lectura nueva.', confirmLabel: 'Leer de nuevo' }))) return;
@@ -135,7 +147,7 @@ export function InvoiceEditor({ open, onClose, invoice, defaults, onSaved }: Pro
   };
 
   return (
-    <Modal open={open} wide title={invoice ? 'Editar factura' : 'Nueva factura'} onClose={onClose}
+    <Modal open={open} wide title={invoice ? 'Editar factura' : autoRead ? 'Leer factura con IA' : 'Nueva factura'} onClose={onClose}
       footer={<>
         <button type="button" className="btn" onClick={onClose}>Cancelar</button>
         <button type="button" className="btn btn-primary" disabled={busy > 0 || saving} onClick={save}>Guardar factura</button>
@@ -153,7 +165,9 @@ export function InvoiceEditor({ open, onClose, invoice, defaults, onSaved }: Pro
           <input ref={fileRef} type="file" accept="image/*" multiple hidden aria-label="Fotos desde la galería"
             onChange={(e) => { void addFiles(e.target.files); e.target.value = ''; }} />
         </div>
-        {pages.length === 0 && busy === 0 && <p className="muted small">Sacale una foto a cada hoja de la factura. Si tiene varias hojas, agregá una foto por hoja.</p>}
+        {pages.length === 0 && busy === 0 && (autoRead && aiAvailable
+          ? <div className="inv-ai"><Sparkles size={20} aria-hidden /><p className="grow small">Sacale una foto a la factura: apenas esté, la IA lee los productos y los busca en tu catálogo. Después revisás y guardás.</p></div>
+          : <p className="muted small">Sacale una foto a cada hoja de la factura. Si tiene varias hojas, agregá una foto por hoja.</p>)}
         {(pages.length > 0 || busy > 0) && (
           <div className="invoice-pages" aria-label="Fotos de la factura">
             {pages.map((p, i) => {

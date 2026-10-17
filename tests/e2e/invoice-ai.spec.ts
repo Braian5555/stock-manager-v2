@@ -196,3 +196,70 @@ test('facturas: lectura con Gemini (gratis) por el servidor de Cloudflare', asyn
   await expect(d.getByRole('listitem').filter({ hasText: 'ACEITE GIRASOL 900CC' }).getByLabel(/^Cantidad en stock de/)).toHaveValue('24');
   await expect(d.getByLabel(/^Número de factura/)).toHaveValue('A 0001-00000099');
 });
+
+test('facturas: "Leer factura con IA" lee sola al sacar la foto, y una factura ya cargada se puede leer después', async ({ page }) => {
+  const WORKER = 'https://stock-manager-ia.ejemplo.workers.dev';
+  await page.route('**/firebase-config.json', (r) => r.fulfill({ contentType: 'application/json', body: JSON.stringify({ provider: 'fake' }) }));
+  let reads = 0;
+  await page.route(`${WORKER}/**`, async (r) => {
+    const req = r.request();
+    if (req.method() === 'GET') return r.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true, service: 'stock-manager-invoice-reader', configured: true, provider: 'gemini', model: 'gemini-3.8-flash' }) });
+    reads++;
+    const text = (req.postDataJSON() as { contents: { parts: { text?: string }[] }[] }).contents[0].parts.find((p) => p.text)!.text!;
+    const ref = /^(\w+): Harina 000/m.exec(text)?.[1] ?? null;
+    const reading = { supplier: { name: 'Distribuidora Ejemplo', cuit: null }, invoice: { kind: 'factura', number: `A 0001-0000010${reads}`, date: null, total: 12500 }, lines: [{ description: 'HARINA 000 X KG', code: null, quantity: 25, unit: 'kg', unitPrice: 500, lineTotal: 12500, ref, confidence: 'alta' }], warnings: [] };
+    return r.fulfill({ contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify(reading) }] }, finishReason: 'STOP' }] }) });
+  });
+  await loadDemo(page);
+  await go(page, '/nube');
+  await page.getByRole('button', { name: 'Entrar con una cuenta de Google' }).click();
+  await page.getByRole('button', { name: 'Crear y subir mis datos' }).click();
+  await dialog(page).getByRole('button', { name: 'Crear y subir datos' }).click();
+  await expect(page.getByText('Sincronizado').first()).toBeVisible();
+
+  // Sin servidor configurado no hay botón de IA en Facturas.
+  await go(page, '/facturas');
+  await expect(page.getByRole('button', { name: 'Leer factura con IA' })).toHaveCount(0);
+  // Una factura cargada antes, sin leer.
+  const file = join(mkdtempSync(join(tmpdir(), 'sm-')), 'factura.jpg');
+  writeFileSync(file, Buffer.from(JPEG, 'base64'));
+  await page.getByRole('button', { name: 'Nueva factura' }).click();
+  await dialog(page).getByLabel('Fotos desde la galería').setInputFiles(file);
+  await expect(dialog(page).getByRole('img', { name: 'Hoja 1' })).toBeVisible({ timeout: 20_000 });
+  await dialog(page).getByRole('button', { name: 'Guardar factura' }).click();
+  await expect(page.getByText('Factura guardada')).toBeVisible();
+  await dialog(page).getByRole('button', { name: 'Cerrar' }).click();
+
+  await go(page, '/configuracion');
+  await page.getByRole('link', { name: /Lectura con IA/ }).first().click();
+  await page.getByLabel(/^Dirección del servidor/).fill(WORKER);
+  await page.getByRole('button', { name: 'Guardar' }).click();
+  await expect(page.getByText('Conectado con Gemini (Google)')).toBeVisible();
+
+  // 1) Botón en Facturas: se saca la foto y la IA lee sola, sin tocar nada más.
+  await go(page, '/facturas');
+  await page.getByRole('button', { name: 'Leer factura con IA' }).click();
+  const d = dialog(page);
+  await expect(d.getByRole('heading', { name: 'Leer factura con IA' })).toBeVisible();
+  await d.getByLabel('Fotos desde la galería').setInputFiles(file);
+  await expect(page.getByText('Leí 1 renglones, todos reconocidos')).toBeVisible({ timeout: 20_000 });
+  expect(reads).toBe(1);
+  await expect(d.getByRole('listitem').filter({ hasText: 'HARINA 000 X KG' })).toContainText('Reconocido');
+  await d.getByRole('button', { name: 'Guardar factura' }).click();
+  await expect(page.getByText('Factura guardada')).toBeVisible();
+  await dialog(page).getByRole('button', { name: 'Cerrar' }).click();
+
+  // 2) La factura cargada antes: al abrirla aparece "Leer con IA" y la lee.
+  await page.getByRole('button', { name: /^Factura/ }).filter({ hasNotText: '0001-' }).first().click();
+  const v = dialog(page);
+  await v.getByRole('button', { name: 'Leer con IA' }).click();
+  await expect(page.getByText('Leí 1 renglones, todos reconocidos')).toBeVisible({ timeout: 20_000 });
+  expect(reads).toBe(2);
+
+  // 3) Desde el Inicio, "Foto de factura" ya abre con la IA.
+  await dialog(page).getByRole('button', { name: 'Cancelar' }).click();
+  await go(page, '/');
+  await page.getByRole('navigation', { name: 'Acciones rápidas' }).getByRole('link', { name: /^Foto de factura/ }).click();
+  await expect(page).toHaveURL(/#\/facturas\?nueva=1&ia=1$/);
+  await expect(dialog(page).getByRole('heading', { name: 'Leer factura con IA' })).toBeVisible();
+});

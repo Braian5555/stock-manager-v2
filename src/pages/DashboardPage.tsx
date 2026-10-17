@@ -25,7 +25,9 @@ export function DashboardPage() {
   const products = useProducts();
   const d = useHomePanels();
   const allowed = (m: ModuleKey) => moduleEnabled(m) && canAny(MODULE_PERMISSIONS[m]);
-  const actions = ACTIONS.filter((a) => canAny(a.perms) && (!a.module || moduleEnabled(a.module)));
+  const actions = ACTIONS.filter((a) => canAny(a.perms) && (!a.module || moduleEnabled(a.module)))
+    // Con la lectura con IA configurada, la foto de factura ya abre con la IA.
+    .map((a) => (a.to === '/facturas?nueva=1' && settings.aiReaderUrl ? { ...a, to: '/facturas?nueva=1&ia=1', hint: 'La IA lee los productos' } : a));
   const kpis = buildKpis(d).filter((k) => allowed(k.module));
 
   const bakery = allowed('production') && <BakeryTodayCard key="b" d={d} limit={desktop ? 7 : 4} />;

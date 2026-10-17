@@ -1,5 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Camera, Receipt } from 'lucide-react';
+import { Camera, Receipt, Sparkles } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router';
 import { db } from '../database/db';
@@ -22,6 +22,10 @@ export function InvoicesPage() {
   const [supplierId, setSupplierId] = useState('');
   const [month, setMonth] = useState('');
   const [editing, setEditing] = useState<Invoice | 'new' | undefined>(params.get('nueva') === '1' ? 'new' : undefined);
+  // Lectura con IA: sólo si se configuró el servidor (Configuración → Lectura con IA).
+  const aiOn = !!settings.aiReaderUrl;
+  const [aiMode, setAiMode] = useState(aiOn && params.get('ia') === '1');
+  const openNew = (ai: boolean) => { setAiMode(ai); setEditing('new'); };
   const viewId = params.get('ver') ?? undefined;
 
   const setView = (id?: string) => {
@@ -47,7 +51,10 @@ export function InvoicesPage() {
       <PageHeader
         title={menuLabel(settings, 'invoices')}
         subtitle="Fotos de las facturas de proveedores. Se guardan en la nube y se pueden descargar."
-        actions={<button type="button" className="btn btn-primary" onClick={() => setEditing('new')}><Camera size={18} aria-hidden /> Nueva factura</button>}
+        actions={<>
+          {aiOn && <button type="button" className="btn btn-primary" onClick={() => openNew(true)}><Sparkles size={18} aria-hidden /> Leer factura con IA</button>}
+          <button type="button" className={`btn ${aiOn ? '' : 'btn-primary'}`} onClick={() => openNew(false)}><Camera size={18} aria-hidden /> Nueva factura</button>
+        </>}
       />
       <div className="toolbar">
         <SearchInput value={q} onChange={setQ} placeholder="Buscar por número, proveedor o nota…" label="Buscar facturas" />
@@ -67,15 +74,18 @@ export function InvoicesPage() {
           filtered
             ? <EmptyState icon={<Receipt size={40} />} title="No hay facturas con esos filtros" />
             : <EmptyState icon={<Receipt size={40} />} title="Todavía no cargaste facturas"
-                action={<button type="button" className="btn btn-primary" onClick={() => setEditing('new')}><Camera size={18} aria-hidden /> Sacar foto a una factura</button>}>
+                action={<div className="row wrap" style={{ justifyContent: 'center' }}>
+                  {aiOn && <button type="button" className="btn btn-primary" onClick={() => openNew(true)}><Sparkles size={18} aria-hidden /> Leer factura con IA</button>}
+                  <button type="button" className={`btn ${aiOn ? '' : 'btn-primary'}`} onClick={() => openNew(false)}><Camera size={18} aria-hidden /> Sacar foto a una factura</button>
+                </div>}>
                 Cuando recibas mercadería, sacale una foto a la factura. Queda guardada con el proveedor, la fecha y el total.
               </EmptyState>
         ) : (
           <InvoiceList invoices={list} onOpen={(i) => setView(i.id)} />
         )}
       </div>
-      <InvoiceViewer invoiceId={viewId} onClose={() => setView()} onEdit={(inv) => { setView(); setEditing(inv); }} />
-      <InvoiceEditor open={!!editing} invoice={editing === 'new' ? undefined : editing} onClose={() => setEditing(undefined)} onSaved={(inv) => editing === 'new' && setView(inv.id)} />
+      <InvoiceViewer invoiceId={viewId} onClose={() => setView()} onEdit={(inv, ai) => { setView(); setAiMode(!!ai); setEditing(inv); }} canReadAI={aiOn} />
+      <InvoiceEditor open={!!editing} invoice={editing === 'new' ? undefined : editing} autoRead={aiMode} onClose={() => { setEditing(undefined); setAiMode(false); }} onSaved={(inv) => editing === 'new' && setView(inv.id)} />
     </>
   );
 }
