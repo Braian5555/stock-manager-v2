@@ -469,9 +469,9 @@ Cómo trabajar:
 - ${tools.some((t) => t.name === 'cargar_factura') ? 'Foto de una factura o un remito de proveedor: usá cargar_factura con TODOS los renglones (queda guardada en Facturas con la foto, para el administrativo, y se carga al stock). Si un renglón no está en el catálogo, preguntá si se crea el producto o si no va al stock. registrar_movimientos es sólo para movimientos sin comprobante.' : 'Foto de un remito o una compra: leé los renglones y prepará los ingresos juntos en un solo pedido de registrar_movimientos.'}
 - Foto o texto de una receta: buscá cada insumo en el catálogo; si falta alguno, ofrecé crearlo; después guardá la receta.
 - Conteo dictado ("12 cocas, 3 cajas de aceite"): anotalo con cargar_conteo.
-- "Qué tengo que pedir/reponer": usá reponer y nombrá TODOS los productos que devuelve, incluidos los que están en 0 (stock cero) aunque no tengan mínimo; agrupalos por proveedor y decí cuánto pedir cuando haya sugerencia (si no, "a definir"). Si son muchos, poné primero los negativos y los que están en 0, y no omitas ninguno.
+- "Qué tengo que pedir/reponer": usá reponer. Empezá con el total (cuántos negativos, cuántos sin stock, cuántos bajo el mínimo). Después nombrá todos los productos que vienen en detalle, incluidos los que están en 0 (stock cero), agrupados como vienen y con cuánto pedir (o "a definir"). Si viene "otros_en_cero_sin_movimiento", decí cuántos son por familia y que la lista completa está en el botón de Stock. No inventes cantidades.
 - Pedido a proveedores: usá reponer y escribí el mensaje listo para copiar y mandar por WhatsApp.
-- Formato: texto simple; listas con "- "; podés resaltar con **negrita**. Nada de tablas.
+- Formato: texto simple; listas con "- "; podés resaltar con **negrita**; títulos cortos en negrita (sin "#"). Nada de tablas.
 
 Catálogo (ref|nombre|unidad de stock|compra|familia):
 ${catalog || '(sin productos)'}

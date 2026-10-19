@@ -29,8 +29,8 @@ async function fakeGemini(page: Page, log: Req[]) {
     const ref = (name: string) => new RegExp(`^(p\\d+)\\|${name}\\|`, 'm').exec(body.systemInstruction.parts[0].text)?.[1];
     let parts: unknown[];
     if (resp?.name === 'reponer') {
-      const provs = (resp.response.resultado as { proveedores: { proveedor: string; productos: { nombre: string; pedir: string }[] }[] }).proveedores;
-      parts = [{ text: `Para reponer:\n${provs.flatMap((p) => p.productos.map((x) => `- **${x.nombre}**: pedir ${x.pedir}`)).join('\n')}` }];
+      const grupos = (resp.response.resultado as { grupos: { grupo: string; productos: { nombre: string; pedir: string }[] }[] }).grupos;
+      parts = [{ text: `Para reponer:\n${grupos.flatMap((g) => g.productos.map((x) => `- **${x.nombre}**: pedir ${x.pedir}`)).join('\n')}` }];
     } else if (resp?.name === 'cargar_factura') {
       parts = [{ text: resp.response.error ? `No se pudo: ${resp.response.error}` : 'Listo: la factura quedó en Facturas y en el stock.' }];
     } else if (resp?.name === 'registrar_movimientos') {
@@ -90,6 +90,7 @@ test('asistente: consulta, foto de remito con confirmación y conversación que 
   const thread = page.getByRole('log', { name: 'Conversación con el asistente' });
   await expect(thread.getByText('Para reponer:')).toBeVisible();
   await expect(thread).toContainText('Armó la sugerencia de pedido');
+  await expect(thread.getByRole('link', { name: 'Abrir Stock · Para reponer' })).toBeVisible();
   expect(log[0].tools[0].functionDeclarations.map((d) => d.name)).toContain('registrar_movimientos'); // admin: todo
   expect(log[1].contents[1].parts[0]).toMatchObject({ thoughtSignature: 'sig-1' });
 

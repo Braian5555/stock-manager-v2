@@ -499,3 +499,25 @@ describe('asistente: Gemini saturado', () => {
     void workerTransport;
   });
 });
+
+describe('asistente: reponer con muchos productos en cero', () => {
+  it('detalla lo urgente, cuenta el resto por familia y deja el botón a Stock', async () => {
+    await seed();
+    for (let i = 0; i < 120; i++) await saveProduct({ ...emptyProduct(), name: `Verdura ${String(i).padStart(3, '0')}`, unitId: 'kg', categoryId: 'beb' });
+    const { TOOLS, RefMap } = await import('../../src/services/assistant/tools');
+    const reponer = TOOLS.find((t) => t.name === 'reponer')!;
+    const ctx = { can: () => true, settings: normalizeSettings(undefined), today: '2026-10-19', refs: new RefMap(await db.products.toArray()) };
+    const r = await reponer.run!({}, ctx) as { total_a_reponer: number; grupos: { grupo: string; productos: { nombre: string; pedir: string }[] }[]; otros_en_cero_sin_movimiento?: { cantidad: number; por_familia: Record<string, number> }; link: { to: string } };
+    // 120 verduras + aceite (0, bajo mínimo) + coca (bajo mínimo) + pan (0) en cero/bajo.
+    expect(r.total_a_reponer).toBe(123);
+    const detailed = r.grupos.flatMap((g) => g.productos);
+    expect(detailed).toHaveLength(80);
+    expect(detailed.slice(0, 2).map((p) => p.nombre)).toEqual(expect.arrayContaining(['Coca-Cola 2,25 L']));
+    expect(r.otros_en_cero_sin_movimiento?.cantidad).toBe(43);
+    expect(r.grupos.some((g) => g.grupo.startsWith('Sin proveedor · '))).toBe(true);
+    expect(r.link.to).toBe('/stock?estado=reponer');
+    const full = await reponer.run!({ todo: true }, ctx) as { grupos: { productos: unknown[] }[]; otros_en_cero_sin_movimiento?: unknown };
+    expect(full.grupos.flatMap((g) => g.productos)).toHaveLength(123);
+    expect(full.otros_en_cero_sin_movimiento).toBeUndefined();
+  });
+});

@@ -283,38 +283,50 @@ export const TOOLS: ToolDef[] = [
   {
     name: 'reponer',
     label: 'Armó la sugerencia de pedido',
-    description: 'Qué hay que reponer o pedir: lo que está por debajo del mínimo y TODO lo que está en 0 o en negativo (aunque no tenga mínimo), agrupado por proveedor, con la cantidad sugerida (por mínimo/máximo, o por lo que se gasta en una semana). Usala siempre para "qué tengo que pedir/reponer", pedidos o mensajes a proveedores.',
-    parameters: obj({ proveedor: str('Nombre del proveedor para filtrar (opcional).') }),
+    description: 'Qué hay que reponer o pedir: lo que está por debajo del mínimo y TODO lo que está en 0 o en negativo (aunque no tenga mínimo), agrupado por proveedor (o por familia si no tiene proveedor), con la cantidad sugerida (por mínimo/máximo, o por lo que se gasta en una semana). Si son muchos, trae el detalle de los más urgentes y el resto contado por familia (con "familia" se filtra; con todo=true trae la lista entera). Usala siempre para "qué tengo que pedir/reponer", pedidos o mensajes a proveedores.',
+    parameters: obj({
+      proveedor: str('Nombre del proveedor para filtrar (opcional).'),
+      familia: str('Nombre de la familia para filtrar (opcional, p. ej. "Verduras").'),
+      todo: { type: 'BOOLEAN', description: 'true sólo si la persona pide explícitamente la lista completa.' },
+    }),
     perms: ['stock.view'],
     run: async (a, ctx) => {
       const lk = await lookups();
-      const { lines, idleAtZero } = restockList(await db.products.toArray(), await db.movements.where('createdAt').aboveOrEqual(usageSinceIso()).toArray(), ctx.settings);
+      const all = restockList(await db.products.toArray(), await db.movements.where('createdAt').aboveOrEqual(usageSinceIso()).toArray(), ctx.settings);
+      const fp = s(a.proveedor);
+      const ff = s(a.familia);
+      const lines = all.lines.filter((l) => (!fp || matches(fp, lk.supplier(l.product.supplierId))) && (!ff || matches(ff, lk.category(l.product.categoryId))));
       const buyUnit = (p: Product) => (p.purchaseFactor > 1 ? `${lk.unit(p.purchaseUnitId) === 'u' ? 'caja' : lk.unit(p.purchaseUnitId)} (x${p.purchaseFactor})` : lk.unit(p.unitId));
+      // Si son muchos (p. ej. todo en 0 después de empezar de cero), el detalle va para lo urgente:
+      // negativos, lo bajo y lo que está en 0 pero se usa. El resto se cuenta por familia.
+      const limit = a.todo === true ? 400 : 80;
+      const urgent = (l: (typeof lines)[number]) => l.level !== 'out' || l.used;
+      const detail = lines.length <= limit ? lines : [...lines.filter(urgent), ...lines.filter((l) => !urgent(l))].slice(0, limit);
+      const shown = new Set(detail.map((l) => l.product.id));
+      const rest = lines.filter((l) => !shown.has(l.product.id));
+      const byFamily: Record<string, number> = {};
+      for (const l of rest) { const k = lk.category(l.product.categoryId) ?? 'Sin familia'; byFamily[k] = (byFamily[k] ?? 0) + 1; }
       const groups = new Map<string, typeof lines>();
-      for (const l of lines) {
-        const key = lk.supplier(l.product.supplierId) ?? 'Sin proveedor';
+      for (const l of detail) {
+        const key = lk.supplier(l.product.supplierId) ?? `Sin proveedor · ${lk.category(l.product.categoryId) ?? 'Sin familia'}`;
         groups.set(key, [...(groups.get(key) ?? []), l]);
       }
-      const f = s(a.proveedor);
       return {
         criterio: `Con mínimo: ${ctx.settings.suggestionMode === 'toMax' ? 'completar hasta el máximo' : 'completar hasta el mínimo'}. Sin mínimo: lo que se gasta en una semana (según las últimas 4 semanas).`,
-        sin_stock: lines.filter((l) => l.level === 'out').length,
-        negativos: lines.filter((l) => l.level === 'neg').length,
-        en_cero_sin_movimiento_reciente: idleAtZero,
         total_a_reponer: lines.length,
-        proveedores: [...groups.entries()]
-          .filter(([name]) => !f || matches(f, name))
-          .map(([proveedor, ls]) => ({
-            proveedor,
-            productos: ls.map((l) => ({
-              ref: ctx.refs.ref(l.product.id), nombre: l.product.name,
-              estado: RESTOCK_LEVEL_LABEL[l.level], stock: l.product.stock, minimo: l.product.minStock || undefined,
-              ...(l.level === 'out' && !l.used ? { sin_movimiento_reciente: true } : {}),
-              consumo_semanal: l.weeklyUse !== undefined ? `${fmtNumber(l.weeklyUse)} ${lk.unit(l.product.unitId)}` : undefined,
-              pedir: l.quantity !== undefined ? `${fmtNumber(l.quantity)} ${buyUnit(l.product)}` : 'a definir (no tiene mínimo ni consumo reciente)',
-              segun: l.basis === 'consumo' ? 'consumo de una semana' : l.basis === 'sin_dato' ? undefined : `stock ${l.basis}`,
-            })),
+        negativos: lines.filter((l) => l.level === 'neg').length,
+        sin_stock: lines.filter((l) => l.level === 'out').length,
+        bajo_minimo: lines.filter((l) => l.level === 'crit' || l.level === 'low').length,
+        grupos: [...groups.entries()].map(([grupo, ls]) => ({
+          grupo,
+          productos: ls.map((l) => ({
+            ref: ctx.refs.ref(l.product.id), nombre: l.product.name, stock: l.product.stock,
+            ...(l.level !== 'out' ? { estado: RESTOCK_LEVEL_LABEL[l.level] } : {}),
+            pedir: l.quantity !== undefined ? `${fmtNumber(l.quantity)} ${buyUnit(l.product)}` : 'a definir',
           })),
+        })),
+        ...(rest.length ? { otros_en_cero_sin_movimiento: { cantidad: rest.length, por_familia: byFamily, nota: 'Están en 0 y no se movieron en el último mes. La lista completa está en el botón "Stock · Para reponer".' } } : {}),
+        link: { to: '/stock?estado=reponer', label: 'Stock · Para reponer' },
       };
     },
   },
