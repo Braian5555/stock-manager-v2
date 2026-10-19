@@ -1,7 +1,7 @@
 /**
- * Lectura de archivos tabulares (XLSX / CSV) a filas de texto/número.
+ * Lectura de archivos tabulares (XLSX / XLS / CSV) a filas de texto/número.
  * Se usa para el Excel Bridge de Maxirest y para importar productos.
- * ExcelJS se carga bajo demanda para no pesar en el arranque.
+ * ExcelJS (xlsx) y SheetJS (xls, Excel 97-2003) se cargan bajo demanda para no pesar en el arranque.
  */
 export type Cell = string | number | undefined;
 export interface Tabular {
@@ -12,11 +12,10 @@ export interface Tabular {
 
 export async function readTabularFile(file: File): Promise<Tabular> {
   const name = file.name.toLowerCase();
-  if (name.endsWith('.xls') && !name.endsWith('.xlsx'))
-    throw new Error('El formato .xls (Excel 97-2003) no es compatible. Abrí el archivo en Excel y guardalo como .xlsx.');
+  if (name.endsWith('.xls')) return parseXls(await file.arrayBuffer());
   if (name.endsWith('.csv') || name.endsWith('.txt') || file.type === 'text/csv') return parseCsv(await file.text());
   if (name.endsWith('.xlsx')) return parseXlsx(await file.arrayBuffer());
-  throw new Error('Formato no reconocido. Usá un archivo .xlsx o .csv.');
+  throw new Error('Formato no reconocido. Usá un archivo .xlsx, .xls o .csv.');
 }
 
 function cellValue(v: unknown): Cell {
@@ -44,6 +43,18 @@ export async function parseXlsx(buffer: ArrayBuffer): Promise<Tabular> {
     matrix.push(values.slice(1).map(cellValue));
   });
   return fromMatrix(matrix, ws.name);
+}
+
+/** Excel 97-2003 (.xls), el formato que exportan programas como Maxirest. */
+export async function parseXls(buffer: ArrayBuffer): Promise<Tabular> {
+  const XLSX = await import('@e965/xlsx');
+  const wb = XLSX.read(buffer, { type: 'array' });
+  for (const sheetName of wb.SheetNames) {
+    const matrix = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[sheetName], { header: 1, raw: true, blankrows: false });
+    const cells = matrix.map((r) => Array.from(r, cellValue));
+    if (cells.some((r) => r.some((c) => c !== undefined && String(c).trim() !== ''))) return fromMatrix(cells, sheetName);
+  }
+  throw new Error('El archivo no tiene datos.');
 }
 
 /** Detecta la fila de encabezados (la primera con al menos 2 celdas de texto). */

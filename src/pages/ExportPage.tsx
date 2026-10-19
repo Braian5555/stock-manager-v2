@@ -13,6 +13,7 @@ import { planRecipeImport } from '../importers/recipeImport';
 import { useFeedback } from '../store/feedback';
 import { useSettings } from '../store/settings';
 import { PageHeader, Segmented } from '../components/ui';
+import { MaxirestXlsActions } from '../components/integrations/MaxirestXlsActions';
 
 const SCOPE_TABLES: Partial<Record<ExportScope, string[]>> = {
   stock: ['products'], products: ['products', 'categories', 'units', 'locations'], suppliers: ['suppliers'], orders: ['orders', 'orderItems'],
@@ -133,6 +134,17 @@ export function ExportPage() {
         </div>
       </section>
 
+      <section className="card card-pad stack" style={{ marginTop: 16 }} aria-labelledby="mx">
+        <h2 id="mx" className="row"><FileSpreadsheet size={18} aria-hidden /> Stock para Maxirest (.xls)</h2>
+        <p className="small muted">
+          Para que Maxirest tenga el mismo stock que acá. Lo más seguro: en Maxirest exportá a Excel el inventario del Depósito Central y tocá
+          “Completar Excel de Maxirest”: se rellena la columna Conteo con el stock de Stock Manager (por código de insumo) y nada más.
+          Después, en Maxirest: Inventario → Depósito Central → “Importar Inventario”, revisá las diferencias, tildá “Ajuste automático de stock” y guardá.
+          “.xls para Maxirest” arma un archivo nuevo si no tenés el de Maxirest. Para un conteo puntual, usá los mismos botones desde el conteo.
+        </p>
+        <div className="row wrap"><MaxirestXlsActions name="stock_actual" /></div>
+      </section>
+
       <section className="card card-pad stack" style={{ marginTop: 16 }} aria-labelledby="bk">
         <h2 id="bk" className="row"><DatabaseBackup size={18} aria-hidden /> Copia de seguridad</h2>
         <p className="muted small">Incluye todos los datos ({DATA_TABLES.length} tablas), relaciones e identificadores externos. Nunca incluye contraseñas, tokens ni claves. Las fotos de facturas no van en el backup (quedan en la nube y se descargan desde Facturas).</p>
@@ -148,7 +160,7 @@ export function ExportPage() {
         <p className="muted small">Desde Excel (.xlsx) o CSV. Columnas reconocidas: Nombre, Código, Familia, Unidad, Ubicación, Proveedor, Mínimo, Máximo, Stock, Observaciones. Si el producto ya existe (mismo código o nombre) se actualiza sin cambiar su stock.</p>
         <div className="row wrap">
           {can('catalog.manage') ? <button type="button" className="btn" onClick={() => importRef.current?.click()}><FileSpreadsheet size={18} aria-hidden /> Elegir archivo</button> : <span className="small muted">Necesitás permiso para administrar productos.</span>}
-          <input ref={importRef} type="file" accept=".xlsx,.csv,text/csv" hidden aria-label="Archivo de productos" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void onImportFile(f); }} />
+          <input ref={importRef} type="file" accept=".xlsx,.xls,.csv,text/csv" hidden aria-label="Archivo de productos" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void onImportFile(f); }} />
           {plan && <button type="button" className="btn btn-primary" onClick={confirmImport}>Importar {plan.create + plan.update} productos</button>}
         </div>
       </section>
@@ -158,7 +170,7 @@ export function ExportPage() {
         <p className="muted small">El Excel de recetas de Maxirest (guardado como .xlsx o .csv). Cada receta se vincula por código con su producto y cada insumo con el suyo; las cantidades se pasan a la unidad de stock (gr → kg, ml → l). Al anotar una producción se descuentan los insumos.</p>
         <div className="row wrap">
           {can('catalog.manage') ? <button type="button" className="btn" onClick={() => recipeRef.current?.click()}><Upload size={18} aria-hidden /> Elegir archivo de recetas</button> : <span className="small muted">Necesitás permiso para administrar productos.</span>}
-          <input ref={recipeRef} type="file" accept=".xlsx,.csv,text/csv" hidden aria-label="Archivo de recetas" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void onRecipeFile(f); }} />
+          <input ref={recipeRef} type="file" accept=".xlsx,.xls,.csv,text/csv" hidden aria-label="Archivo de recetas" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void onRecipeFile(f); }} />
         </div>
       </section>
     </>

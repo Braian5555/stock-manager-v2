@@ -7,7 +7,7 @@ import { db } from '../database/db';
 import { applyCount, discardCount, finishCount, movedSinceStart, reopenCount, setCounted, summarizeCount, type CountLine } from '../services/countService';
 import { downloadCountReport } from '../exports/countReport';
 import { canSyncAdjustments, sendCountToExternal } from '../integrations/integrationService';
-import { exportBridgeWorkbook } from '../integrations/maxirest/excelBridgeExport';
+import { MaxirestXlsActions } from '../components/integrations/MaxirestXlsActions';
 import { useLookups, useProducts, EMPTY } from '../hooks/useData';
 import { useFeedback } from '../store/feedback';
 import { ScanButton } from '../components/scanner/ScanButton';
@@ -172,7 +172,7 @@ export function CountDetailPage() {
             {count.status === 'finalizado' && <button type="button" className="btn" onClick={() => run(() => reopenCount(id))}>Seguir contando</button>}
             {canSync && !count.outletId && can('admin') && linkedDiffs.length > 0 && count.status !== 'descartado' && <button type="button" className="btn" onClick={send}><Send size={16} aria-hidden /> Enviar a Maxirest</button>}
             {can('export') && <button type="button" className="btn" onClick={() => run(() => downloadCountReport(id), 'Excel de diferencias generado')}><FileSpreadsheet size={16} aria-hidden /> Excel de diferencias</button>}
-            {can('export') && !count.outletId && <button type="button" className="btn" onClick={() => run(() => exportBridgeWorkbook(id, count.name), 'Excel generado')}><FileSpreadsheet size={16} aria-hidden /> Excel para Maxirest</button>}
+            {can('export') && !count.outletId && <MaxirestXlsActions countId={id} name={count.name} small />}
             {count.status === 'finalizado' && can('count.apply') && (
               <button type="button" className="btn btn-danger" onClick={async () => (await confirm({ title: 'Descartar conteo', message: 'El conteo quedará guardado como descartado y no modificará el stock.', danger: true, confirmLabel: 'Descartar' })) && run(() => discardCount(id))}>Descartar</button>
             )}

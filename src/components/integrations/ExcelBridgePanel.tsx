@@ -4,6 +4,7 @@ import { readTabularFile, type Tabular } from '../../importers/tabular';
 import { BRIDGE_FIELD_LABEL, BRIDGE_FIELDS, detectMapping, importBridgeRows, toBridgeRows, type BridgeField, type BridgeMapping } from '../../integrations/maxirest/excelBridge';
 import { exportBridgeWorkbook } from '../../integrations/maxirest/excelBridgeExport';
 import { useFeedback } from '../../store/feedback';
+import { MaxirestXlsActions } from './MaxirestXlsActions';
 import { Field, Select } from '../ui';
 import { fmtNumber } from '../../utils/format';
 
@@ -45,14 +46,18 @@ export function ExcelBridgePanel({ onImported }: { onImported?: () => void }) {
     <div className="stack">
       <div className="alert alert-info small">
         <span>
-          <b>Proceso manual.</b> En Maxirest: Menú → Stock → Inventarios → Nuevo → “Preparar inventario” → exportar a Excel.
-          Guardalo como .xlsx (o .csv) e importalo acá. El formato no está documentado oficialmente: confirmá las columnas antes de importar.
+          <b>De Maxirest a Stock Manager:</b> en Maxirest, Stock → Inventarios → Nuevo → “Preparar inventario” → exportar a Excel, e importalo acá (.xls, .xlsx o .csv).
+          <br />
+          <b>De Stock Manager a Maxirest:</b> “Completar Excel de Maxirest” rellena la columna Conteo del Excel que exportó Maxirest con el stock de acá, y lo devuelve con el mismo formato.
+          Después, en Maxirest: Inventario → Depósito Central → “Importar Inventario”, revisá las diferencias, tildá “Ajuste automático de stock” y guardá.
+          Si no tenés el Excel de Maxirest, “.xls para Maxirest” arma uno nuevo (Cód., Insumo, Unid.Med., Conteo). Probalo primero con un inventario de prueba.
         </span>
       </div>
       <div className="row wrap">
         <button type="button" className="btn" onClick={() => fileRef.current?.click()}><FileUp size={18} aria-hidden /> Importar Excel de Maxirest</button>
-        <input ref={fileRef} type="file" accept=".xlsx,.csv,text/csv" hidden aria-label="Excel exportado de Maxirest" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void onFile(f); }} />
-        <button type="button" className="btn" onClick={() => run(() => exportBridgeWorkbook(undefined, 'stock_actual'), 'Excel generado')}><FileDown size={18} aria-hidden /> Exportar stock para Maxirest</button>
+        <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv,text/csv" hidden aria-label="Excel exportado de Maxirest" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void onFile(f); }} />
+        <MaxirestXlsActions name="stock_actual" />
+        <button type="button" className="btn btn-ghost" onClick={() => run(() => exportBridgeWorkbook(undefined, 'stock_actual'), 'Planilla generada')}><FileDown size={18} aria-hidden /> Planilla de control (.xlsx)</button>
       </div>
       {tab && (
         <div className="card card-pad stack">

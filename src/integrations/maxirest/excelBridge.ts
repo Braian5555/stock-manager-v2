@@ -5,8 +5,8 @@
  * "importar inventarios hechos con anterioridad". La documentación oficial NO publica
  * una plantilla ni nombres de columnas, por eso:
  *  - Al importar se detectan columnas por nombre y el usuario confirma/corrige el mapeo.
- *  - Al exportar se genera un Excel legible para carga MANUAL en Maxirest
- *    (columna "Conteo"), no un archivo garantizado para importación automática.
+ *  - Para llevar el conteo a Maxirest está maxirestXls.ts (.xls para "Importar Inventario"),
+ *    y acá queda la planilla de control (.xlsx) con las diferencias.
  */
 import { db } from '../../database/db';
 import type { Product } from '../../models';
@@ -31,8 +31,8 @@ export const BRIDGE_FIELD_LABEL: Record<BridgeField, string> = {
 const ALIASES: Record<BridgeField, string[]> = {
   code: ['codigo', 'cod', 'cod.', 'codigo insumo', 'cod insumo', 'id', 'sku'],
   name: ['nombre', 'insumo', 'descripcion', 'articulo', 'producto', 'detalle'],
-  unit: ['unidad', 'unidad de medida', 'medida', 'um', 'u.m.'],
-  stock: ['stock', 'stock actual', 'existencia', 'saldo', 'stock sistema', 'cantidad sistema', 'stock maxirest'],
+  unit: ['unidad', 'unidad de medida', 'medida', 'um', 'u.m.', 'unid.med.', 'unid. med.', 'unid.med', 'unid med', 'unid.'],
+  stock: ['stock', 'stock actual', 'existencia', 'saldo', 'stock sistema', 'cantidad sistema', 'stock maxirest', 'st.actual', 'st. actual', 'st actual'],
   counted: ['conteo', 'contado', 'cantidad contada', 'fisico', 'stock fisico', 'recuento'],
   location: ['deposito'],
   category: ['rubro', 'familia', 'categoria'],
@@ -141,6 +141,7 @@ export const BRIDGE_INSTRUCTIONS = [
   '1. En Maxirest: Menú → Stock → Inventarios → Nuevo. Elegir fecha, turno y depósito.',
   '2. Presionar "Preparar inventario" (opcional: filtrar por rubro).',
   '3. Copiar la columna "Conteo" de este archivo en la columna "conteo" de Maxirest, buscando cada insumo por su código.',
+  '   (Más fácil: en Stock Manager, "Completar Excel de Maxirest" rellena el .xls de Maxirest para usar "Importar Inventario".)',
   '4. Revisar las diferencias en Maxirest. Si corresponde, tildar "Ajuste automático de stock" y elegir el concepto.',
   '5. Guardar el inventario en Maxirest.',
   'Nota: Maxirest no documenta una plantilla de importación de Excel. Si tu versión permite importar',

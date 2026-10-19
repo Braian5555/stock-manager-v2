@@ -108,6 +108,9 @@ test('Excel Bridge: importa un inventario exportado de Maxirest (CSV) y concilia
   await expect(page.locator('tbody tr', { hasText: 'Insumo sin vincular' })).toContainText('No vinculado');
   await go(page, '/integraciones');
   await page.getByRole('button', { name: 'Excel Bridge' }).click();
-  const [dl] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Exportar stock para Maxirest' }).click()]);
+  const [dl] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Planilla de control (.xlsx)' }).click()]);
   expect(dl.suggestedFilename()).toMatch(/^maxirest_.*\.xlsx$/);
+  const [xls] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: '.xls para Maxirest' }).click()]);
+  expect(xls.suggestedFilename()).toMatch(/^maxirest_stock_actual_.*\.xls$/);
+  await expect(page.getByText(/Excel para Maxirest descargado: \d+ insumos con conteo/)).toBeVisible();
 });

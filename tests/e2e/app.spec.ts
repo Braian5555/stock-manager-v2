@@ -256,3 +256,37 @@ test('navegar no falla aunque scrollTo devuelva una Promise (Chrome reciente)', 
     await expect(page.getByText('Algo salió mal')).toHaveCount(0);
   }
 });
+
+test('exporta .xls para Maxirest y completa el Excel que exporta Maxirest', async ({ page }, info) => {
+  const XLSX = await import('@e965/xlsx');
+  await loadDemo(page);
+  await go(page, '/exportar');
+  const [dl] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: '.xls para Maxirest' }).click()]);
+  expect(dl.suggestedFilename()).toMatch(/^maxirest_stock_actual_.*\.xls$/);
+  const p = info.outputPath(dl.suggestedFilename());
+  await dl.saveAs(p);
+  expect([...readFileSync(p).subarray(0, 4)]).toEqual([0xd0, 0xcf, 0x11, 0xe0]);
+  await expect(page.getByText(/Excel para Maxirest descargado: 15 insumos con conteo/)).toBeVisible();
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
+    ['Insumo', 'Cód.', 'Unid.Med.', 'Costo', 'St.Actual', 'Conteo'],
+    ['AGUA 500', 'BEB-001', 'UN', 300, 1, 0],
+    ['HIELO 10', 'HIE-010', 'BOL', 900, 50, 0],
+    ['OTRO', 'ZZ-1', 'UN', 1, 7, 2],
+  ]), 'Hoja1');
+  const buffer = Buffer.from(XLSX.write(wb, { bookType: 'xls', type: 'array' }) as ArrayBuffer);
+  const [done] = await Promise.all([
+    page.waitForEvent('download'),
+    page.getByLabel('Excel de inventario exportado de Maxirest').first().setInputFiles({ name: 'inventario.xls', mimeType: 'application/vnd.ms-excel', buffer }),
+  ]);
+  expect(done.suggestedFilename()).toMatch(/^inventario_conteo_.*\.xls$/);
+  const q = info.outputPath(done.suggestedFilename());
+  await done.saveAs(q);
+  const back = XLSX.read(readFileSync(q), { type: 'buffer' });
+  const rows = XLSX.utils.sheet_to_json<unknown[]>(back.Sheets[back.SheetNames[0]], { header: 1, raw: true });
+  expect(rows[1]).toEqual(['AGUA 500', 'BEB-001', 'UN', 300, 1, 48]);
+  expect(rows[2]).toEqual(['HIELO 10', 'HIE-010', 'BOL', 900, 50, 3]);
+  expect(rows[3]).toEqual(['OTRO', 'ZZ-1', 'UN', 1, 7, 2]);
+  await expect(page.getByText(/2 insumos con conteo · 1 de Maxirest no están en Stock Manager/)).toBeVisible();
+});
