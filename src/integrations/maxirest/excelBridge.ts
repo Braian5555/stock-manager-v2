@@ -31,7 +31,7 @@ export const BRIDGE_FIELD_LABEL: Record<BridgeField, string> = {
 const ALIASES: Record<BridgeField, string[]> = {
   code: ['codigo', 'cod', 'cod.', 'codigo insumo', 'cod insumo', 'id', 'sku'],
   name: ['nombre', 'insumo', 'descripcion', 'articulo', 'producto', 'detalle'],
-  unit: ['unidad', 'unidad de medida', 'medida', 'um', 'u.m.', 'unid.med.', 'unid. med.', 'unid.med', 'unid med', 'unid.'],
+  unit: ['unidad', 'unidad de medida', 'medida', 'um', 'u.m.', 'unid.med.', 'unidad_med', 'unid. med.', 'unid.med', 'unid med', 'unid.'],
   stock: ['stock', 'stock actual', 'existencia', 'saldo', 'stock sistema', 'cantidad sistema', 'stock maxirest', 'st.actual', 'st. actual', 'st actual'],
   counted: ['conteo', 'contado', 'cantidad contada', 'fisico', 'stock fisico', 'recuento'],
   location: ['deposito'],

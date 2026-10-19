@@ -8,9 +8,15 @@
  *  - buildMaxirestXls: un .xls nuevo con las columnas de la grilla de Inventario de Maxirest.
  *
  * El código de insumo de Maxirest es el SKU del producto en Stock Manager.
+ *
+ * Formato real (visto en un Excel exportado por Maxirest, que está hecho en Visual FoxPro):
+ * Excel 2.1 (BIFF2), hoja "Sheet1", primera fila con los nombres de campo
+ * codigo · nombre · unidad_med · precio · stock · conteo · valoriz · dif_unid · dif_val · cod_rui · ensegui.
+ * Visual FoxPro no lee Excel 97 (BIFF8), por eso se escribe en BIFF2 igual que Maxirest.
  */
 import { round3 } from '../../utils/format';
 import { downloadBlob, safeFilename, stamp } from '../../exports/download';
+import { writeBiff2, type Biff2Cell } from '../../exports/biff2';
 import { buildExportLines, detectMapping, type BridgeExportLine } from './excelBridge';
 
 export const XLS_MIME = 'application/vnd.ms-excel';
@@ -50,20 +56,18 @@ export interface XlsResult {
   missingInFile: number;
 }
 
-export const XLS_HEADERS = ['Cód.', 'Insumo', 'Unid.Med.', 'Conteo'];
+/** Columnas del Excel de inventario de Maxirest, en su orden. */
+export const MAXIREST_COLUMNS = ['codigo', 'nombre', 'unidad_med', 'precio', 'stock', 'conteo', 'valoriz', 'dif_unid', 'dif_val', 'cod_rui', 'ensegui'];
+/** Anchos de columna del Excel de Maxirest (los largos de sus campos). */
+const MAXIREST_WIDTHS = [4, 100, 10, 19, 9, 11, 9, 14, 14, 4, 1];
 
-/** .xls nuevo: Cód. · Insumo · Unid.Med. · Conteo (un renglón por insumo con código). */
+/** .xls nuevo con las columnas de Maxirest: código, nombre, unidad y conteo (el resto lo completa Maxirest). */
 export async function buildMaxirestXls(lines: BridgeExportLine[], name: string): Promise<XlsResult> {
-  const XLSX = await import('@e965/xlsx');
   const withCode = lines.filter((l) => l.code && l.counted !== undefined);
-  const rows = withCode.map((l) => [/^\d+$/.test(l.code) ? Number(l.code) : l.code, l.name, l.unit, countValue(l.counted!)]);
-  const ws = XLSX.utils.aoa_to_sheet([XLS_HEADERS, ...rows]);
-  ws['!cols'] = [{ wch: 8 }, { wch: 40 }, { wch: 10 }, { wch: 10 }];
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Inventario');
-  const data = XLSX.write(wb, { bookType: 'xls', type: 'array' }) as ArrayBuffer;
+  const rows: Biff2Cell[][] = withCode.map((l) => [/^\d+$/.test(l.code) ? Number(l.code) : l.code, l.name, l.unit, null, null, countValue(l.counted!)]);
+  const data = writeBiff2([MAXIREST_COLUMNS, ...rows], MAXIREST_WIDTHS);
   return {
-    blob: new Blob([data], { type: XLS_MIME }),
+    blob: new Blob([data as BlobPart], { type: XLS_MIME }),
     filename: `maxirest_${safeFilename(name)}_${stamp()}.xls`,
     filled: rows.length,
     withoutCode: lines.filter((l) => !l.code).length,
@@ -92,6 +96,15 @@ export async function completeMaxirestXls(file: ArrayBuffer, fileName: string, l
       if (map.code === undefined || map.counted === undefined) continue;
       const codeCol = map.code;
       const countCol = map.counted;
+      const headers = rowText(r).map((h) => h.toLocaleLowerCase('es'));
+      const col = (...names: string[]) => { const i = headers.findIndex((h) => names.includes(h)); return i < 0 ? undefined : i; };
+      const priceCol = col('precio', 'costo');
+      const stockCol = map.stock;
+      const valueCol = col('valoriz', 'valorizac.', 'valorizacion', 'valorización');
+      const diffCol = col('dif_unid', 'dif.unid.', 'dif. unid.');
+      const diffValueCol = col('dif_val', 'dif.valor', 'dif. valor');
+      const num = (rr: number, c: number | undefined) => { const v = c === undefined ? undefined : Number(at(rr, c)?.v); return v !== undefined && Number.isFinite(v) ? v : undefined; };
+      const put = (rr: number, c: number | undefined, v: number | undefined) => { if (c !== undefined && v !== undefined) ws[XLSX.utils.encode_cell({ r: rr, c })] = { t: 'n', v: round3(v) }; };
       const seen = new Set<string>();
       let filled = 0;
       let notInStockManager = 0;
@@ -105,16 +118,45 @@ export async function completeMaxirestXls(file: ArrayBuffer, fileName: string, l
           continue;
         }
         seen.add(k);
-        ws[XLSX.utils.encode_cell({ r: rr, c: countCol })] = { t: 'n', v: countValue(q) };
+        const counted = countValue(q);
+        put(rr, countCol, counted);
+        // Las columnas calculadas quedan coherentes con el nuevo conteo (como las muestra Maxirest).
+        const price = num(rr, priceCol);
+        const stock = num(rr, stockCol);
+        if (price !== undefined) put(rr, valueCol, counted * price);
+        if (stock !== undefined) {
+          put(rr, diffCol, counted - stock);
+          if (price !== undefined) put(rr, diffValueCol, (counted - stock) * price);
+        }
         filled++;
       }
+      if (!filled && !notInStockManager)
+        throw new Error('El Excel de Maxirest está vacío (sólo tiene los títulos). En Maxirest: Inventario → Depósito Central → “Preparar inventario”, después exportá a Excel y probá de nuevo.');
       if (range.e.c < countCol) range.e.c = countCol;
       ws['!ref'] = XLSX.utils.encode_range(range);
       const xls = !fileName.toLowerCase().endsWith('.xlsx');
-      const data = XLSX.write(wb, { bookType: xls ? 'xls' : 'xlsx', type: 'array' }) as ArrayBuffer;
-      const base = fileName.replace(/\.(xlsx?|csv)$/i, '');
+      let data: ArrayBuffer | Uint8Array;
+      if (xls) {
+        // Se reescribe en Excel 2.1 igual que Maxirest (SheetJS no guarda tildes en ese formato).
+        const matrix: Biff2Cell[][] = [];
+        for (let rr = 0; rr <= range.e.r; rr++) {
+          const row: Biff2Cell[] = [];
+          for (let c = 0; c <= range.e.c; c++) {
+            const cell = ws[XLSX.utils.encode_cell({ r: rr, c })] as { t?: string; v?: unknown } | undefined;
+            const v = cell?.v;
+            row.push(v === undefined || v === null ? null : typeof v === 'number' || typeof v === 'boolean' ? v : v instanceof Date ? v.toISOString().slice(0, 10) : String(v));
+          }
+          matrix.push(row);
+        }
+        const cols = (ws['!cols'] ?? []) as { wch?: number; width?: number }[];
+        const widths = Array.from({ length: range.e.c + 1 }, (_, c) => cols[c]?.wch ?? cols[c]?.width ?? MAXIREST_WIDTHS[c] ?? 10);
+        data = writeBiff2(matrix, widths);
+      } else {
+        data = XLSX.write(wb, { bookType: 'xlsx', type: 'array' }) as ArrayBuffer;
+      }
+      const base = fileName.replace(/\.(xlsx?|csv)$/i, '') || 'maxirest_inventario';
       return {
-        blob: new Blob([data], { type: xls ? XLS_MIME : XLSX_MIME }),
+        blob: new Blob([data as BlobPart], { type: xls ? XLS_MIME : XLSX_MIME }),
         filename: `${safeFilename(base)}_conteo_${stamp()}.${xls ? 'xls' : 'xlsx'}`,
         filled,
         withoutCode: lines.filter((l) => !l.code).length,

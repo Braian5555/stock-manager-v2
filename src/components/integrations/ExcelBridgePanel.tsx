@@ -50,7 +50,7 @@ export function ExcelBridgePanel({ onImported }: { onImported?: () => void }) {
           <br />
           <b>De Stock Manager a Maxirest:</b> “Completar Excel de Maxirest” rellena la columna Conteo del Excel que exportó Maxirest con el stock de acá, y lo devuelve con el mismo formato.
           Después, en Maxirest: Inventario → Depósito Central → “Importar Inventario”, revisá las diferencias, tildá “Ajuste automático de stock” y guardá.
-          Si no tenés el Excel de Maxirest, “.xls para Maxirest” arma uno nuevo (Cód., Insumo, Unid.Med., Conteo). Probalo primero con un inventario de prueba.
+          Si no tenés el Excel de Maxirest, “.xls para Maxirest” arma uno nuevo con las columnas de Maxirest. Probalo primero con un inventario de prueba.
         </span>
       </div>
       <div className="row wrap">

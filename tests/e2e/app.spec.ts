@@ -265,7 +265,7 @@ test('exporta .xls para Maxirest y completa el Excel que exporta Maxirest', asyn
   expect(dl.suggestedFilename()).toMatch(/^maxirest_stock_actual_.*\.xls$/);
   const p = info.outputPath(dl.suggestedFilename());
   await dl.saveAs(p);
-  expect([...readFileSync(p).subarray(0, 4)]).toEqual([0xd0, 0xcf, 0x11, 0xe0]);
+  expect([...readFileSync(p).subarray(0, 8)]).toEqual([0x09, 0x00, 0x04, 0x00, 0x02, 0x00, 0x10, 0x00]); // Excel 2.1, como Maxirest
   await expect(page.getByText(/Excel para Maxirest descargado: 15 insumos con conteo/)).toBeVisible();
 
   const wb = XLSX.utils.book_new();
