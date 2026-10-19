@@ -10,7 +10,9 @@ describe('usuarios con PIN', () => {
   it('guarda sólo el hash del PIN y lo verifica', async () => {
     const u = await saveUser({ name: 'Ana', pin: '1234', role: 'admin', permissions: [], active: true });
     expect(u.pinHash).toHaveLength(64);
-    expect(JSON.stringify(u)).not.toContain('1234');
+    // El PIN no queda como valor (el hash y la sal son aleatorios y podrían contener esos dígitos por azar).
+    expect(Object.entries(u).filter(([k]) => k !== 'pinHash' && k !== 'pinSalt').map(([, v]) => JSON.stringify(v)).join()).not.toContain('1234');
+    expect(u).not.toHaveProperty('pin');
     expect(await verifyPin(u, '1234')).toBe(true);
     expect(await verifyPin(u, '4321')).toBe(false);
     const again = await hashPin('1234');
