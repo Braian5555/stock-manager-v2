@@ -22,6 +22,10 @@ async function fakeGemini(page: Page, log: Req[]) {
     const last = body.contents[body.contents.length - 1];
     const text = last.parts.find((p) => p.text)?.text ?? '';
     const resp = last.parts.find((p) => p.functionResponse)?.functionResponse;
+    // Simula a Gemini saturado la primera vez que se pregunta "probá saturado".
+    if (/probá saturado/.test(text) && !log.some((x, i) => i < log.length - 1 && JSON.stringify(x.contents).includes('probá saturado'))) {
+      return r.fulfill({ status: 503, contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: JSON.stringify({ error: { code: 503, status: 'UNAVAILABLE', message: 'The model is overloaded. Please try again later.' } }) });
+    }
     const ref = (name: string) => new RegExp(`^(p\\d+)\\|${name}\\|`, 'm').exec(body.systemInstruction.parts[0].text)?.[1];
     let parts: unknown[];
     if (resp?.name === 'reponer') {
@@ -172,4 +176,16 @@ test('asistente: la foto de una factura queda guardada en Facturas y cargada al 
   await expect(v.getByText('Cargada al stock')).toBeVisible();
   await expect(v.getByRole('region', { name: 'Productos de la factura' })).toContainText('24 bot');
   await expect(v.getByRole('img', { name: 'Factura, hoja 1' })).toBeVisible({ timeout: 20_000 });
+});
+
+test('asistente: si Gemini está saturado, reintenta solo', async ({ page }) => {
+  const log: Req[] = [];
+  await fakeGemini(page, log);
+  await setup(page);
+  await go(page, '/asistente');
+  await page.getByLabel('Mensaje para el asistente').fill('hola, probá saturado');
+  await page.getByRole('button', { name: 'Enviar' }).click();
+  await expect(page.getByText('Hola, ¿en qué te ayudo?')).toBeVisible({ timeout: 15_000 });
+  expect(log).toHaveLength(2); // el primero falló (503) y se reintentó
+  await expect(page.getByText(/Gemini está saturado/)).toHaveCount(0);
 });

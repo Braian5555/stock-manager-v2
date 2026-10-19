@@ -135,6 +135,10 @@ describe('servidor de Cloudflare: Gemini (gratis)', () => {
     expect(r.status).toBe(200);
     expect(net.calls.map((c) => /models\/([^:]+):/.exec(c.url)![1])).toEqual(['gemini-3.8-flash', 'gemini-3.5-flash-lite', 'gemini-2.5-flash']);
     // Con GEMINI_MODEL fijo, sólo ese.
+    // Un modelo saturado (503) también pasa al siguiente.
+    const busy = geminiNet({ 'gemini-3.8-flash': 503 });
+    expect((await handle(await greq(), genv, busy.f)).status).toBe(200);
+    expect(busy.calls.map((c) => /models\/([^:]+):/.exec(c.url)![1])).toEqual(['gemini-3.8-flash', 'gemini-3.5-flash-lite']);
     const net2 = geminiNet({});
     await handle(await greq(), { ...genv, GEMINI_MODEL: 'gemini-x' }, net2.f);
     expect(net2.calls.map((c) => /models\/([^:]+):/.exec(c.url)![1])).toEqual(['gemini-x']);

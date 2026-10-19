@@ -133,8 +133,8 @@ async function handle(request, env, fetchImpl = fetch) {
         headers: { 'Content-Type': 'application/json', 'x-goog-api-key': env.GEMINI_API_KEY },
         body,
       });
-      // Modelo inexistente, sin permiso o fuera del plan gratis: se prueba el siguiente.
-      if (![403, 404, 429].includes(last.status)) break;
+      // Modelo inexistente, sin permiso, fuera del plan gratis o saturado: se prueba el siguiente.
+      if (![403, 404, 429, 500, 503].includes(last.status)) break;
     }
     return new Response(last.body, { status: last.status, headers: json });
   }

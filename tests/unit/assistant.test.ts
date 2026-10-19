@@ -488,3 +488,14 @@ describe('asistente: facturas por foto quedan en Facturas', () => {
     expect(await db.invoices.count()).toBe(0);
   });
 });
+
+describe('asistente: Gemini saturado', () => {
+  it('reintenta solo ante errores 5xx y muestra el detalle de Google si no es saturación', async () => {
+    const { workerTransport, assistantError, RETRY_WAITS_MS } = await import('../../src/services/assistant/engine');
+    expect(assistantError(503, { error: { status: 'UNAVAILABLE', message: 'The model is overloaded. Please try again later.' } }).message).toMatch(/saturado/);
+    expect(assistantError(500, { error: { status: 'INTERNAL', message: 'An internal error has occurred.' } }).message).toBe('Gemini devolvió un error (500: An internal error has occurred.). Probá de nuevo; si se repite, mandale este mensaje a Claude.');
+    expect(assistantError(400, { error: { status: 'INVALID_ARGUMENT', message: 'Invalid value at tools[0]' } }).message).toMatch(/400: Invalid value at tools\[0\]/);
+    expect(RETRY_WAITS_MS.length).toBe(2);
+    void workerTransport;
+  });
+});

@@ -8,6 +8,7 @@ import type { AppUser, Permission, Settings } from '../../models';
 import { cloudSession } from '../../cloud/cloudService';
 import { uuid } from '../../utils/id';
 import { workerProvider } from '../invoiceAI';
+import { logError } from '../diagnosticsService';
 import { PERMISSION_LABEL, ROLE_LABEL } from '../userService';
 import { RefMap, ToolError, toolsFor, type Proposal, type ToolContext, type ToolDef } from './tools';
 
@@ -31,16 +32,22 @@ export function assistantError(status: number, body: unknown): Error {
   const b = body as { error?: string | { message?: string; status?: string } } | null;
   if (typeof b?.error === 'string') return new Error(b.error); // mensaje del servidor de Cloudflare
   const msg = typeof b?.error === 'object' ? `${b.error?.status ?? ''} ${b.error?.message ?? ''}` : '';
+  // Detalle de Google (en inglés) para poder diagnosticar si el error se repite.
+  const detail = typeof b?.error === 'object' && b.error?.message ? b.error.message.replace(/\s+/g, ' ').slice(0, 160) : '';
   if (/API key not valid|API_KEY_INVALID/i.test(msg)) return new Error('La clave de Google no es válida. Revisala en Cloudflare (secreto GEMINI_API_KEY).');
   if (status === 429 || /RESOURCE_EXHAUSTED/.test(msg)) return new Error('Se alcanzó el límite gratis de Gemini por ahora. Probá de nuevo en un rato.');
   if (status === 403 || /PERMISSION_DENIED/.test(msg)) return new Error('La clave de Google no tiene permiso para usar Gemini.');
   if (status === 404) return new Error('El modelo de Gemini no está disponible. Revisá el secreto GEMINI_MODEL en Cloudflare.');
   if (status === 413) return new Error('Las fotos son demasiado grandes. Probá con menos fotos.');
-  if (status === 503 || status === 500) return new Error('Gemini está ocupado. Probá de nuevo en un minuto.');
-  return new Error(`El asistente no pudo responder (error ${status}). Probá de nuevo.`);
+  if (status >= 500 && (/overloaded|UNAVAILABLE|try again later/i.test(msg) || !detail)) {
+    return new Error('Gemini está saturado en este momento (en el plan gratis pasa en horas pico). Probá de nuevo en un minuto.');
+  }
+  return new Error(`Gemini devolvió un error (${status}${detail ? `: ${detail}` : ''}). Probá de nuevo; si se repite, mandale este mensaje a Claude.`);
 }
 
 const REQUEST_TIMEOUT_MS = 90_000;
+/** Esperas antes de reintentar cuando Gemini responde "saturado". */
+export const RETRY_WAITS_MS = [1500, 4000];
 
 /** Envío real: al servidor de Cloudflare (ruta /gemini), con la sesión de la nube. */
 export function workerTransport(rawUrl: string): Transport {
@@ -55,26 +62,36 @@ export function workerTransport(rawUrl: string): Transport {
     } catch (e) {
       throw new Error('Para usar el asistente, la app tiene que estar conectada a la nube (Cuenta y nube).', { cause: e });
     }
-    let r: Response;
-    // Si la IA no contesta en un tiempo razonable, se corta (si no, queda "Pensando…" para siempre).
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), REQUEST_TIMEOUT_MS);
-    try {
-      r = await fetch(`${url}/gemini`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.token}`, 'X-Workspace': session.wsId },
-        body: JSON.stringify(body),
-        signal: ctrl.signal,
-      });
-    } catch (e) {
-      if (ctrl.signal.aborted) throw new Error('La IA tardó demasiado en responder. Probá de nuevo.', { cause: e });
-      throw new Error('No se pudo conectar con el servidor de IA. Revisá la conexión.', { cause: e });
-    } finally {
-      clearTimeout(timer);
+    const payload = JSON.stringify(body);
+    // Gemini gratis a veces responde "saturado" (5xx) por unos segundos: se reintenta solo.
+    for (let attempt = 0; ; attempt++) {
+      let r: Response;
+      // Si la IA no contesta en un tiempo razonable, se corta (si no, queda "Pensando…" para siempre).
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), REQUEST_TIMEOUT_MS);
+      try {
+        r = await fetch(`${url}/gemini`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.token}`, 'X-Workspace': session.wsId },
+          body: payload,
+          signal: ctrl.signal,
+        });
+      } catch (e) {
+        if (ctrl.signal.aborted) throw new Error('La IA tardó demasiado en responder. Probá de nuevo.', { cause: e });
+        throw new Error('No se pudo conectar con el servidor de IA. Revisá la conexión.', { cause: e });
+      } finally {
+        clearTimeout(timer);
+      }
+      const json = await r.json().catch(() => null);
+      if (r.ok) return json;
+      if (r.status >= 500 && attempt < RETRY_WAITS_MS.length) {
+        await new Promise((res) => setTimeout(res, RETRY_WAITS_MS[attempt]));
+        continue;
+      }
+      const err = assistantError(r.status, json);
+      logError(new Error(`Asistente IA: error ${r.status} de Gemini · ${JSON.stringify(json)?.slice(0, 400) ?? 'sin respuesta'}`), 'aviso');
+      throw err;
     }
-    const json = await r.json().catch(() => null);
-    if (!r.ok) throw assistantError(r.status, json);
-    return json;
   };
 }
 

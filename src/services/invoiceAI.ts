@@ -108,8 +108,9 @@ function geminiError(status: number, body: unknown): Error {
   if (status === 404) return new Error('El modelo de Gemini no está disponible. Revisá el secreto GEMINI_MODEL en Cloudflare.');
   if (status === 413) return new Error('Las fotos son demasiado grandes. Probá con menos hojas.');
   if (status === 400) return new Error('La IA no pudo procesar estas fotos.');
-  if (status === 503 || status === 500) return new Error('Gemini está ocupado. Probá de nuevo en un minuto.');
-  return new Error(`No se pudo leer la factura (error ${status}). Probá de nuevo.`);
+  const detail = typeof b?.error === 'object' && b.error?.message ? b.error.message.replace(/\s+/g, ' ').slice(0, 160) : '';
+  if (status >= 500 && (/overloaded|UNAVAILABLE|try again later/i.test(msg) || !detail)) return new Error('Gemini está saturado en este momento (en el plan gratis pasa en horas pico). Probá de nuevo en un minuto.');
+  return new Error(`No se pudo leer la factura (error ${status}${detail ? `: ${detail}` : ''}). Probá de nuevo; si se repite, mandale este mensaje a Claude.`);
 }
 
 /** Qué IA tiene configurada el servidor (se consulta una vez cada 10 minutos). */
@@ -124,23 +125,32 @@ export async function workerProvider(url: string): Promise<'gemini' | 'anthropic
   return provider;
 }
 
+const READ_RETRY_WAITS_MS = [2000, 5000];
+
 /** Lectura a través del servidor de Cloudflare: el pedido se arma acá y el servidor sólo agrega la clave. */
 async function readViaWorker(rawUrl: string, images: { type: string; data: string }[], catalog: CatalogEntry[]): Promise<AIReading> {
   if (typeof navigator !== 'undefined' && navigator.onLine === false) throw new Error('Sin conexión: la lectura con IA necesita Internet.');
   const url = rawUrl.replace(/\/+$/, '');
   const provider = await workerProvider(url);
   const { token, wsId } = await cloudSession();
+  const payload = JSON.stringify(provider === 'gemini' ? buildGeminiRequest(images, catalog) : buildRequest(images, catalog));
   let r: Response;
-  try {
-    r = await fetch(provider === 'gemini' ? `${url}/gemini` : url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, 'X-Workspace': wsId },
-      body: JSON.stringify(provider === 'gemini' ? buildGeminiRequest(images, catalog) : buildRequest(images, catalog)),
-    });
-  } catch (e) {
-    throw new Error('No se pudo conectar con el servidor de lectura. Revisá la dirección en Configuración → Lectura con IA.', { cause: e });
+  let body: unknown;
+  // Si la IA responde "saturado" (5xx), se reintenta un par de veces antes de avisar.
+  for (let attempt = 0; ; attempt++) {
+    try {
+      r = await fetch(provider === 'gemini' ? `${url}/gemini` : url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, 'X-Workspace': wsId },
+        body: payload,
+      });
+    } catch (e) {
+      throw new Error('No se pudo conectar con el servidor de lectura. Revisá la dirección en Configuración → Lectura con IA.', { cause: e });
+    }
+    body = await r.json().catch(() => null);
+    if (r.ok || r.status < 500 || attempt >= READ_RETRY_WAITS_MS.length) break;
+    await new Promise((res) => setTimeout(res, READ_RETRY_WAITS_MS[attempt]));
   }
-  const body = await r.json().catch(() => null);
   if (provider === 'gemini') {
     if (!r.ok) throw geminiError(r.status, body);
     const { text, truncated } = geminiText(body);
