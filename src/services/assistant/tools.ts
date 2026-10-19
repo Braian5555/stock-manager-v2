@@ -7,7 +7,7 @@
  *   en pantalla. Recién ahí se aplica (con clave fija, así un doble toque no duplica nada).
  */
 import { db } from '../../database/db';
-import type { InventoryCount, InvoiceItem, MovementType, Permission, Product, Settings, StockMovement, Unit } from '../../models';
+import type { InventoryCount, InvoiceItem, MovementType, Outlet, Permission, Product, Settings, StockMovement, Unit } from '../../models';
 import { MODULE_PATH, MODULE_PERMISSIONS, moduleEnabled } from '../../layouts/modules';
 import { fmtDay, fmtMoney, fmtNumber, matches, normalize, round3 } from '../../utils/format';
 import { MODULES } from '../settingsService';
@@ -22,7 +22,8 @@ import { priceHistory, priceIncreases } from '../priceService';
 import { RESTOCK_LEVEL_LABEL, restockList, usageSinceIso } from '../restockService';
 import { deleteProduct, emptyProduct, saveProduct } from '../productService';
 import { recipeConsumption, registerProduction, undoProduction } from '../productionService';
-import { applyMovement, MOVEMENT_LABEL, revertMovement, statusOf, STATUS_LABEL } from '../stockService';
+import { applyMovement, MOVEMENT_LABEL, revertMovement, statusOf, STATUS_LABEL, stockByOutlet } from '../stockService';
+import { createTransfer, transferCode, voidTransfer } from '../transferService';
 import { ymdAdd } from '../bakeryService';
 
 // ───────────── Esquemas (formato de Gemini) ─────────────
@@ -110,6 +111,25 @@ type Args = Record<string, unknown>;
 
 // ───────────── Ayudas ─────────────
 
+/** Punto gastronómico por nombre ("confi" → Confitería). */
+export async function resolveOutlet(raw: unknown): Promise<Outlet> {
+  const text = normalize(s(raw));
+  const outlets = (await db.outlets.toArray()).filter((o) => o.active);
+  if (!outlets.length) throw new ToolError('Todavía no hay puntos cargados. Se crean en Remitos internos → Puntos.');
+  const names = outlets.map((o) => o.name).join(', ');
+  if (!text) throw new ToolError(`Falta a qué punto va. Puntos: ${names}.`);
+  const exact = outlets.find((o) => normalize(o.name) === text);
+  if (exact) return exact;
+  const partial = outlets.filter((o) => normalize(o.name).startsWith(text) || text.startsWith(normalize(o.name)) || normalize(o.name).includes(text));
+  if (partial.length === 1) return partial[0];
+  const best = outlets.map((o) => ({ o, sc: similarity(text, normalize(o.name)) })).sort((a, b) => b.sc - a.sc);
+  if (best[0].sc >= 0.6 && (best.length === 1 || best[0].sc - best[1].sc >= 0.12)) return best[0].o;
+  throw new ToolError(`No sé a qué punto te referís con “${s(raw)}”. Puntos: ${names}.`);
+}
+
+/** Fecha local AAAA-MM-DD de un ISO. */
+const localDay = (iso: string) => new Date(iso).toLocaleDateString('sv-SE');
+
 const s = (v: unknown) => (typeof v === 'string' ? v.trim() : '');
 const n = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : typeof v === 'string' && v.trim() !== '' && Number.isFinite(Number(v.replace(',', '.'))) ? Number(v.replace(',', '.')) : undefined);
 const list = (v: unknown): Args[] => (Array.isArray(v) ? v.filter((x): x is Args => !!x && typeof x === 'object') : []);
@@ -177,6 +197,9 @@ const SCREENS: Record<string, keyof typeof MODULE_PATH> = {
 };
 
 // ───────────── Herramientas ─────────────
+
+/** Remitos ya hechos por clave de confirmación (un doble toque no hace dos remitos). */
+const sentTransfers = new Map<string, import('../../models').Transfer>();
 
 export const TOOLS: ToolDef[] = [
   {
@@ -615,6 +638,153 @@ export const TOOLS: ToolDef[] = [
           };
         },
       };
+    },
+  },
+  {
+    name: 'enviar_a_punto',
+    label: 'Preparó un remito a un punto',
+    description: 'Mercadería que sale del Depósito Central hacia un punto (Confitería, Xenote, Parador…): "mandé", "despaché", "pasé", "traspasé" o "llevé" algo a un punto. Hace un remito interno: baja del Depósito y queda sumado al stock de ese punto. NO uses registrar_movimientos con salida para esto. La persona confirma antes de aplicar.',
+    parameters: obj({
+      punto: str('Nombre del punto que recibe.'),
+      productos: arr(obj({
+        producto: str('Referencia (p12) o nombre.'),
+        cantidad: num('Cantidad positiva.'),
+        unidad: str('"stock" (la unidad del producto) o "compra" (cajas/bultos).', ['stock', 'compra']),
+      }, ['producto', 'cantidad']), 'Lo que se manda (máximo 80).'),
+      fecha: str('AAAA-MM-DD (opcional, hoy si falta).'),
+      notas: str('Nota del remito (opcional).'),
+    }, ['punto', 'productos']),
+    perms: ['stock.move'],
+    prepare: async (a, ctx) => {
+      const outlet = await resolveOutlet(a.punto);
+      const rows = list(a.productos);
+      if (!rows.length) throw new ToolError('No hay productos para mandar.');
+      if (rows.length > 80) throw new ToolError('Máximo 80 productos por remito.');
+      const lk = await lookups();
+      const notes: string[] = [];
+      const items = new Map<string, { p: Product; qty: number }>();
+      for (const r of rows) {
+        let p: Product;
+        try { p = await resolveProduct(r.producto, ctx); } catch (e) { notes.push(e instanceof Error ? e.message : String(e)); continue; }
+        const raw = n(r.cantidad);
+        if (raw === undefined || raw <= 0) { notes.push(`Cantidad inválida para “${p.name}”.`); continue; }
+        const prev = items.get(p.id);
+        items.set(p.id, { p, qty: round3((prev?.qty ?? 0) + stockQty(p, raw, r.unidad)) });
+      }
+      if (!items.size) throw new ToolError(notes.join(' ') || 'No hay productos válidos.');
+      const plan = [...items.values()];
+      const outletStock = stockByOutlet(await db.movements.filter((m) => m.outletId === outlet.id).toArray()).get(outlet.id);
+      const date = ymd(a.fecha) ?? ctx.today;
+      const lines = plan.map(({ p, qty }) => {
+        const there = outletStock?.get(p.id) ?? 0;
+        return `${p.name}: ${fmtNumber(qty)} ${lk.unit(p.unitId)} · Depósito ${fmtNumber(p.stock)} → ${fmtNumber(round3(p.stock - qty))} · ${outlet.name} ${fmtNumber(there)} → ${fmtNumber(round3(there + qty))}`;
+      });
+      for (const { p, qty } of plan) if (p.stock - qty < 0) notes.push(`“${p.name}” queda en negativo en el Depósito (hay ${fmtNumber(p.stock)}).`);
+      return {
+        title: `Remito a ${outlet.name} (${plan.length} ${plan.length === 1 ? 'producto' : 'productos'})`,
+        lines, notes,
+        execute: async (key) => {
+          if (!ctx.can('stock.move')) throw new ToolError('Ya no tenés permiso para mover stock.');
+          const already = sentTransfers.get(key);
+          const transfer = already ?? (await createTransfer({ date, outletId: outlet.id, items: plan.map(({ p, qty }) => ({ productId: p.id, quantity: qty })), notes: s(a.notas) || 'Desde el Asistente IA' })).transfer;
+          sentTransfers.set(key, transfer);
+          const code = transferCode(transfer.number);
+          return {
+            result: { ok: true, remito: code, punto: outlet.name, productos: plan.length },
+            done: `Remito ${code} a ${outlet.name}: ${plan.length} ${plan.length === 1 ? 'producto' : 'productos'}`,
+            undo: async () => {
+              if (!ctx.can('stock.move')) throw new ToolError('No tenés permiso para mover stock.');
+              await voidTransfer(transfer.id);
+              return `Remito ${code} anulado: la mercadería volvió al Depósito`;
+            },
+          };
+        },
+      };
+    },
+  },
+  {
+    name: 'pasar_salidas_a_remito',
+    label: 'Preparó pasar salidas a un remito',
+    description: 'Corrige mercadería que se mandó a un punto pero se anotó como salida común (por ejemplo "Despacho a confi" o "Traspaso a Xenote"): esas salidas pasan a ser un remito al punto. El stock del Depósito no cambia; el punto suma esa mercadería. La persona confirma antes de aplicar.',
+    parameters: obj({
+      punto: str('Nombre del punto que recibió la mercadería.'),
+      buscar: str('Texto del motivo de esas salidas, p. ej. "confi" o "xenote".'),
+      dias: num('Cuántos días para atrás buscar (opcional, 7 si falta, máximo 60).'),
+    }, ['punto', 'buscar']),
+    perms: ['stock.move'],
+    prepare: async (a, ctx) => {
+      const outlet = await resolveOutlet(a.punto);
+      const text = normalize(s(a.buscar));
+      if (text.length < 3) throw new ToolError('Decime qué texto tiene el motivo de esas salidas (al menos 3 letras).');
+      const days = Math.min(60, Math.max(1, Math.round(n(a.dias) ?? 7)));
+      const since = new Date(Date.now() - days * 86_400_000).toISOString();
+      const recent = await db.movements.where('createdAt').aboveOrEqual(since).toArray();
+      const undone = new Set(recent.filter((m) => m.idempotencyKey?.startsWith('undo:')).map((m) => m.idempotencyKey.slice(5)));
+      const found = recent
+        .filter((m) => m.type === 'salida' && !m.outletId && !m.refId && m.delta < 0 && !undone.has(m.id) && !m.idempotencyKey?.startsWith('undo:') && normalize(m.reason ?? '').includes(text))
+        .sort((x, y) => x.createdAt.localeCompare(y.createdAt));
+      if (!found.length) throw new ToolError(`No encontré salidas con “${s(a.buscar)}” en el motivo en los últimos ${days} días.`);
+      const products = new Map((await db.products.bulkGet([...new Set(found.map((m) => m.productId))])).filter((p): p is Product => !!p).map((p) => [p.id, p]));
+      const usable = found.filter((m) => products.has(m.productId));
+      if (!usable.length) throw new ToolError('Esos productos ya no existen.');
+      const lk = await lookups();
+      const items = new Map<string, number>();
+      for (const m of usable) items.set(m.productId, round3((items.get(m.productId) ?? 0) - m.delta));
+      const lines = usable.map((m) => `${new Date(m.createdAt).toLocaleDateString('es-AR')} · ${products.get(m.productId)!.name}: ${fmtNumber(-m.delta)} ${lk.unit(products.get(m.productId)!.unitId)} (“${m.reason ?? ''}”)`);
+      const date = localDay(usable[0].createdAt);
+      return {
+        title: `Pasar ${usable.length} ${usable.length === 1 ? 'salida' : 'salidas'} a un remito a ${outlet.name}`,
+        lines,
+        notes: ['El stock del Depósito queda igual: sólo cambia que esa mercadería ahora figura en el stock de ' + outlet.name + '.'],
+        execute: async (key) => {
+          if (!ctx.can('stock.move')) throw new ToolError('Ya no tenés permiso para mover stock.');
+          const done = sentTransfers.get(key);
+          const { transfer, fixes } = done ? { transfer: done, fixes: [] as StockMovement[] } : await db.transaction('rw', [db.transfers, db.products, db.movements, db.outlets], async () => {
+            const { transfer: tr } = await createTransfer({ date, outletId: outlet.id, items: [...items].map(([productId, quantity]) => ({ productId, quantity })), notes: `Salidas “${s(a.buscar)}” pasadas a remito desde el Asistente IA` });
+            const out: StockMovement[] = [];
+            for (const m of usable) {
+              // Devuelve la salida vieja (el remito ya la descontó): el Depósito queda como estaba.
+              const r = await applyMovement({ productId: m.productId, type: 'ajuste', delta: -m.delta, reason: `Pasada al remito ${transferCode(tr.number)} (${outlet.name})`, origin: 'deshacer', idempotencyKey: `undo:${m.id}`, refId: tr.id });
+              if (!r.duplicate) out.push(r.movement);
+            }
+            return { transfer: tr, fixes: out };
+          });
+          sentTransfers.set(key, transfer);
+          const code = transferCode(transfer.number);
+          return {
+            result: { ok: true, remito: code, punto: outlet.name, salidas: usable.length, productos: items.size },
+            done: `${usable.length} ${usable.length === 1 ? 'salida pasada' : 'salidas pasadas'} al remito ${code} a ${outlet.name}`,
+            undo: async () => {
+              if (!ctx.can('stock.move')) throw new ToolError('No tenés permiso para mover stock.');
+              await db.transaction('rw', [db.transfers, db.products, db.movements, db.outlets], async () => {
+                await voidTransfer(transfer.id);
+                for (const f of fixes) await revertMovement(f);
+              });
+              return `Deshecho: el remito ${code} quedó anulado y las salidas volvieron a como estaban`;
+            },
+          };
+        },
+      };
+    },
+  },
+  {
+    name: 'stock_punto',
+    label: 'Consultó el stock de un punto',
+    description: 'Qué mercadería tiene un punto (Confitería, Xenote…) según los remitos que recibió y sus conteos.',
+    parameters: obj({ punto: str('Nombre del punto.'), buscar: str('Filtrar por nombre de producto (opcional).') }, ['punto']),
+    perms: ['stock.view', 'stock.move'],
+    run: async (a, ctx) => {
+      const outlet = await resolveOutlet(a.punto);
+      const stock = stockByOutlet(await db.movements.filter((m) => m.outletId === outlet.id).toArray()).get(outlet.id) ?? new Map<string, number>();
+      const lk = await lookups();
+      const products = await db.products.bulkGet([...stock.keys()]);
+      const q = s(a.buscar);
+      const rows = products
+        .filter((p): p is Product => !!p && (!q || matches(q, p.name, p.sku)))
+        .map((p) => ({ ref: ctx.refs.ref(p.id), producto: p.name, cantidad: stock.get(p.id) ?? 0, unidad: lk.unit(p.unitId), familia: lk.category(p.categoryId) || 'Sin familia' }))
+        .filter((r) => r.cantidad !== 0)
+        .sort((x, y) => x.familia.localeCompare(y.familia, 'es') || x.producto.localeCompare(y.producto, 'es'));
+      return { punto: outlet.name, productos: rows.slice(0, 150), total: rows.length, link: `/stock?punto=${outlet.id}` };
     },
   },
   {

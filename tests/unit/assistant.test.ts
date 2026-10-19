@@ -521,3 +521,80 @@ describe('asistente: reponer con muchos productos en cero', () => {
     expect(full.otros_en_cero_sin_movimiento).toBeUndefined();
   });
 });
+
+describe('asistente: mercadería a los puntos', () => {
+  const addOutlets = async () => {
+    await db.outlets.bulkAdd([
+      { id: 'confi', name: 'Confiteria', active: true, createdAt: t, updatedAt: t },
+      { id: 'xen', name: 'Xenote', active: true, createdAt: t, updatedAt: t },
+    ]);
+  };
+  const outletQty = async (outletId: string, productId: string) =>
+    (await db.movements.where('productId').equals(productId).toArray()).filter((m) => m.outletId === outletId).reduce((a, m) => a + m.delta, 0);
+
+  it('"mandé a la confi" hace un remito: baja del depósito y suma al punto; deshacer lo anula', async () => {
+    const { harina } = await seed();
+    await addOutlets();
+    const { transport, requests } = scripted([
+      call({ name: 'enviar_a_punto', args: { punto: 'confi', productos: [{ producto: 'Harina 000', cantidad: 10 }] } }),
+      say('Listo, remito hecho.'),
+    ]);
+    const e = engine(ROLE_PERMISSIONS.manager, transport);
+    await e.send('mandé 10 kilos de harina a la confi');
+    expect(requests[0].systemInstruction.parts[0].text).toContain('Puntos (locales que reciben mercadería del Depósito Central): Confiteria, Xenote');
+    const msg = e.getState().messages.at(-1)!;
+    expect(msg.proposals?.[0].title).toBe('Remito a Confiteria (1 producto)');
+    expect(msg.proposals?.[0].lines[0]).toBe('Harina 000: 10 kg · Depósito 50 → 40 · Confiteria 0 → 10');
+    await e.confirm(msg.id);
+    await e.confirm(msg.id); // doble toque: un solo remito
+    expect(await db.transfers.count()).toBe(1);
+    expect((await db.products.get(harina.id))?.stock).toBe(40);
+    expect(await outletQty('confi', harina.id)).toBe(10);
+    await e.undo(msg.id, 0);
+    expect((await db.transfers.toArray())[0].status).toBe('anulado');
+    expect((await db.products.get(harina.id))?.stock).toBe(50);
+    expect(await outletQty('confi', harina.id)).toBe(0);
+  });
+
+  it('pasa salidas comunes ("Despacho a confi") a un remito sin cambiar el depósito', async () => {
+    const { harina, coca } = await seed();
+    await addOutlets();
+    const { applyMovement } = await import('../../src/services/stockService');
+    await applyMovement({ productId: harina.id, type: 'salida', delta: -5, reason: 'Despacho a confi', origin: 'asistente' });
+    await applyMovement({ productId: coca.id, type: 'salida', delta: -1, reason: 'Despacho a confi (todas)', origin: 'asistente' });
+    await applyMovement({ productId: harina.id, type: 'salida', delta: -2, reason: 'Traspaso a Xenote', origin: 'asistente' });
+    const { transport } = scripted([
+      call({ name: 'pasar_salidas_a_remito', args: { punto: 'Confitería', buscar: 'confi' } }),
+      say('Hecho.'),
+    ]);
+    const e = engine(ROLE_PERMISSIONS.manager, transport);
+    await e.send('lo que despaché a la confi no figura en la confitería');
+    const msg = e.getState().messages.at(-1)!;
+    expect(msg.proposals?.[0].title).toBe('Pasar 2 salidas a un remito a Confiteria');
+    await e.confirm(msg.id);
+    expect((await db.products.get(harina.id))?.stock).toBe(43);
+    expect((await db.products.get(coca.id))?.stock).toBe(1);
+    expect(await outletQty('confi', harina.id)).toBe(5);
+    expect(await outletQty('confi', coca.id)).toBe(1);
+    expect(await outletQty('xen', harina.id)).toBe(0);
+    // No se vuelven a encontrar: ya están pasadas.
+    const again = scripted([call({ name: 'pasar_salidas_a_remito', args: { punto: 'confi', buscar: 'confi' } }), say('No hay.')]);
+    const e2 = engine(ROLE_PERMISSIONS.manager, again.transport);
+    await e2.send('de nuevo');
+    expect(JSON.stringify(lastResponse(again.requests[1]))).toContain('No encontré salidas');
+    // Deshacer: remito anulado y las salidas como estaban.
+    await e.undo(msg.id, 0);
+    expect((await db.products.get(harina.id))?.stock).toBe(43);
+    expect(await outletQty('confi', harina.id)).toBe(0);
+  });
+
+  it('stock_punto devuelve lo que tiene el punto', async () => {
+    const { harina } = await seed();
+    await addOutlets();
+    const { createTransfer } = await import('../../src/services/transferService');
+    await createTransfer({ date: '2026-10-17', outletId: 'xen', items: [{ productId: harina.id, quantity: 4 }] });
+    const { transport, requests } = scripted([call({ name: 'stock_punto', args: { punto: 'xenote' } }), say('Tiene 4 kg de harina.')]);
+    await engine(ROLE_PERMISSIONS.manager, transport).send('qué hay en xenote');
+    expect(lastResponse(requests[1]).resultado).toMatchObject({ punto: 'Xenote', total: 1, productos: [{ producto: 'Harina 000', cantidad: 4, unidad: 'kg' }] });
+  });
+});

@@ -1,6 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { ClipboardCheck, Store } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { db } from '../../database/db';
 import { startCount } from '../../services/countService';
@@ -11,7 +11,8 @@ import { useSession } from '../../store/session';
 import { EmptyState, SearchInput, Select } from '../ui';
 import { fmtNumber, matches } from '../../utils/format';
 
-export function OutletStockPanel() {
+/** Stock de un punto. Con `outletId` muestra ese punto fijo (sin el selector), como en la pantalla de Stock. */
+export function OutletStockPanel({ outletId: fixedId }: { outletId?: string } = {}) {
   const outlets = useOutlets();
   const products = useProducts();
   const lk = useLookups();
@@ -22,12 +23,13 @@ export function OutletStockPanel() {
   const [q, setQ] = useState('');
   const movements = useLiveQuery(() => db.movements.filter((m) => !!m.outletId).toArray(), []);
   const byOutlet = useMemo(() => stockByOutlet(movements ?? []), [movements]);
-  const current = outletId || outlets.find((o) => o.active)?.id || '';
+  const current = fixedId || outletId || outlets.find((o) => o.active)?.id || '';
   const stock = byOutlet.get(current);
   const rows = products
     .filter((p) => stock?.has(p.id) && matches(q, p.name, p.sku))
     .map((p) => ({ p, qty: stock!.get(p.id)! }))
-    .sort((a, b) => a.p.name.localeCompare(b.p.name, 'es'));
+    .filter((r) => r.qty !== 0)
+    .sort((a, b) => (lk.category(a.p.categoryId) || '~').localeCompare(lk.category(b.p.categoryId) || '~', 'es') || a.p.name.localeCompare(b.p.name, 'es'));
 
   if (!outlets.length) return <div className="card"><EmptyState icon={<Store size={40} />} title="Todavía no hay puntos">Crealos en la pestaña Puntos.</EmptyState></div>;
 
@@ -39,9 +41,11 @@ export function OutletStockPanel() {
   return (
     <>
       <div className="toolbar">
-        <Select aria-label="Punto" value={current} onChange={(e) => setOutletId(e.target.value)} style={{ maxWidth: 240 }}>
-          {outlets.map((o) => <option key={o.id} value={o.id}>{o.name}{o.active ? '' : ' (desactivado)'}</option>)}
-        </Select>
+        {!fixedId && (
+          <Select aria-label="Punto" value={current} onChange={(e) => setOutletId(e.target.value)} style={{ maxWidth: 240 }}>
+            {outlets.map((o) => <option key={o.id} value={o.id}>{o.name}{o.active ? '' : ' (desactivado)'}</option>)}
+          </Select>
+        )}
         <SearchInput value={q} onChange={setQ} placeholder="Buscar producto" label="Buscar producto en el punto" />
         {can('count.do') && rows.length > 0 && <button type="button" className="btn" onClick={count}><ClipboardCheck size={18} aria-hidden /> Contar este punto</button>}
       </div>
@@ -51,14 +55,17 @@ export function OutletStockPanel() {
           <EmptyState icon={<Store size={40} />} title={q ? 'Sin resultados' : 'Este punto todavía no recibió mercadería'} />
         ) : (
           <div className="list">
-            {rows.map(({ p, qty }) => (
-              <div key={p.id} className="list-item">
+            {rows.map(({ p, qty }, i) => (
+              <Fragment key={p.id}>
+              {(i === 0 || rows[i - 1].p.categoryId !== p.categoryId) && <div className="list-group-title">{lk.category(p.categoryId) || 'Sin familia'}</div>}
+              <div className="list-item">
                 <div className="grow">
                   <div className="list-title truncate">{p.name}</div>
-                  <div className="list-sub">{lk.category(p.categoryId) || 'Sin familia'}</div>
+                  {p.sku && <div className="list-sub">Cód. {p.sku}</div>}
                 </div>
                 <strong className={`num ${qty < 0 ? 'neg' : ''}`}>{fmtNumber(qty)} {lk.unit(p.unitId)}</strong>
               </div>
+              </Fragment>
             ))}
           </div>
         )}

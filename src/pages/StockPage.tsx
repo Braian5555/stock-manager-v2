@@ -4,14 +4,15 @@ import { Boxes, MapPin, Plus, SlidersHorizontal, Tags, Truck, X } from 'lucide-r
 import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { db } from '../database/db';
-import { useLookups, useProducts, EMPTY } from '../hooks/useData';
+import { useLookups, useOutlets, useProducts, EMPTY } from '../hooks/useData';
 import type { Product, StockStatus } from '../models';
 import { STATUS_LABEL, statusOf } from '../services/stockService';
 import { menuLabel } from '../services/settingsService';
 import { useSettings } from '../store/settings';
 import { ScanButton } from '../components/scanner/ScanButton';
 import { GroupBar, useProductGroups } from '../components/GroupBar';
-import { EmptyState, PageHeader, SearchInput, Select, StatusBadge } from '../components/ui';
+import { EmptyState, PageHeader, SearchInput, Segmented, Select, StatusBadge } from '../components/ui';
+import { OutletStockPanel } from '../components/transfers/OutletStockPanel';
 import { MovementModal } from '../components/MovementModal';
 import { fmtNumber, matches, normalize } from '../utils/format';
 import { useIncremental } from '../hooks/useIncremental';
@@ -26,6 +27,15 @@ export function StockPage() {
   const products = useProducts();
   const lk = useLookups();
   const [params, setParams] = useSearchParams();
+  const outlets = useOutlets().filter((o) => o.active);
+  // Dónde mirar: Depósito Central (el stock de siempre) o un punto (lo que recibió por remitos).
+  const punto = outlets.some((o) => o.id === params.get('punto')) ? params.get('punto')! : '';
+  const setPunto = (id: string) => {
+    const next = new URLSearchParams(params);
+    if (id) next.set('punto', id);
+    else next.delete('punto');
+    setParams(next, { replace: true });
+  };
   // ?q= viene de los links del Inicio (p. ej. un producto para reponer).
   const [q, setQ] = useState(() => params.get('q') ?? '');
   const [sort, setSort] = useState<SortKey>('name');
@@ -86,9 +96,16 @@ export function StockPage() {
     <>
       <PageHeader
         title={menuLabel(settings, 'stock')}
-        subtitle={`${rows.length} productos`}
+        subtitle={punto ? `Stock en ${outlets.find((o) => o.id === punto)?.name ?? 'el punto'} según los remitos recibidos` : `${rows.length} productos`}
         actions={<><ScanButton />{can('catalog.manage') && <Link to="/productos?nuevo=1" className="btn btn-primary"><Plus size={18} aria-hidden /> Producto</Link>}</>}
       />
+      {outlets.length > 0 && (can('transfers') || can('stock.view')) && (
+        <div style={{ marginBottom: 12, overflowX: 'auto' }}>
+          <Segmented<string> label="Dónde" value={punto || 'central'} onChange={(v) => setPunto(v === 'central' ? '' : v)}
+            options={[{ value: 'central', label: 'Depósito Central' }, ...outlets.map((o) => ({ value: o.id, label: o.name }))]} />
+        </div>
+      )}
+      {punto ? <OutletStockPanel key={punto} outletId={punto} /> : (<>
       <div className="toolbar">
         <SearchInput value={q} onChange={setQ} placeholder="Buscar producto o código" label="Buscar productos" />
         <button type="button" className="btn filters-toggle" aria-expanded={showFilters} aria-controls="stock-filters" onClick={() => setShowFilters((v) => !v)}>
@@ -198,6 +215,7 @@ export function StockPage() {
         </div>
       )}
       </GroupBar>
+      </>)}
       {moving && <MovementModal product={products.find((x) => x.id === moving.id) ?? null} onClose={() => setMoving(null)} />}
     </>
   );

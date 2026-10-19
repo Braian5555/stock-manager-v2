@@ -386,6 +386,7 @@ a.stat:hover { border-color: var(--border-strong); box-shadow: var(--shadow-rais
 a.list-item, button.list-item { text-decoration: none; color: inherit; background: none; border-left: 0; border-right: 0; border-top: 0; width: 100%; text-align: left; cursor: pointer; }
 a.list-item:hover, button.list-item:hover { background: var(--surface-2); }
 .list-title { font-weight: 650; }
+.list-group-title { padding: 10px 16px 4px; font-size: 0.8rem; font-weight: 700; color: var(--text-2); background: var(--surface-2, transparent); border-bottom: 1px solid var(--border); }
 .list-sub { font-size: 0.82rem; color: var(--text-3); }
 
 .product-cards { display: grid; gap: 10px; grid-template-columns: 1fr; }
