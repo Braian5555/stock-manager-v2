@@ -18,8 +18,8 @@ import { deleteInvoice, newPageId, saveInvoice, type PageDraft } from '../invoic
 import { saveEntity } from '../entityService';
 import { base64Bytes } from '../imageService';
 import { uuid } from '../../utils/id';
-import { suggestOrders } from '../orderService';
 import { priceHistory, priceIncreases } from '../priceService';
+import { RESTOCK_LEVEL_LABEL, restockList, usageSinceIso } from '../restockService';
 import { deleteProduct, emptyProduct, saveProduct } from '../productService';
 import { recipeConsumption, registerProduction, undoProduction } from '../productionService';
 import { applyMovement, MOVEMENT_LABEL, revertMovement, statusOf, STATUS_LABEL } from '../stockService';
@@ -283,25 +283,36 @@ export const TOOLS: ToolDef[] = [
   {
     name: 'reponer',
     label: 'Armó la sugerencia de pedido',
-    description: 'Productos en o por debajo del mínimo con la cantidad sugerida a pedir (en unidad de compra), agrupados por proveedor. Para armar pedidos o mensajes a proveedores.',
+    description: 'Qué hay que reponer: lo que está por debajo del mínimo y también lo que está en 0 o en negativo aunque no tenga mínimo (si se usa), agrupado por proveedor, con la cantidad sugerida a pedir (por mínimo/máximo, o por lo que se gasta en una semana). Para "qué tengo que reponer", pedidos o mensajes a proveedores.',
     parameters: obj({ proveedor: str('Nombre del proveedor para filtrar (opcional).') }),
     perms: ['stock.view'],
     run: async (a, ctx) => {
       const lk = await lookups();
-      const groups = suggestOrders(await db.products.toArray(), ctx.settings);
+      const { lines, idleAtZero } = restockList(await db.products.toArray(), await db.movements.where('createdAt').aboveOrEqual(usageSinceIso()).toArray(), ctx.settings);
+      const buyUnit = (p: Product) => (p.purchaseFactor > 1 ? `${lk.unit(p.purchaseUnitId) === 'u' ? 'caja' : lk.unit(p.purchaseUnitId)} (x${p.purchaseFactor})` : lk.unit(p.unitId));
+      const groups = new Map<string, typeof lines>();
+      for (const l of lines) {
+        const key = lk.supplier(l.product.supplierId) ?? 'Sin proveedor';
+        groups.set(key, [...(groups.get(key) ?? []), l]);
+      }
       const f = s(a.proveedor);
       return {
-        criterio: ctx.settings.suggestionMode === 'toMax' ? 'completar hasta el máximo' : 'completar hasta el mínimo',
-        proveedores: groups
-          .map((g) => ({
-            proveedor: lk.supplier(g.supplierId) ?? 'Sin proveedor',
-            productos: g.lines.map((l) => ({
-              ref: ctx.refs.ref(l.product.id), nombre: l.product.name, stock: l.product.stock, minimo: l.product.minStock,
-              falta: `${fmtNumber(l.needed)} ${lk.unit(l.product.unitId)}`,
-              pedir: `${fmtNumber(l.quantity)} ${l.product.purchaseFactor > 1 ? `${lk.unit(l.product.purchaseUnitId) === 'u' ? 'caja' : lk.unit(l.product.purchaseUnitId)} (x${l.product.purchaseFactor})` : lk.unit(l.product.unitId)}`,
+        criterio: `Con mínimo: ${ctx.settings.suggestionMode === 'toMax' ? 'completar hasta el máximo' : 'completar hasta el mínimo'}. Sin mínimo: lo que se gasta en una semana (según las últimas 4 semanas).`,
+        sin_stock: lines.filter((l) => l.level === 'out').length,
+        negativos: lines.filter((l) => l.level === 'neg').length,
+        en_cero_sin_uso_reciente: idleAtZero,
+        proveedores: [...groups.entries()]
+          .filter(([name]) => !f || matches(f, name))
+          .map(([proveedor, ls]) => ({
+            proveedor,
+            productos: ls.map((l) => ({
+              ref: ctx.refs.ref(l.product.id), nombre: l.product.name,
+              estado: RESTOCK_LEVEL_LABEL[l.level], stock: l.product.stock, minimo: l.product.minStock || undefined,
+              consumo_semanal: l.weeklyUse !== undefined ? `${fmtNumber(l.weeklyUse)} ${lk.unit(l.product.unitId)}` : undefined,
+              pedir: l.quantity !== undefined ? `${fmtNumber(l.quantity)} ${buyUnit(l.product)}` : 'a definir (no tiene mínimo ni consumo reciente)',
+              segun: l.basis === 'consumo' ? 'consumo de una semana' : l.basis === 'sin_dato' ? undefined : `stock ${l.basis}`,
             })),
-          }))
-          .filter((g) => !f || matches(f, g.proveedor)),
+          })),
       };
     },
   },

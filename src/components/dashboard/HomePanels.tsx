@@ -12,6 +12,7 @@ import type { Invoice, MovementType, Product, StockStatus } from '../../models';
 import { planOf, productionFamilyIds, ymdAdd } from '../../services/bakeryService';
 import { MOVEMENT_LABEL, statusOf } from '../../services/stockService';
 import { priceIncreases } from '../../services/priceService';
+import { RESTOCK_LEVEL_LABEL, restockList, USAGE_DAYS } from '../../services/restockService';
 import { useSettings } from '../../store/settings';
 import { fmtDay, fmtMoney, fmtNumber, fmtSigned, fmtTime, localYmd } from '../../utils/format';
 
@@ -26,6 +27,9 @@ export function useHomePanels() {
   const today = useToday();
   const since = useMemo(() => startOfDayIso(today), [today]);
   const moves = useLiveQuery(() => db.movements.where('createdAt').aboveOrEqual(since).toArray(), [since]) ?? EMPTY;
+  // Movimientos de las últimas semanas: para saber qué productos en 0 se usan (y hay que reponer).
+  const usageSince = useMemo(() => startOfDayIso(ymdAdd(today, -USAGE_DAYS)), [today]);
+  const usageMoves = useLiveQuery(() => db.movements.where('createdAt').aboveOrEqual(usageSince).toArray(), [usageSince]) ?? EMPTY;
   const recentMoves = useLiveQuery(() => db.movements.orderBy('createdAt').reverse().limit(12).toArray(), []) ?? EMPTY;
   const weekFrom = ymdAdd(today, -6);
   const invoices = (useLiveQuery(() => db.invoices.where('date').aboveOrEqual(weekFrom).toArray(), [weekFrom]) ?? EMPTY) as Invoice[];
@@ -56,12 +60,9 @@ export function useHomePanels() {
     const available = showcase.filter((p) => p.stock > 0).sort((a, b) => (made.get(b.id)?.last ?? '').localeCompare(made.get(a.id)?.last ?? '') || a.name.localeCompare(b.name, 'es'));
     const soldOut = showcase.filter((p) => p.stock <= 0);
 
-    // Para reponer: por debajo del mínimo o en negativo. Primero lo negativo y lo que usan las recetas.
-    const inRecipes = new Set(active.flatMap((p) => p.recipe?.items.map((i) => i.productId) ?? []));
-    const restock = active
-      .filter((p) => p.stock < 0 || (p.minStock > 0 && p.stock <= p.minStock))
-      .map((p) => ({ p, recipe: inRecipes.has(p.id), level: (p.stock < 0 ? 'neg' : p.stock <= 0 ? 'out' : p.stock <= p.minStock * settings.criticalRatio ? 'crit' : 'low') as RestockLevel }))
-      .sort((a, b) => LEVEL_ORDER[a.level] - LEVEL_ORDER[b.level] || Number(b.recipe) - Number(a.recipe) || a.p.name.localeCompare(b.p.name, 'es'));
+    // Para reponer: por debajo del mínimo, en negativo o en 0 (si se usa), aunque no tenga mínimo.
+    // Primero lo negativo y lo que usan las recetas.
+    const restock = restockList(products, usageMoves, settings).lines.map((l) => ({ p: l.product, recipe: l.inRecipe, level: l.level }));
 
     // Estado general del stock (para la barra de la tarjeta "Para reponer").
     const health: Record<StockStatus, number> = { normal: 0, bajo: 0, critico: 0, sin_stock: 0 };
@@ -91,13 +92,11 @@ export function useHomePanels() {
       weekTotal: week.reduce((s, i) => s + (i.total ?? 0), 0),
       activity,
     };
-  }, [moves, recentMoves, products, invoices, famIds, today, lk, settings]);
+  }, [moves, recentMoves, usageMoves, products, invoices, famIds, today, lk, settings]);
 }
 
 export type HomePanels = ReturnType<typeof useHomePanels>;
-type RestockLevel = 'neg' | 'out' | 'crit' | 'low';
-const LEVEL_ORDER: Record<RestockLevel, number> = { neg: 0, out: 1, crit: 2, low: 3 };
-const LEVEL_LABEL: Record<RestockLevel, string> = { neg: 'Negativo', out: 'Sin stock', crit: 'Crítico', low: 'Bajo' };
+const LEVEL_LABEL = RESTOCK_LEVEL_LABEL;
 
 // ───────────────────────── Piezas comunes ─────────────────────────
 
@@ -190,7 +189,7 @@ export function ShowcaseCard({ d, limit = 6 }: { d: HomePanels; limit?: number }
 
 export function RestockCard({ d, limit = 6 }: { d: HomePanels; limit?: number }) {
   return (
-    <Panel id="home-reponer" icon={AlertTriangle} tone="amber" title="Para reponer" action={d.restock.length > 0 ? <PanelLink to="/stock?estado=bajo">Ver en Stock</PanelLink> : undefined} className="hm-alerts">
+    <Panel id="home-reponer" icon={AlertTriangle} tone="amber" title="Para reponer" action={d.restock.length > 0 ? <PanelLink to="/stock?estado=reponer">Ver en Stock</PanelLink> : undefined} className="hm-alerts">
       {d.restock.length === 0 ? (
         <Empty>Nada por debajo del mínimo.</Empty>
       ) : (
@@ -215,7 +214,7 @@ export function RestockCard({ d, limit = 6 }: { d: HomePanels; limit?: number })
           })}
         </ul>
       )}
-      {d.restock.length > limit && <More to="/stock?estado=bajo">Ver los {d.restock.length} productos</More>}
+      {d.restock.length > limit && <More to="/stock?estado=reponer">Ver los {d.restock.length} productos</More>}
     </Panel>
   );
 }

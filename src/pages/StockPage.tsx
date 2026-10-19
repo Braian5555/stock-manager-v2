@@ -66,7 +66,7 @@ export function StockPage() {
         (!f.familia || p.categoryId === f.familia) &&
         (!f.ubicacion || p.locationId === f.ubicacion) &&
         (!f.proveedor || p.supplierId === f.proveedor || p.alternativeSupplierIds.includes(f.proveedor)) &&
-        (!f.estado || (f.estado === 'bajo' ? s === 'bajo' || s === 'critico' : s === f.estado)),
+        (!f.estado || (f.estado === 'reponer' ? s !== 'normal' : f.estado === 'bajo' ? s === 'bajo' || s === 'critico' : s === f.estado)),
       );
     const by = (a: string, b: string) => normalize(a).localeCompare(normalize(b), 'es');
     list.sort((a, b) =>
@@ -100,7 +100,7 @@ export function StockPage() {
           {f.familia && <button type="button" className="filter-chip" onClick={() => setF('familia', '')} aria-label={`Quitar filtro familia ${lk.category(f.familia)}`}>Familia: <b>{lk.category(f.familia) || '—'}</b> <X size={14} aria-hidden /></button>}
           {f.ubicacion && <button type="button" className="filter-chip" onClick={() => setF('ubicacion', '')} aria-label={`Quitar filtro ubicación ${lk.location(f.ubicacion)}`}>Ubicación: <b>{lk.location(f.ubicacion) || '—'}</b> <X size={14} aria-hidden /></button>}
           {f.proveedor && <button type="button" className="filter-chip" onClick={() => setF('proveedor', '')} aria-label={`Quitar filtro proveedor ${lk.supplier(f.proveedor)}`}>Proveedor: <b>{lk.supplier(f.proveedor) || '—'}</b> <X size={14} aria-hidden /></button>}
-          {f.estado && <button type="button" className="filter-chip" onClick={() => setF('estado', '')} aria-label="Quitar filtro estado">Estado: <b>{f.estado === 'bajo' ? 'Bajo y crítico' : STATUS_LABEL[f.estado as StockStatus]}</b> <X size={14} aria-hidden /></button>}
+          {f.estado && <button type="button" className="filter-chip" onClick={() => setF('estado', '')} aria-label="Quitar filtro estado">Estado: <b>{f.estado === 'reponer' ? 'Para reponer (bajo, crítico y sin stock)' : f.estado === 'bajo' ? 'Bajo y crítico' : STATUS_LABEL[f.estado as StockStatus]}</b> <X size={14} aria-hidden /></button>}
         </div>
       )}
       {(alerts.sin_stock > 0 || alerts.reponer > 0) && (
