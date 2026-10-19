@@ -1275,3 +1275,9 @@ a.hm-row:hover { background: var(--surface-2); }
 .asst-thumb img { width: 100%; height: 100%; object-fit: cover; }
 .asst-thumb-x { position: absolute; top: 3px; right: 3px; width: 22px; height: 22px; display: grid; place-items: center; border: 0; border-radius: 50%; background: rgb(0 0 0 / 0.6); color: #fff; cursor: pointer; }
 @media (prefers-reduced-motion: reduce) { .asst-thinking .spin { animation: none; } }
+
+/* Usuarios: acceso a la nube */
+.user-cloud { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.user-cloud.ok { color: var(--ok); }
+.user-cloud.info { color: var(--info); }
+.user-cloud.warn { color: var(--low); }

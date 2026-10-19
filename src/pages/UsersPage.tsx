@@ -1,7 +1,8 @@
-import { KeyRound, Pencil, Plus, Trash2, UserCog } from 'lucide-react';
+import { Cloud, KeyRound, Mail, Pencil, Plus, Trash2, UserCog } from 'lucide-react';
 import { useState } from 'react';
 import { PERMISSIONS, type AppUser, type Permission, type UserRole } from '../models';
-import { PERMISSION_LABEL, PIN_RE, ROLE_LABEL, ROLE_PERMISSIONS, deleteUser, saveUser, type UserDraft } from '../services/userService';
+import { PERMISSION_LABEL, PIN_RE, ROLE_LABEL, ROLE_PERMISSIONS, deleteUser, effectivePermissions, saveUser, type UserDraft } from '../services/userService';
+import { inviteEmail, useCloud } from '../cloud/cloudService';
 import { updateSettings } from '../services/settingsService';
 import { RETIRED_PERMISSIONS } from '../layouts/modules';
 import { useSession } from '../store/session';
@@ -19,8 +20,24 @@ const ROLE_HELP: Record<UserRole, string> = {
   custom: 'Elegí permiso por permiso.',
 };
 
+/** Si la persona puede entrar con su cuenta al espacio de la nube (si no, no recibe sus permisos). */
+type CloudAccess = 'member' | 'invited' | 'none';
+
 export function UsersPage() {
   const { users, user: me } = useSession();
+  const cloud = useCloud();
+  const ws = cloud.phase === 'linked' ? cloud.workspace : undefined;
+  const canInvite = !!ws && !!cloud.user && ['owner', 'admin'].includes(ws.roles[cloud.user.uid] ?? '');
+  const memberEmails = new Set(Object.values(ws?.memberInfo ?? {}).map((m) => m.email?.toLowerCase()));
+  const access = (email?: string): CloudAccess | undefined => {
+    if (!ws || !email) return undefined;
+    const e = email.toLowerCase();
+    return memberEmails.has(e) ? 'member' : ws.inviteEmails.includes(e) ? 'invited' : 'none';
+  };
+  const invite = async (email: string) => {
+    const ok = await run(() => inviteEmail(email).then(() => true));
+    if (ok) notify(`Invitación lista para ${email}: que entre a la app con ese email (y su contraseña) y toque “Unirme”.`);
+  };
   const settings = useSettings();
   const { run, confirm, notify } = useFeedback();
   const [editing, setEditing] = useState<(UserDraft & { pin2?: string }) | null>(null);
@@ -33,7 +50,8 @@ export function UsersPage() {
   };
   const openEdit = (u: AppUser) => {
     setIsNew(false);
-    setEditing({ id: u.id, name: u.name, role: u.role, permissions: u.permissions, active: u.active, email: u.email ?? '' });
+    // Los permisos que valen hoy (los roles fijos toman siempre la lista actual del rol).
+    setEditing({ id: u.id, name: u.name, role: u.role, permissions: effectivePermissions(u), active: u.active, email: u.email ?? '' });
   };
 
   const save = async () => {
@@ -43,8 +61,12 @@ export function UsersPage() {
       if (!d.pin || !PIN_RE.test(d.pin)) return notify('El PIN debe tener entre 4 y 6 números.', { tone: 'error' });
       if (d.pin !== pin2) return notify('Los PIN no coinciden.', { tone: 'error' });
     } else delete d.pin;
-    const ok = await run(() => saveUser(d), isNew ? 'Usuario creado' : 'Cambios guardados');
-    if (ok) setEditing(null);
+    const saved = await run(() => saveUser(d), isNew ? 'Usuario creado' : 'Cambios guardados');
+    if (!saved) return;
+    setEditing(null);
+    // Con la nube: si tiene email y todavía no está en el espacio, se lo invita (si no, nunca
+    // recibiría estos permisos en su celular).
+    if (saved.email && canInvite && access(saved.email) === 'none') await invite(saved.email);
   };
 
   const remove = async (u: AppUser) => {
@@ -60,7 +82,7 @@ export function UsersPage() {
     <>
       <PageHeader
         title="Usuarios"
-        subtitle="Cada persona entra con su nombre y su PIN. Lo que haga queda registrado a su nombre."
+        subtitle={ws ? 'Cada persona entra con su propia cuenta (el email de su usuario) y recibe sus permisos en cualquier dispositivo.' : 'Cada persona entra con su nombre y su PIN. Lo que haga queda registrado a su nombre.'}
         actions={<button type="button" className="btn btn-primary" onClick={openNew}><Plus size={18} aria-hidden /> Nuevo usuario</button>}
       />
       <div className="card list">
@@ -69,7 +91,19 @@ export function UsersPage() {
             <UserAvatar user={u} />
             <div className="grow">
               <div className="list-title truncate">{u.name} {u.id === me?.id && <Badge>Vos</Badge>} {!u.active && <Badge>Desactivado</Badge>}</div>
-              <div className="list-sub">{ROLE_LABEL[u.role]} · {u.permissions.length} permisos{u.email ? ` · ${u.email}` : ''}</div>
+              <div className="list-sub">{ROLE_LABEL[u.role]} · {effectivePermissions(u).length} permisos{u.email ? ` · ${u.email}` : ''}</div>
+              {u.active && ws && (() => {
+                const a = access(u.email);
+                if (!u.email) return <div className="small user-cloud warn">Sin email: no puede entrar a la nube con su cuenta. Agregale el email con el que va a entrar.</div>;
+                if (a === 'member') return <div className="small user-cloud ok"><Cloud size={13} aria-hidden /> Entra con su cuenta: sus permisos se aplican en todos sus dispositivos.</div>;
+                if (a === 'invited') return <div className="small user-cloud info"><Mail size={13} aria-hidden /> Invitación pendiente: tiene que entrar con {u.email} y tocar “Unirme”.</div>;
+                return (
+                  <div className="small user-cloud warn">
+                    No está en el espacio de la nube: no recibe estos permisos.{' '}
+                    {canInvite && <button type="button" className="btn btn-sm" onClick={() => void invite(u.email!)}><Mail size={14} aria-hidden /> Invitar</button>}
+                  </div>
+                );
+              })()}
             </div>
             <button type="button" className="btn btn-sm btn-ghost icon-btn" aria-label={`Editar ${u.name}`} onClick={() => openEdit(u)}><Pencil size={16} /></button>
             <button type="button" className="btn btn-sm btn-ghost icon-btn btn-danger" aria-label={`Eliminar ${u.name}`} onClick={() => remove(u)}><Trash2 size={16} /></button>
@@ -128,7 +162,9 @@ export function UsersPage() {
           </form>
         )}
       </Modal>
-      <p className="small muted" style={{ marginTop: 12 }} role="note"><UserCog size={14} aria-hidden style={{ verticalAlign: 'middle' }} /> El PIN protege el acceso en este dispositivo. Si la app está vinculada a la nube, los usuarios se comparten con los demás dispositivos del negocio.</p>
+      <p className="small muted" style={{ marginTop: 12 }} role="note"><UserCog size={14} aria-hidden style={{ verticalAlign: 'middle' }} /> {ws
+        ? 'Con la nube, los permisos van con la cuenta: cada uno tiene que entrar con su propio email. Si alguien usa un celular con la cuenta de otra persona, ve los permisos de esa cuenta.'
+        : 'El PIN protege el acceso en este dispositivo. Si la app está vinculada a la nube, los usuarios se comparten con los demás dispositivos del negocio.'}</p>
     </>
   );
 }
