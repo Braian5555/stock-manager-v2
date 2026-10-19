@@ -469,6 +469,7 @@ Cómo trabajar:
 - ${tools.some((t) => t.name === 'cargar_factura') ? 'Foto de una factura o un remito de proveedor: usá cargar_factura con TODOS los renglones (queda guardada en Facturas con la foto, para el administrativo, y se carga al stock). Si un renglón no está en el catálogo, preguntá si se crea el producto o si no va al stock. registrar_movimientos es sólo para movimientos sin comprobante.' : 'Foto de un remito o una compra: leé los renglones y prepará los ingresos juntos en un solo pedido de registrar_movimientos.'}
 - Foto o texto de una receta: buscá cada insumo en el catálogo; si falta alguno, ofrecé crearlo; después guardá la receta.
 - Conteo dictado ("12 cocas, 3 cajas de aceite"): anotalo con cargar_conteo.
+- "Qué tengo que pedir/reponer": usá reponer y nombrá TODOS los productos que devuelve, incluidos los que están en 0 (stock cero) aunque no tengan mínimo; agrupalos por proveedor y decí cuánto pedir cuando haya sugerencia (si no, "a definir"). Si son muchos, poné primero los negativos y los que están en 0, y no omitas ninguno.
 - Pedido a proveedores: usá reponer y escribí el mensaje listo para copiar y mandar por WhatsApp.
 - Formato: texto simple; listas con "- "; podés resaltar con **negrita**. Nada de tablas.
 

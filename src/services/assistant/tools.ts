@@ -283,7 +283,7 @@ export const TOOLS: ToolDef[] = [
   {
     name: 'reponer',
     label: 'Armó la sugerencia de pedido',
-    description: 'Qué hay que reponer: lo que está por debajo del mínimo y también lo que está en 0 o en negativo aunque no tenga mínimo (si se usa), agrupado por proveedor, con la cantidad sugerida a pedir (por mínimo/máximo, o por lo que se gasta en una semana). Para "qué tengo que reponer", pedidos o mensajes a proveedores.',
+    description: 'Qué hay que reponer o pedir: lo que está por debajo del mínimo y TODO lo que está en 0 o en negativo (aunque no tenga mínimo), agrupado por proveedor, con la cantidad sugerida (por mínimo/máximo, o por lo que se gasta en una semana). Usala siempre para "qué tengo que pedir/reponer", pedidos o mensajes a proveedores.',
     parameters: obj({ proveedor: str('Nombre del proveedor para filtrar (opcional).') }),
     perms: ['stock.view'],
     run: async (a, ctx) => {
@@ -300,7 +300,8 @@ export const TOOLS: ToolDef[] = [
         criterio: `Con mínimo: ${ctx.settings.suggestionMode === 'toMax' ? 'completar hasta el máximo' : 'completar hasta el mínimo'}. Sin mínimo: lo que se gasta en una semana (según las últimas 4 semanas).`,
         sin_stock: lines.filter((l) => l.level === 'out').length,
         negativos: lines.filter((l) => l.level === 'neg').length,
-        en_cero_sin_uso_reciente: idleAtZero,
+        en_cero_sin_movimiento_reciente: idleAtZero,
+        total_a_reponer: lines.length,
         proveedores: [...groups.entries()]
           .filter(([name]) => !f || matches(f, name))
           .map(([proveedor, ls]) => ({
@@ -308,6 +309,7 @@ export const TOOLS: ToolDef[] = [
             productos: ls.map((l) => ({
               ref: ctx.refs.ref(l.product.id), nombre: l.product.name,
               estado: RESTOCK_LEVEL_LABEL[l.level], stock: l.product.stock, minimo: l.product.minStock || undefined,
+              ...(l.level === 'out' && !l.used ? { sin_movimiento_reciente: true } : {}),
               consumo_semanal: l.weeklyUse !== undefined ? `${fmtNumber(l.weeklyUse)} ${lk.unit(l.product.unitId)}` : undefined,
               pedir: l.quantity !== undefined ? `${fmtNumber(l.quantity)} ${buyUnit(l.product)}` : 'a definir (no tiene mínimo ni consumo reciente)',
               segun: l.basis === 'consumo' ? 'consumo de una semana' : l.basis === 'sin_dato' ? undefined : `stock ${l.basis}`,

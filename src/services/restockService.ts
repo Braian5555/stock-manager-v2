@@ -1,8 +1,7 @@
 /**
- * Qué hay que reponer. Además de lo que está por debajo del mínimo, entra lo que está en 0 o en
- * negativo aunque no tenga mínimo cargado, siempre que se use (tuvo movimientos en las últimas
- * semanas o es insumo de una receta). Lo que está en 0 y no se mueve hace meses no se lista
- * (suelen ser productos que ya no se trabajan), para no tapar lo importante.
+ * Qué hay que reponer: lo que está por debajo del mínimo y TODO lo que está en 0 o en negativo,
+ * aunque no tenga mínimo cargado. Primero lo negativo, después lo que está en 0 y se usa (tuvo
+ * movimientos en las últimas semanas o es insumo de una receta), y al final lo bajo.
  */
 import type { MovementType, Product, Settings, StockMovement } from '../models';
 import { round3 } from '../utils/format';
@@ -43,6 +42,8 @@ export interface RestockLine {
   level: RestockLevel;
   /** Es insumo de alguna receta. */
   inRecipe: boolean;
+  /** Se usa: tuvo movimientos en las últimas semanas o es insumo de una receta. */
+  used: boolean;
   /** Lo que se gasta por semana (según las últimas semanas), si hay datos. */
   weeklyUse?: number;
   /** Faltante sugerido en unidad de stock (sin dato si no hay mínimo ni consumo). */
@@ -65,8 +66,8 @@ export function restockList(products: Product[], movements: StockMovement[], set
     const belowMin = p.minStock > 0 && p.stock <= p.minStock;
     const empty = p.stock <= 0;
     if (!belowMin && !empty) continue;
-    // En 0 sin mínimo: sólo si se usa (si no, se cuenta aparte).
-    if (!belowMin && p.stock === 0 && !u?.moved && !inRecipe) { idleAtZero++; continue; }
+    const used = !!u?.moved || inRecipe;
+    if (p.stock === 0 && !used) idleAtZero++;
     const level: RestockLevel = p.stock < 0 ? 'neg' : p.stock <= 0 ? 'out' : p.stock <= p.minStock * settings.criticalRatio ? 'crit' : 'low';
     const weeklyUse = u && u.out > 0 ? round3((u.out / USAGE_DAYS) * COVER_DAYS) : undefined;
     let needed: number | undefined;
@@ -82,9 +83,9 @@ export function restockList(products: Product[], movements: StockMovement[], set
     if (needed !== undefined && needed <= 0) { needed = undefined; basis = 'sin_dato'; }
     const factor = p.purchaseFactor > 1 ? p.purchaseFactor : 1;
     const quantity = needed === undefined ? undefined : factor === 1 ? Math.ceil(needed * 1000) / 1000 : Math.ceil(needed / factor);
-    lines.push({ product: p, level, inRecipe, weeklyUse, needed, quantity, basis });
+    lines.push({ product: p, level, inRecipe, used, weeklyUse, needed, quantity, basis });
   }
-  lines.sort((a, b) => LEVEL_ORDER[a.level] - LEVEL_ORDER[b.level] || Number(b.inRecipe) - Number(a.inRecipe) || a.product.name.localeCompare(b.product.name, 'es'));
+  lines.sort((a, b) => LEVEL_ORDER[a.level] - LEVEL_ORDER[b.level] || Number(b.used) - Number(a.used) || Number(b.inRecipe) - Number(a.inRecipe) || a.product.name.localeCompare(b.product.name, 'es'));
   return { lines, idleAtZero };
 }
 

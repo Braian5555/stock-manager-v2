@@ -10,10 +10,10 @@ const mov = (productId: string, type: StockMovement['type'], delta: number, extr
   ({ id: `m${++k}`, productId, type, delta, quantityBefore: 0, quantityAfter: 0, origin: 'manual', sourceSystem: 'local', idempotencyKey: `k${k}`, createdAt: '2026-10-15T12:00:00.000Z', updatedAt: '', ...extra }) as StockMovement;
 
 describe('qué hay que reponer', () => {
-  it('incluye lo que está en 0 aunque no tenga mínimo, si se usa', () => {
+  it('incluye todo lo que está en 0 aunque no tenga mínimo (primero lo que se usa)', () => {
     const products = [
       prod('fernet', { stock: 0 }), // en 0, se vendió: entra con lo de una semana
-      prod('vino', { stock: 0 }), // en 0, sin movimientos ni recetas: no entra
+      prod('vino', { stock: 0 }), // en 0, sin movimientos ni recetas: entra al final de los en 0
       prod('harina', { stock: 0 }), // en 0, insumo de receta: entra
       prod('pan', { stock: 10, recipe: { yield: 1, items: [{ productId: 'harina', quantity: 1 }] } }),
       prod('coca', { stock: 2, minStock: 6, maxStock: 24, purchaseFactor: 6 }), // bajo mínimo
@@ -22,7 +22,7 @@ describe('qué hay que reponer', () => {
     ];
     const moves = [mov('fernet', 'salida', -8), mov('fernet', 'salida', -4), mov('fernet', 'ingreso', 12)];
     const { lines, idleAtZero } = restockList(products, moves, settings);
-    expect(lines.map((l) => [l.product.id, l.level])).toEqual([['sal', 'neg'], ['harina', 'out'], ['fernet', 'out'], ['coca', 'crit']]);
+    expect(lines.map((l) => [l.product.id, l.level, l.used])).toEqual([['sal', 'neg', false], ['harina', 'out', true], ['fernet', 'out', true], ['vino', 'out', false], ['coca', 'crit', false]]);
     expect(idleAtZero).toBe(1);
     const fernet = lines.find((l) => l.product.id === 'fernet')!;
     expect(fernet).toMatchObject({ weeklyUse: 3, needed: 3, quantity: 3, basis: 'consumo' }); // 12 en 28 días → 3 por semana
