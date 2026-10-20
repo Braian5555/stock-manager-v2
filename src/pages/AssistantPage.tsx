@@ -230,7 +230,10 @@ export function AssistantPage() {
             rows={1}
             maxLength={4000}
             onChange={(e) => setText(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); void send(); } }}
+            // Celular: la tecla Enter baja de renglón para seguir escribiendo; se manda con la flecha.
+            // Computadora: Enter manda y Shift+Enter baja de renglón.
+            enterKeyHint={touchKeyboard ? 'enter' : 'send'}
+            onKeyDown={(e) => { if (!touchKeyboard && e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); void send(); } }}
             placeholder={listening ? 'Te escucho…' : 'Escribí o dictá lo que necesitás'}
             aria-label="Mensaje para el asistente"
             disabled={offline}
@@ -253,6 +256,9 @@ export function AssistantPage() {
     </div>
   );
 }
+
+/** Teclado de pantalla (celular o tablet): ahí Enter es para bajar de renglón. */
+const touchKeyboard = typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches && !window.matchMedia('(any-pointer: fine)').matches;
 
 function Message({ m, busy, onConfirm, onCancel, onRetry, onUndo }: { m: ChatMessage; busy: boolean; onConfirm: () => void; onCancel: () => void; onRetry: () => void; onUndo: (i: number) => void }) {
   const { notify } = useFeedback();

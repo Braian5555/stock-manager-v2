@@ -139,7 +139,7 @@ test('asistente: cancelar un cambio no toca el stock', async ({ page }) => {
   await page.getByLabel('Fotos desde la galería').setInputFiles(file);
   await expect(page.getByRole('img', { name: 'Foto 1' })).toBeVisible({ timeout: 20_000 });
   await page.getByLabel('Mensaje para el asistente').fill('Cargá este remito');
-  await page.getByLabel('Mensaje para el asistente').press('Enter');
+  await page.getByRole('button', { name: 'Enviar' }).click();
   const card = page.getByRole('region', { name: 'Cambios para confirmar' });
   await card.getByRole('button', { name: 'Cancelar' }).click();
   await expect(page.getByText('Listo, no hice ningún cambio.')).toBeVisible();
@@ -189,4 +189,23 @@ test('asistente: si Gemini está saturado, reintenta solo', async ({ page }) => 
   await expect(page.getByText('Hola, ¿en qué te ayudo?')).toBeVisible({ timeout: 15_000 });
   expect(log).toHaveLength(2); // el primero falló (503) y se reintentó
   await expect(page.getByText(/Gemini está saturado/)).toHaveCount(0);
+});
+
+test('asistente: en el celular Enter baja de renglón y en la computadora manda', async ({ page }, info) => {
+  const log: Req[] = [];
+  await fakeGemini(page, log);
+  await setup(page);
+  await go(page, '/asistente');
+  const box = page.getByLabel('Mensaje para el asistente');
+  await box.fill('Mandá 2 cocas');
+  await box.press('Enter');
+  if (info.project.name === 'mobile') {
+    await expect(box).toHaveAttribute('enterkeyhint', 'enter');
+    await box.pressSequentially('y 3 fernet');
+    await expect(box).toHaveValue('Mandá 2 cocas\ny 3 fernet');
+    expect(log).toHaveLength(0);
+  } else {
+    await expect(box).toHaveValue('');
+    await expect.poll(() => log.length).toBe(1);
+  }
 });
