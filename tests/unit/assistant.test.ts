@@ -629,3 +629,44 @@ describe('cantidades con coma decimal ("1,000" es 1)', () => {
     expect((await db.products.get(aceite.id))?.stock).toBe(1);
   });
 });
+
+describe('asistente: la conversación se guarda', () => {
+  it('snapshot sin fotos completas; al retomar, lo pendiente queda sin hacer y p12 sigue siendo el mismo producto', async () => {
+    const { harina } = await seed();
+    const { transport, requests } = scripted([
+      call({ name: 'registrar_movimientos', args: { movimientos: [{ producto: 'Harina 000', tipo: 'perdida', cantidad: 3 }] } }),
+    ]);
+    const e = engine(ROLE_PERMISSIONS.manager, transport);
+    await e.send('Tirá 3 kilos de harina', [{ data: 'QUJDRA==', type: 'image/jpeg', thumb: 'data:image/jpeg;base64,AA==' }]);
+    const ref = refOf(requests[0], 'Harina 000')!;
+    const snap = JSON.parse(JSON.stringify(e.snapshot()));
+    expect(JSON.stringify(snap.history)).not.toContain('QUJDRA==');
+    expect(snap.messages[0].images).toEqual(['data:image/jpeg;base64,AA==']);
+    expect(snap.messages.at(-1).proposals[0].status).toBe('pending');
+
+    // Se agrega un producto que alfabéticamente iría antes: las referencias no se corren.
+    await saveProduct({ ...emptyProduct(), name: 'Aaa nuevo', unitId: 'u' });
+    const s2 = scripted([say('Dale.')]);
+    const e2 = engine(ROLE_PERMISSIONS.manager, s2.transport);
+    e2.restore(snap);
+    const restored = e2.getState().messages.at(-1)!;
+    expect(restored.proposals?.[0]).toMatchObject({ status: 'cancelled', canUndo: false });
+    await e2.send('seguimos');
+    expect(refOf(s2.requests[0], 'Harina 000')).toBe(ref);
+    // El pedido de herramienta sin respuesta no se manda (la IA lo rechazaría).
+    expect(s2.requests[0].contents.some((c) => c.parts.some((p) => p.functionCall))).toBe(false);
+    expect((await db.products.get(harina.id))?.stock).toBe(50);
+  });
+
+  it('historial: archivar, retomar y borrar', async () => {
+    const { archiveChat, loadArchive, takeArchived } = await import('../../src/services/assistant/chatStore');
+    const chat = (id: string) => ({ v: 1 as const, id, startedAt: t, updatedAt: t, messages: [{ id: 'm', role: 'user' as const, text: `hola ${id}` }], history: [], refs: [] });
+    await archiveChat('u1', chat('a'));
+    await archiveChat('u1', chat('b'));
+    await archiveChat('u1', chat('a'));
+    expect((await loadArchive('u1')).map((c) => c.id)).toEqual(['a', 'b']);
+    expect(await loadArchive('otro')).toEqual([]);
+    expect((await takeArchived('u1', 'b'))?.messages[0].text).toBe('hola b');
+    expect((await loadArchive('u1')).map((c) => c.id)).toEqual(['a']);
+  });
+});

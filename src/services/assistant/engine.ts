@@ -6,7 +6,7 @@
 import { db } from '../../database/db';
 import type { AppUser, Permission, Settings } from '../../models';
 import { cloudSession } from '../../cloud/cloudService';
-import { uuid } from '../../utils/id';
+import { nowIso, uuid } from '../../utils/id';
 import { workerProvider } from '../invoiceAI';
 import { logError } from '../diagnosticsService';
 import { PERMISSION_LABEL, ROLE_LABEL } from '../userService';
@@ -161,6 +161,24 @@ export interface ChatMessage {
 
 export interface AssistantState { messages: ChatMessage[]; busy: boolean }
 
+/** Conversación guardada (para que no se pierda al cerrar la app y para el historial). */
+export interface ChatSnapshot {
+  v: 1;
+  id: string;
+  startedAt: string;
+  updatedAt: string;
+  messages: ChatMessage[];
+  history: GContent[];
+  refs: [string, string][];
+}
+
+/** Título de una conversación: el primer mensaje de la persona. */
+export const chatTitle = (c: Pick<ChatSnapshot, 'messages'>) => {
+  const first = c.messages.find((m) => m.role === 'user');
+  const t = (first?.text || (first?.images?.length ? 'Foto' : '') || 'Conversación').replace(/\s+/g, ' ').trim();
+  return t.length > 70 ? `${t.slice(0, 67)}…` : t;
+};
+
 export interface EngineDeps {
   user: Pick<AppUser, 'name' | 'role'>;
   can: (p: Permission) => boolean;
@@ -194,8 +212,43 @@ export class AssistantEngine {
   private notices: string[] = [];
   /** Fotos del último mensaje que traía fotos (para guardar la factura en Facturas). */
   private lastImages: AttachedImage[] = [];
+  private chatId = uuid();
+  private startedAt = nowIso();
+  private refEntries?: [string, string][];
 
   constructor(private deps: EngineDeps) {}
+
+  /** Lo que se guarda: sin fotos completas (sólo las miniaturas) ni cosas que no se pueden retomar. */
+  snapshot(): ChatSnapshot {
+    return {
+      v: 1,
+      id: this.chatId,
+      startedAt: this.startedAt,
+      updatedAt: nowIso(),
+      messages: this.state.messages.map((m) => (m.retry ? { ...m, retry: { text: m.retry.text, images: [] } } : m)),
+      history: this.history.map((c) => (c.parts.some((p) => p.inlineData) ? { ...c, parts: c.parts.map((p) => (p.inlineData ? { text: '[foto enviada antes]' } : p)) } : c)),
+      refs: this.refs?.entries() ?? this.refEntries ?? [],
+    };
+  }
+
+  /** Retoma una conversación guardada. Los cambios que esperaban confirmación quedan sin hacer. */
+  restore(c: ChatSnapshot) {
+    this.reset();
+    this.chatId = c.id;
+    this.startedAt = c.startedAt;
+    this.refEntries = c.refs;
+    const history = [...(c.history ?? [])];
+    // La IA necesita cada pedido de herramienta con su respuesta: un turno a medias se saca.
+    while (history.length && !(history[history.length - 1].role === 'model' && !history[history.length - 1].parts.some((x) => x.functionCall))) history.pop();
+    this.history = history;
+    const messages = (c.messages ?? []).map((m) => ({
+      ...m,
+      proposals: m.proposals?.map((p) => (p.status === 'pending' || p.status === 'running'
+        ? { ...p, status: 'cancelled' as const, result: p.status === 'pending' ? 'Quedó sin confirmar: no se hizo ningún cambio.' : p.result, canUndo: false }
+        : { ...p, status: p.status === 'undoing' ? ('done' as const) : p.status, canUndo: false })),
+    }));
+    this.emit({ messages, busy: false });
+  }
 
   setDeps(deps: EngineDeps) { this.deps = deps; }
   getState = () => this.state;
@@ -214,6 +267,9 @@ export class AssistantEngine {
     this.history = [];
     this.pending = undefined;
     this.refs = undefined;
+    this.refEntries = undefined;
+    this.chatId = uuid();
+    this.startedAt = nowIso();
     this.undos.clear();
     this.notices = [];
     this.lastImages = [];
@@ -223,7 +279,7 @@ export class AssistantEngine {
   private async context(): Promise<{ ctx: ToolContext; tools: ToolDef[]; system: string }> {
     const products = await db.products.toArray();
     // Las referencias se mantienen durante la conversación (p12 sigue siendo el mismo producto).
-    if (!this.refs) this.refs = new RefMap(products);
+    if (!this.refs) this.refs = this.refEntries?.length ? RefMap.from(this.refEntries, products) : new RefMap(products);
     for (const p of products) if (p.active) this.refs.ref(p.id);
     // Los permisos se consultan en el momento (si un administrador los cambia, vale enseguida,
     // también para cambios que ya estaban esperando confirmación).

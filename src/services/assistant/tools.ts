@@ -76,6 +76,14 @@ export class RefMap {
   }
   id(ref: string) { return this.byRef.get(ref.trim().toLowerCase()); }
   ref(id: string) { return this.byId.get(id) ?? this.add(id); }
+  /** Para guardar la conversación: así p12 sigue siendo el mismo producto al volver. */
+  entries(): [string, string][] { return [...this.byRef]; }
+  static from(entries: [string, string][], products: Product[]): RefMap {
+    const m = new RefMap([]);
+    for (const [ref, id] of entries) { m.byRef.set(ref, id); m.byId.set(id, ref); }
+    products.filter((p) => p.active).sort((a, b) => a.name.localeCompare(b.name, 'es')).forEach((p) => m.add(p.id));
+    return m;
+  }
 }
 
 /** Error que se le devuelve a la IA (y se muestra si corresponde) en lenguaje claro. */

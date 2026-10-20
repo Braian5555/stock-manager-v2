@@ -123,9 +123,25 @@ test('asistente: consulta, foto de remito con confirmación y conversación que 
   // 3) Volver: la conversación sigue ahí.
   await page.getByRole('link', { name: 'Asistente IA' }).first().click();
   await expect(thread.getByText('Listo, cargué el remito.')).toBeVisible();
+  // Queda guardada en el dispositivo (la nube de prueba no conserva la sesión al recargar).
+  await expect.poll(() => page.evaluate(() => new Promise<string>((res) => {
+    const r = indexedDB.open('stock-manager');
+    r.onsuccess = () => {
+      const q = r.result.transaction('meta').objectStore('meta').getAll();
+      q.onsuccess = () => res(JSON.stringify((q.result as { key: string; value: unknown }[]).filter((m) => m.key.startsWith('assistant.current:'))));
+    };
+  }))).toContain('Listo, cargué el remito.');
+
+  // 4) Nueva conversación: la anterior queda en el historial y se puede retomar.
   await page.getByRole('button', { name: 'Nueva conversación' }).click();
-  await dialog(page).getByRole('button', { name: 'Empezar de nuevo' }).click();
   await expect(thread.getByText('Listo, cargué el remito.')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Historial' }).click();
+  await dialog(page).getByRole('button', { name: /^¿Qué tengo que reponer\?/ }).click();
+  await expect(dialog(page)).toContainText('Cargá este remito');
+  await dialog(page).getByRole('button', { name: 'Seguir esta conversación' }).click();
+  await expect(thread.getByText('Listo, cargué el remito.')).toBeVisible();
+  // Lo que se hizo y se deshizo queda así (no se puede deshacer de nuevo después de retomarla).
+  await expect(thread.getByRole('button', { name: 'Deshacer' })).toHaveCount(0);
 });
 
 test('asistente: cancelar un cambio no toca el stock', async ({ page }) => {

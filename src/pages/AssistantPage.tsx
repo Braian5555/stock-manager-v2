@@ -1,14 +1,15 @@
 import {
-  ArrowUp, Camera, Check, CheckCircle2, ClipboardList, Copy, ImagePlus, Loader2, Mic, MicOff, RotateCcw, Sparkles, SquarePen, Undo2, X, XCircle,
+  ArrowUp, Camera, Check, CheckCircle2, ClipboardList, Copy, History, ImagePlus, Loader2, Mic, MicOff, RotateCcw, Sparkles, SquarePen, Trash2, Undo2, X, XCircle,
 } from 'lucide-react';
 import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link } from 'react-router';
 import { useCloud } from '../cloud/cloudService';
 import { EmptyState } from '../components/ui';
 import type { Permission } from '../models';
-import type { AttachedImage, ChatMessage, ChatProposal } from '../services/assistant/engine';
+import { chatTitle, type AttachedImage, type ChatMessage, type ChatProposal, type ChatSnapshot } from '../services/assistant/engine';
+import { Modal } from '../components/ui/Modal';
 import { compressImage } from '../services/imageService';
-import { useAssistant, useAssistantAvailable } from '../store/assistant';
+import { deleteConversation, newConversation, openConversation, useAssistant, useAssistantAvailable, useAssistantHistory } from '../store/assistant';
 import { useFeedback } from '../store/feedback';
 import { useSession } from '../store/session';
 
@@ -43,6 +44,8 @@ export function AssistantPage() {
   const cloud = useCloud();
   const { can, canAny, user } = useSession();
   const { engine, state } = useAssistant();
+  const history = useAssistantHistory();
+  const [showHistory, setShowHistory] = useState(false);
   const { notify, confirm } = useFeedback();
   const [text, setText] = useState('');
   const [images, setImages] = useState<AttachedImage[]>([]);
@@ -145,9 +148,10 @@ export function AssistantPage() {
     rec.start();
   };
 
+  // La conversación actual queda guardada en el historial.
   const reset = async () => {
-    if (state.messages.length && !(await confirm({ title: 'Nueva conversación', message: 'Se borra esta conversación de la pantalla (lo que ya se hizo en la app queda).', confirmLabel: 'Empezar de nuevo' }))) return;
-    engine?.reset();
+    if (state.busy) return;
+    await newConversation();
     setText('');
     setImages([]);
   };
@@ -174,8 +178,18 @@ export function AssistantPage() {
             <p>Preguntá o pedí cosas de la app. Antes de cambiar algo te muestro qué voy a hacer.</p>
           </div>
         </div>
-        {!empty && <button type="button" className="btn btn-sm" onClick={() => void reset()}><SquarePen size={16} aria-hidden /> Nueva conversación</button>}
+        <div className="row" style={{ gap: 8 }}>
+          {history.length > 0 && <button type="button" className="btn btn-sm" onClick={() => setShowHistory(true)}><History size={16} aria-hidden /> Historial</button>}
+          {!empty && <button type="button" className="btn btn-sm" disabled={state.busy} onClick={() => void reset()}><SquarePen size={16} aria-hidden /> Nueva conversación</button>}
+        </div>
       </header>
+      {showHistory && (
+        <HistoryModal chats={history} busy={state.busy} onClose={() => setShowHistory(false)}
+          onOpen={async (id) => { await openConversation(id); setShowHistory(false); }}
+          onDelete={async (c) => {
+            if (await confirm({ title: 'Borrar conversación', message: `Se borra “${chatTitle(c)}” del historial (lo que se hizo en la app queda).`, danger: true, confirmLabel: 'Borrar' })) await deleteConversation(c.id);
+          }} />
+      )}
 
       {offline && <div className="alert" role="note"><span>El asistente necesita la nube: conectá este dispositivo en Cuenta y nube.</span></div>}
 
@@ -259,6 +273,49 @@ export function AssistantPage() {
 
 /** Teclado de pantalla (celular o tablet): ahí Enter es para bajar de renglón. */
 const touchKeyboard = typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches && !window.matchMedia('(any-pointer: fine)').matches;
+
+const whenLabel = (iso: string) => new Date(iso).toLocaleString('es-AR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+
+/** Conversaciones anteriores: se ven y se pueden retomar o borrar. */
+function HistoryModal({ chats, busy, onClose, onOpen, onDelete }: { chats: ChatSnapshot[]; busy: boolean; onClose: () => void; onOpen: (id: string) => void; onDelete: (c: ChatSnapshot) => void }) {
+  const [viewId, setViewId] = useState<string>();
+  const view = chats.find((c) => c.id === viewId);
+  if (view) {
+    return (
+      <Modal open title={chatTitle(view)} onClose={() => setViewId(undefined)} wide
+        footer={<>
+          <button type="button" className="btn" onClick={() => setViewId(undefined)}>Volver</button>
+          <button type="button" className="btn btn-primary" disabled={busy} onClick={() => onOpen(view.id)}>Seguir esta conversación</button>
+        </>}>
+        <p className="small muted" style={{ marginTop: 0 }}>{whenLabel(view.startedAt)} · {view.messages.length} mensajes</p>
+        <div className="asst-history-view">
+          {view.messages.map((m) => (
+            <div key={m.id} className={`asst-msg ${m.role === 'user' ? 'is-user' : 'is-ai'}`}>
+              {m.images && m.images.length > 0 && <div className="asst-msg-imgs">{m.images.map((src, i) => <img key={i} src={src} alt={`Foto ${i + 1}`} />)}</div>}
+              {m.text && (m.role === 'user' ? <div className="asst-bubble">{m.text}</div> : <div className="asst-text"><RichText text={m.text} /></div>)}
+              {m.proposals?.map((p, i) => <div key={i} className="small muted">{p.title} · {p.status === 'done' ? (p.result || 'Hecho') : p.status === 'undone' ? 'Deshecho' : p.status === 'cancelled' ? 'Sin hacer' : p.status === 'error' ? 'No se pudo' : p.status}</div>)}
+            </div>
+          ))}
+        </div>
+      </Modal>
+    );
+  }
+  return (
+    <Modal open title="Conversaciones anteriores" onClose={onClose}>
+      <div className="list">
+        {chats.map((c) => (
+          <div key={c.id} className="list-item">
+            <button type="button" className="grow asst-history-item" onClick={() => setViewId(c.id)}>
+              <span className="list-title truncate">{chatTitle(c)}</span>
+              <span className="list-sub">{whenLabel(c.updatedAt)} · {c.messages.length} mensajes</span>
+            </button>
+            <button type="button" className="btn btn-ghost icon-btn" aria-label={`Borrar ${chatTitle(c)}`} onClick={() => onDelete(c)}><Trash2 size={18} /></button>
+          </div>
+        ))}
+      </div>
+    </Modal>
+  );
+}
 
 function Message({ m, busy, onConfirm, onCancel, onRetry, onUndo }: { m: ChatMessage; busy: boolean; onConfirm: () => void; onCancel: () => void; onRetry: () => void; onUndo: (i: number) => void }) {
   const { notify } = useFeedback();
