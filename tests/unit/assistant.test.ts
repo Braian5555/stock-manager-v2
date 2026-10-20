@@ -598,3 +598,34 @@ describe('asistente: mercadería a los puntos', () => {
     expect(lastResponse(requests[1]).resultado).toMatchObject({ punto: 'Xenote', total: 1, productos: [{ producto: 'Harina 000', cantidad: 4, unidad: 'kg' }] });
   });
 });
+
+describe('cantidades con coma decimal ("1,000" es 1)', () => {
+  it('fixQuantity corrige sólo cuando el importe lo confirma', async () => {
+    const { fixQuantity } = await import('../../functions/reader.mjs');
+    expect(fixQuantity(1000, 2400, 2400)).toBe(1);
+    expect(fixQuantity(12500, 800, 10000)).toBe(12.5);
+    expect(fixQuantity(1000, 2.4, 2400)).toBe(1000); // mil de verdad: cierra con el importe
+    expect(fixQuantity(1000, undefined, undefined)).toBe(1000);
+    expect(fixQuantity(3, 100, 300)).toBe(3);
+  });
+
+  it('la factura del asistente toma 1 cuando "1,000" se leyó como mil', async () => {
+    const { aceite } = await seed();
+    const { transport, requests } = scripted([say('hola')]);
+    const e = engine(ROLE_PERMISSIONS.manager, transport);
+    await e.send('hola');
+    expect(requests[0].systemInstruction.parts[0].text).toContain('"1,000" o "1.000" con tres decimales es 1');
+    const ref = refOf(requests[0], 'Aceite de girasol 900 ml')!;
+    const s2 = scripted([
+      call({ name: 'cargar_factura', args: { proveedor: 'Santarossa', numero: 'A-1', total: 2400, renglones: [{ descripcion: 'ACEITE 900', producto: ref, cantidad: 1000, unidad: 'u', precio_unitario: 2400, total_renglon: 2400 }] } }),
+      say('Listo.'),
+    ]);
+    e.setDeps({ user: { name: 'Braian', role: 'custom' }, can: () => true, permissions: ROLE_PERMISSIONS.manager, settings: normalizeSettings(undefined), transport: s2.transport, today: () => '2026-10-17' });
+    await e.send('Cargá esta factura', [{ data: 'QUJDRA==', type: 'image/jpeg', thumb: 'data:image/jpeg;base64,QUJDRA==' }]);
+    const msg = e.getState().messages.at(-1)!;
+    expect(msg.proposals?.[0].lines[1]).toBe('+1 u · Aceite de girasol 900 ml');
+    expect(msg.proposals?.[0].notes.join(' ')).toContain('tomé 1 y no');
+    await e.confirm(msg.id);
+    expect((await db.products.get(aceite.id))?.stock).toBe(1);
+  });
+});

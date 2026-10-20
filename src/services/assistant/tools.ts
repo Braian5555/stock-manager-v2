@@ -13,6 +13,7 @@ import { fmtDay, fmtMoney, fmtNumber, matches, normalize, round3 } from '../../u
 import { MODULES } from '../settingsService';
 import { discardCount, setCounted, startCount } from '../countService';
 import { needsPackSize, pendingCount, similarity, toStockQty } from '../invoiceAI';
+import { fixQuantity } from '../../../functions/reader.mjs';
 import { applyInvoiceToStock, learnFromInvoice, recentIngresos, undoInvoiceStock } from '../invoiceStock';
 import { deleteInvoice, newPageId, saveInvoice, type PageDraft } from '../invoiceService';
 import { saveEntity } from '../entityService';
@@ -436,7 +437,7 @@ export const TOOLS: ToolDef[] = [
   {
     name: 'cargar_factura',
     label: 'Preparó una factura',
-    description: 'Guarda en Facturas la factura o remito de la foto que mandó la persona (con la foto, proveedor, número, fecha, total y renglones) y la carga al stock. Usala siempre que manden la foto de una factura o remito de proveedor. Leé TODOS los renglones. Cantidades como figuran: "1.000" con tres decimales es 1; "B"/"BU"/"BTO" es bulto, "CJ" es caja; "X 950 CC" es el tamaño, no las unidades por caja. La persona confirma antes de guardar.',
+    description: 'Guarda en Facturas la factura o remito de la foto que mandó la persona (con la foto, proveedor, número, fecha, total y renglones) y la carga al stock. Usala siempre que manden la foto de una factura o remito de proveedor. Leé TODOS los renglones. Cantidades como figuran, con coma decimal: "1,000" o "1.000" con tres decimales es 1 (una unidad, no mil), "0,500" es 0.5; "B"/"BU"/"BTO" es bulto, "CJ" es caja; "X 950 CC" es el tamaño, no las unidades por caja. La persona confirma antes de guardar.',
     parameters: obj({
       proveedor: str('Nombre del proveedor como figura en el comprobante.'),
       numero: str('Número del comprobante (p. ej. "0011-00065063").'),
@@ -477,8 +478,12 @@ export const TOOLS: ToolDef[] = [
       const notes: string[] = [];
       for (const r of list(a.renglones)) {
         const description = s(r.descripcion) || s(r.producto) || 'Renglón';
-        const quantity = n(r.cantidad);
-        if (quantity === undefined || quantity <= 0) { notes.push(`Sin cantidad: “${description}”.`); continue; }
+        const read = n(r.cantidad);
+        if (read === undefined || read <= 0) { notes.push(`Sin cantidad: “${description}”.`); continue; }
+        // "1,000" (coma decimal) es 1: si vino como mil y el importe lo confirma, se corrige.
+        const quantity = fixQuantity(read, n(r.precio_unitario), n(r.total_renglon));
+        if (quantity !== read) notes.push(`“${description}”: tomé ${fmtNumber(quantity)} y no ${fmtNumber(read)} (la coma es decimal y el importe del renglón lo confirma).`);
+        else if (read >= 1000 && Number.isInteger(read / 1000)) notes.push(`Revisá “${description}”: figura ${fmtNumber(read)}. Si en la factura dice ${fmtNumber(read / 1000)},000 es ${fmtNumber(read / 1000)}.`);
         const unit = s(r.unidad) || undefined;
         const base: InvoiceItem = { id: uuid(), description, quantity: round3(quantity), unit, unitPrice: n(r.precio_unitario), lineTotal: n(r.total_renglon), status: 'none' };
         const pack = n(r.unidades_por_caja);

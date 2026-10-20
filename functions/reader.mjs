@@ -66,7 +66,7 @@ Reglas:
 - Si hay un descuento o bonificación en un renglón, usá el precio final del renglón. Si hay un descuento general, anotalo en "warnings".
 - Números con formato argentino: "1.234,56" es 1234.56. Las cantidades pueden tener decimales (kilos).
 - "quantity" es la cantidad tal como figura en la factura, en la unidad de la factura ("unit": por ejemplo u, kg, l, caja, bulto, pack, docena, bolsa). No conviertas unidades.
-- Muchas facturas escriben la cantidad con tres decimales: "1.000" o "2,000" en la columna de cantidad son 1 y 2 (no mil). Verificá con cantidad × precio unitario ≈ importe del renglón.
+- La coma es el separador decimal. Muchas facturas escriben la cantidad con tres decimales: "1,000", "2,000" o "1.000" en la columna de cantidad son 1 y 2 unidades (no mil); "0,500" es medio; "12,500" es 12.5. Verificá siempre con cantidad × precio unitario ≈ importe del renglón.
 - Abreviaturas de unidad: "B", "BU", "BTO", "BULT" = bulto (poné unit "bulto"); "CJ", "CAJ" = caja; "UN", "U" = unidad; "KG", "K" = kg. Ejemplo: "1.000 B AMARGO OBRERO X 950 CC 2400" es quantity 1, unit "bulto".
 - "packSize": cuántas unidades trae cada bulto o caja, sólo si figura en el renglón (ej. "X6", "X 12 U", "C/6", "PACK 6"). Ojo: "X 950 CC", "X 1 KG" o "X 2,25 L" es el tamaño de cada unidad, no la cantidad por caja. Si no figura, null.
 - "description": el texto del producto como figura en la factura (corregí sólo cortes de línea evidentes).
@@ -172,6 +172,19 @@ export function validateInput(data) {
 const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 const s = (v, n = 200) => (typeof v === 'string' && v.trim() ? v.trim().slice(0, n) : null);
 
+/**
+ * En las facturas argentinas la cantidad suele ir con tres decimales y coma: "1,000" es 1.
+ * Si se leyó como mil (cantidad × precio da mil veces el importe y dividida por mil cierra),
+ * se corrige. Sin precio ni importe no se toca.
+ */
+export function fixQuantity(quantity, unitPrice, lineTotal) {
+  if (!(quantity >= 1000) || !(unitPrice > 0) || !(lineTotal > 0)) return quantity;
+  const ratio = (quantity * unitPrice) / lineTotal;
+  if (ratio < 50) return quantity;
+  const fixed = ratio / 1000;
+  return fixed >= 0.7 && fixed <= 1.4 ? Math.round((quantity / 1000) * 1000) / 1000 : quantity;
+}
+
 /** Valida la respuesta del modelo: descarta referencias inexistentes y renglones sin cantidad. */
 export function parseReading(text, refs) {
   let raw;
@@ -191,7 +204,7 @@ export function parseReading(text, refs) {
       return {
         description: s(l?.description) ?? '(sin descripción)',
         code: s(l?.code, 40),
-        quantity: num(l?.quantity) ?? 0,
+        quantity: fixQuantity(num(l?.quantity) ?? 0, num(l?.unitPrice), num(l?.lineTotal)),
         unit: s(l?.unit, 20),
         packSize: num(l?.packSize) && l.packSize > 1 && l.packSize <= 1000 ? Math.round(l.packSize) : null,
         unitPrice: num(l?.unitPrice),
