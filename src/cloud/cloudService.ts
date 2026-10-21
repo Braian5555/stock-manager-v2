@@ -10,7 +10,7 @@ import { SyncEngine, type SyncStatus } from './syncEngine';
 import type { CloudBackend, CloudImage, CloudUser, Workspace, WorkspaceRole } from './types';
 
 const LINK_KEY = CLOUD_LINK_KEY;
-const PRE_JOIN_BACKUP_KEY = 'cloud.preJoinBackup';
+export const PRE_JOIN_BACKUP_KEY = 'cloud.preJoinBackup';
 
 interface Link {
   wsId: string;
@@ -323,8 +323,9 @@ export async function openWorkspace(ws: Workspace) {
   const user = requireUser();
   if (!ws.memberUids.includes(user.uid)) await backend!.joinWorkspace(user, ws);
   stopEngine(); // que el espacio anterior no reinserte datos mientras se reemplazan
-  // Copia de seguridad local antes de reemplazar (incluye fotos de facturas que no se habían subido).
-  const pendingImages = await db.invoiceImages.where('uploaded').equals(0).toArray();
+  // Copia de seguridad local antes de reemplazar, con TODAS las fotos de facturas que había en el
+  // dispositivo: si las facturas eran de otro espacio, después se pueden traer (Facturas → Traerlas).
+  const pendingImages = await db.invoiceImages.toArray();
   await db.meta.put({ key: PRE_JOIN_BACKUP_KEY, value: { ...(await createBackup({ includeUsers: true })), pendingImages } });
   await db.transaction('rw', [...SYNC_TABLES.map((t) => db.table(t)), db.invoiceImages, db.tombstones], async () => {
     for (const t of SYNC_TABLES) await db.table(t).clear();

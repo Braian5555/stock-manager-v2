@@ -1,7 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Camera, Receipt, Sparkles } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
 import { db } from '../database/db';
 import type { Invoice } from '../models';
 import { menuLabel } from '../services/settingsService';
@@ -12,12 +12,19 @@ import { InvoiceEditor } from '../components/invoices/InvoiceEditor';
 import { InvoiceViewer } from '../components/invoices/InvoiceViewer';
 import { InvoiceList } from '../components/invoices/InvoiceList';
 import { fmtMoney, matches } from '../utils/format';
+import { useCloud } from '../cloud/cloudService';
+import { dismissRecoverable, recoverableInvoices, recoverInvoices } from '../services/recoverService';
+import { useFeedback } from '../store/feedback';
 
 export function InvoicesPage() {
   const settings = useSettings();
   const lk = useLookups();
   const [params, setParams] = useSearchParams();
   const invoices = useLiveQuery(() => db.invoices.orderBy('date').reverse().toArray(), []) ?? EMPTY;
+  const cloud = useCloud();
+  const { run, notify } = useFeedback();
+  // Facturas que había en este dispositivo antes de entrar a la nube del negocio.
+  const recoverable = useLiveQuery(() => recoverableInvoices(), [invoices.length]) ?? EMPTY;
   const [q, setQ] = useState('');
   const [supplierId, setSupplierId] = useState('');
   const [month, setMonth] = useState('');
@@ -56,6 +63,25 @@ export function InvoicesPage() {
           <button type="button" className={`btn ${aiOn ? '' : 'btn-primary'}`} onClick={() => openNew(false)}><Camera size={18} aria-hidden /> Nueva factura</button>
         </>}
       />
+      {cloud.phase !== 'linked' && cloud.phase !== 'loading' && (
+        <div className="alert alert-warn" role="note">
+          <span><b>Este dispositivo no está conectado a la nube del negocio.</b> Las facturas que cargues acá no las van a ver los demás. <Link to="/nube">Conectalo en Cuenta y nube</Link>.</span>
+        </div>
+      )}
+      {recoverable.length > 0 && (
+        <div className="alert alert-info" role="note">
+          <div>
+          <span>
+            Hay <b>{recoverable.length} {recoverable.length === 1 ? 'factura' : 'facturas'}</b> que estaban en este dispositivo antes de entrar a la nube del negocio y no figuran acá.
+            Se pueden traer con su foto (quedan sin cargar al stock, para revisarlas).
+          </span>
+          <div className="row wrap" style={{ marginTop: 8 }}>
+            <button type="button" className="btn btn-sm btn-primary" onClick={async () => { const n = await run(() => recoverInvoices()); if (n) notify(`${n} ${n === 1 ? 'factura traída' : 'facturas traídas'} a Facturas. Revisalas y cargalas al stock si corresponde.`); }}>Traerlas a Facturas</button>
+            <button type="button" className="btn btn-sm" onClick={() => void run(() => dismissRecoverable())}>No, gracias</button>
+          </div>
+          </div>
+        </div>
+      )}
       <div className="toolbar">
         <SearchInput value={q} onChange={setQ} placeholder="Buscar por número, proveedor o nota…" label="Buscar facturas" />
         <Select aria-label="Filtrar por proveedor" value={supplierId} onChange={(e) => setSupplierId(e.target.value)} style={{ maxWidth: 240 }}>
