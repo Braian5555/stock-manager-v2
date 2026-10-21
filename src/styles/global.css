@@ -558,6 +558,12 @@ hr.sep { border: 0; border-top: 1px solid var(--border); margin: 16px 0; }
 .invoice-page-thumb figcaption { font-size: 0.75rem; padding: 4px 8px; color: var(--text-3); }
 .invoice-page-thumb .icon-btn { position: absolute; top: 4px; right: 4px; width: 30px; height: 30px; min-height: 0; background: var(--surface); border-radius: 50%; box-shadow: var(--shadow); }
 .invoice-page-thumb.processing { align-items: center; justify-content: center; gap: 6px; font-size: 0.8rem; color: var(--text-3); text-align: center; padding: 8px; }
+.invoice-pay { display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-2); }
+.invoice-pay h3 { margin: 0; font-size: 0.95rem; gap: 6px; }
+.invoice-pay-grid { display: flex; flex-wrap: wrap; gap: 14px 24px; }
+.invoice-pay-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.invoice-pay-label { font-size: 0.78rem; color: var(--text-3); }
+.invoice-item .list-sub .badge { white-space: normal; text-align: left; }
 .invoice-meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin: 0; }
 .invoice-meta dt { font-size: 0.78rem; color: var(--text-3); }
 .invoice-meta dd { margin: 2px 0 0; font-weight: 600; }

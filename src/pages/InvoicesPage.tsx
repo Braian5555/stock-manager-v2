@@ -28,6 +28,7 @@ export function InvoicesPage() {
   const [q, setQ] = useState('');
   const [supplierId, setSupplierId] = useState('');
   const [month, setMonth] = useState('');
+  const [pay, setPay] = useState<'' | 'apagar' | 'pagadas' | 'sindatos'>('');
   const [editing, setEditing] = useState<Invoice | 'new' | undefined>(params.get('nueva') === '1' ? 'new' : undefined);
   // Lectura con IA: sólo si se configuró el servidor (Configuración → Lectura con IA).
   const aiOn = !!settings.aiReaderUrl;
@@ -47,11 +48,13 @@ export function InvoicesPage() {
     () => invoices.filter((i) =>
       (!supplierId || i.supplierId === supplierId) &&
       (!month || i.date.startsWith(month)) &&
+      (!pay || (pay === 'pagadas' ? !!i.payment?.paid : pay === 'apagar' ? !!i.payment && !i.payment.paid : !i.payment?.method && !i.payment?.paid)) &&
       matches(q, i.number, lk.supplier(i.supplierId), i.notes)),
-    [invoices, supplierId, month, q, lk],
+    [invoices, supplierId, month, pay, q, lk],
   );
   const sum = list.reduce((s, i) => s + (i.total ?? 0), 0);
-  const filtered = !!(q || supplierId || month);
+  const filtered = !!(q || supplierId || month || pay);
+  const toPay = list.filter((i) => i.payment && !i.payment.paid).reduce((s, i) => s + (i.total ?? 0), 0);
 
   return (
     <>
@@ -89,10 +92,16 @@ export function InvoicesPage() {
           {lk.suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
         </Select>
         <Input type="month" aria-label="Filtrar por mes" value={month} onChange={(e) => setMonth(e.target.value)} style={{ maxWidth: 180 }} />
+        <Select aria-label="Filtrar por pago" value={pay} onChange={(e) => setPay(e.target.value as typeof pay)} style={{ maxWidth: 200 }}>
+          <option value="">Todas (pago)</option>
+          <option value="apagar">A pagar</option>
+          <option value="pagadas">Pagadas</option>
+          <option value="sindatos">Sin datos de pago</option>
+        </Select>
       </div>
       {list.length > 0 && (
         <p className="small muted" style={{ margin: '0 0 8px' }}>
-          {list.length} {list.length === 1 ? 'factura' : 'facturas'}{sum > 0 && <> · Total cargado: <b className="num">{fmtMoney(sum)}</b></>}
+          {list.length} {list.length === 1 ? 'factura' : 'facturas'}{sum > 0 && <> · Total cargado: <b className="num">{fmtMoney(sum)}</b></>}{toPay > 0 && <> · A pagar: <b className="num">{fmtMoney(toPay)}</b></>}
         </p>
       )}
       <div className="card">

@@ -121,3 +121,24 @@ describe('facturas → stock: cargar, deshacer y aprender', () => {
     await expect(createProductFromLine(item, { name: 'fernet branca 750' }, lk)).rejects.toThrow(/Ya existe/);
   });
 });
+
+describe('pago de la factura', () => {
+  it('se guarda aparte, calcula cuándo se cobra el eCheq y no se pierde al editar la factura', async () => {
+    const { saveInvoice, setInvoicePayment, paymentDueDate, paymentText } = await import('../../src/services/invoiceService');
+    const inv = await saveInvoice({ date: '2026-10-19', pages: [{ id: 'pgp', image: img }], number: 'A-1', total: 1000 });
+    await setInvoicePayment(inv.id, { method: 'echeq', days: 30, paid: false });
+    let got = (await db.invoices.get(inv.id))!;
+    expect(got.payment).toMatchObject({ method: 'echeq', days: 30, paid: false });
+    expect(paymentDueDate(got)).toBe('2026-11-18');
+    expect(paymentText(got.payment)).toBe('eCheq 30 días');
+    await saveInvoice({ id: inv.id, date: '2026-10-19', pages: [{ id: 'pgp', existing: inv.pages[0] }], number: 'A-1', total: 1200 });
+    got = (await db.invoices.get(inv.id))!;
+    expect(got.total).toBe(1200);
+    expect(got.payment?.days).toBe(30);
+    await setInvoicePayment(inv.id, { method: 'efectivo', paid: true, paidAt: '2026-10-21' });
+    got = (await db.invoices.get(inv.id))!;
+    expect(got.payment).toMatchObject({ method: 'efectivo', paid: true, paidAt: '2026-10-21' });
+    expect(got.payment?.days).toBeUndefined();
+    expect(paymentDueDate(got)).toBeUndefined();
+  });
+});

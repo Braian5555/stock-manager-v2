@@ -136,3 +136,39 @@ test('facturas: se adjuntan desde un pedido', async ({ page }) => {
   await go(page, '/facturas');
   await expect(page.locator('.invoice-item')).toHaveCount(1);
 });
+
+test('facturas: anotar cómo se paga (eCheq a N días, efectivo) y si ya se pagó', async ({ page }) => {
+  await loadDemo(page);
+  await go(page, '/facturas');
+  await expect(page.getByText('Este dispositivo no está conectado a la nube del negocio.')).toBeVisible();
+  await page.getByRole('button', { name: 'Nueva factura' }).click();
+  const d = dialog(page);
+  await d.getByLabel('Fotos desde la galería').setInputFiles(await makePhoto(page, 'f.jpg', 800, 1000));
+  await expect(d.getByRole('img', { name: 'Hoja 1' })).toBeVisible({ timeout: 20_000 });
+  await d.getByLabel('Proveedor').fill('Epicurae Camping');
+  await d.getByLabel(/^Número de factura/).fill('0001-00117581');
+  await d.getByLabel(/^Total/).fill('817850');
+  await d.getByRole('button', { name: 'Guardar factura' }).click();
+  await expect(page.getByText('Factura guardada')).toBeVisible();
+
+  const pay = dialog(page).getByRole('region', { name: 'Pago de la factura' });
+  await pay.getByRole('button', { name: 'eCheq' }).click();
+  await expect(pay.getByRole('button', { name: '30' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(pay).toContainText('Se cobra el');
+  await pay.getByRole('button', { name: '60' }).click();
+  await expect(pay.getByRole('button', { name: '60' })).toHaveAttribute('aria-pressed', 'true');
+  await dialog(page).getByRole('button', { name: 'Cerrar' }).click();
+
+  const row = page.locator('.invoice-item', { hasText: '0001-00117581' });
+  await expect(row).toContainText('A pagar · eCheq 60 días');
+  await expect(page.getByText(/A pagar: \$\s?817\.850,00/)).toBeVisible();
+  await page.getByLabel('Filtrar por pago').selectOption('pagadas');
+  await expect(row).toHaveCount(0);
+  await page.getByLabel('Filtrar por pago').selectOption('apagar');
+  await row.click();
+  await pay.getByRole('button', { name: 'Pagada' }).click();
+  await expect(pay.getByLabel('Fecha de pago')).toBeVisible();
+  await dialog(page).getByRole('button', { name: 'Cerrar' }).click();
+  await page.getByLabel('Filtrar por pago').selectOption('pagadas');
+  await expect(row).toContainText('Pagada · eCheq 60 días');
+});

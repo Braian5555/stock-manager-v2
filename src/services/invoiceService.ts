@@ -3,7 +3,8 @@
  * Los datos se sincronizan como cualquier tabla; las fotos se suben/bajan aparte (ver cloudService).
  */
 import { db } from '../database/db';
-import type { Invoice, InvoiceItem, InvoicePage } from '../models';
+import type { Invoice, InvoiceItem, InvoicePage, InvoicePayment, PaymentMethod } from '../models';
+import { localYmd } from '../utils/format';
 import { nowIso, uuid } from '../utils/id';
 import { deleteCloudImages, fetchCloudImage, uploadPendingImages } from '../cloud/cloudService';
 import { getCurrentActor } from './userService';
@@ -54,6 +55,7 @@ export async function saveInvoice(d: InvoiceDraft): Promise<Invoice> {
   if (prev?.stockAppliedAt) d = { ...d, items: prev.items, aiReadAt: prev.aiReadAt, aiWarnings: prev.aiWarnings };
   const invoice: Invoice = {
     id,
+    ...(prev?.payment ? { payment: prev.payment } : {}),
     ...(prev?.stockAppliedAt ? { stockAppliedAt: prev.stockAppliedAt, stockAppliedBy: prev.stockAppliedBy, stockMovementIds: prev.stockMovementIds, ...(prev.stockElsewhere ? { stockElsewhere: true } : {}) } : {}),
     createdAt: prev?.createdAt ?? t,
     updatedAt: t,
@@ -118,3 +120,40 @@ export function invoiceFileName(inv: Pick<Invoice, 'date' | 'number' | 'pages'>,
 }
 
 export const newPageId = () => uuid();
+
+// ───────────── Pago ─────────────
+
+export const PAYMENT_LABEL: Record<PaymentMethod, string> = { echeq: 'eCheq', efectivo: 'Efectivo', transferencia: 'Transferencia' };
+
+/** Fecha en que se cobra el eCheq (fecha de la factura + días). */
+export function paymentDueDate(inv: Pick<Invoice, 'date' | 'payment'>): string | undefined {
+  const p = inv.payment;
+  if (p?.method !== 'echeq' || !p.days || !/^\d{4}-\d{2}-\d{2}$/.test(inv.date)) return undefined;
+  const d = new Date(`${inv.date}T12:00:00`);
+  d.setDate(d.getDate() + p.days);
+  return localYmd(d);
+}
+
+/** Texto corto: "eCheq 30 días", "Efectivo"… */
+export function paymentText(p?: InvoicePayment): string {
+  if (!p?.method) return '';
+  return p.method === 'echeq' && p.days !== undefined ? `eCheq ${p.days === 0 ? 'al día' : `${p.days} días`}` : PAYMENT_LABEL[p.method];
+}
+
+/** Guarda sólo los datos de pago (se puede aunque la factura ya esté cargada al stock). */
+export async function setInvoicePayment(id: string, change: { method?: PaymentMethod; days?: number; paid: boolean; paidAt?: string }): Promise<void> {
+  const inv = await db.invoices.get(id);
+  if (!inv) throw new Error('La factura no existe.');
+  const days = change.method === 'echeq' && change.days !== undefined ? Math.max(0, Math.min(365, Math.round(change.days))) : undefined;
+  if (change.paidAt && !/^\d{4}-\d{2}-\d{2}$/.test(change.paidAt)) throw new Error('Revisá la fecha de pago.');
+  const t = nowIso();
+  const payment: InvoicePayment = {
+    ...(change.method ? { method: change.method } : {}),
+    ...(days !== undefined ? { days } : {}),
+    paid: change.paid,
+    ...(change.paid ? { paidAt: change.paidAt || localYmd() } : {}),
+    updatedAt: t,
+    updatedBy: getCurrentActor(),
+  };
+  await db.invoices.update(id, { payment, updatedAt: t });
+}

@@ -353,6 +353,22 @@ export interface Invoice extends BaseEntity {
   stockMovementIds?: ID[];
   /** Marcada como ya cargada: la mercadería había entrado antes (p. ej. por remito con el asistente). */
   stockElsewhere?: boolean;
+  /** Cómo y cuándo se paga (eCheq a N días, efectivo, transferencia) y si ya se pagó. */
+  payment?: InvoicePayment;
+}
+
+export const PAYMENT_METHODS = ['echeq', 'efectivo', 'transferencia'] as const;
+export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
+
+export interface InvoicePayment {
+  method?: PaymentMethod;
+  /** eCheq: a cuántos días (desde la fecha de la factura). */
+  days?: number;
+  paid: boolean;
+  /** Fecha en que se pagó (YYYY-MM-DD). */
+  paidAt?: string;
+  updatedAt: string;
+  updatedBy?: Actor;
 }
 
 /**

@@ -14,6 +14,7 @@ import { useFeedback } from '../../store/feedback';
 import { useSession } from '../../store/session';
 import { fmtDay, fmtMoney, fmtNumber } from '../../utils/format';
 import { Modal } from '../ui/Modal';
+import { InvoicePaymentPanel } from './InvoicePaymentPanel';
 
 /** Una hoja de la factura: carga la foto (del dispositivo o de la nube) y permite descargarla. */
 function PageImage({ invoice, index, supplierName }: { invoice: Invoice; index: number; supplierName: string }) {
@@ -102,6 +103,7 @@ export function InvoiceViewer({ invoiceId, onClose, onEdit, canReadAI }: { invoi
             {order && <div><dt>Pedido</dt><dd>Pedido #{order.number}</dd></div>}
             {invoice.createdBy && <div><dt>Cargada por</dt><dd>{invoice.createdBy.name}</dd></div>}
           </dl>
+          <InvoicePaymentPanel invoice={invoice} />
           {invoice.notes && <p className="small">{invoice.notes}</p>}
           {invoice.items?.length ? <InvoiceStockBar invoice={invoice} onReview={() => onEdit(invoice)} /> : null}
           {invoice.items?.length ? <InvoiceItemsTable invoice={invoice} /> : null}
