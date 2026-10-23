@@ -595,7 +595,8 @@ describe('asistente: mercadería a los puntos', () => {
     await createTransfer({ date: '2026-10-17', outletId: 'xen', items: [{ productId: harina.id, quantity: 4 }] });
     const { transport, requests } = scripted([call({ name: 'stock_punto', args: { punto: 'xenote' } }), say('Tiene 4 kg de harina.')]);
     await engine(ROLE_PERMISSIONS.manager, transport).send('qué hay en xenote');
-    expect(lastResponse(requests[1]).resultado).toMatchObject({ punto: 'Xenote', total: 1, productos: [{ producto: 'Harina 000', cantidad: 4, unidad: 'kg' }] });
+    // Las bebidas se cuentan en todos los puntos aunque estén en 0 (Coca-Cola entra como bebida).
+    expect(lastResponse(requests[1]).resultado).toMatchObject({ punto: 'Xenote', total: 2, con_stock: 1, en_cero: 1, productos: [{ producto: 'Harina 000', cantidad: 4, unidad: 'kg' }] });
   });
 });
 
@@ -668,5 +669,23 @@ describe('asistente: la conversación se guarda', () => {
     expect(await loadArchive('otro')).toEqual([]);
     expect((await takeArchived('u1', 'b'))?.messages[0].text).toBe('hola b');
     expect((await loadArchive('u1')).map((c) => c.id)).toEqual(['a']);
+  });
+});
+
+describe('familias de cada punto', () => {
+  it('por defecto las bebidas; el conteo del punto las incluye aunque nunca recibió nada', async () => {
+    const { coca, harina } = await seed();
+    await db.outlets.add({ id: 'confi', name: 'Confiteria', active: true, createdAt: t, updatedAt: t });
+    const { outletCategoryIds, setOutletCategories } = await import('../../src/services/transferService');
+    expect(outletCategoryIds(await db.outlets.get('confi'), await db.categories.toArray())).toEqual(['beb']);
+    const c1 = await startCount({ outletId: 'confi' });
+    expect((await db.countItems.where('countId').equals(c1.id).toArray()).map((i) => [i.productId, i.expected])).toEqual([[coca.id, 0]]);
+    await db.categories.add({ id: 'alm', name: 'Almacén', createdAt: t, updatedAt: t } as never);
+    await db.products.update(harina.id, { categoryId: 'alm' });
+    await setOutletCategories('confi', ['beb', 'alm']);
+    const c2 = await startCount({ outletId: 'confi' });
+    expect((await db.countItems.where('countId').equals(c2.id).toArray()).map((i) => i.productId).sort()).toEqual([coca.id, harina.id].sort());
+    await setOutletCategories('confi', []);
+    await expect(startCount({ outletId: 'confi' })).rejects.toThrow(/elegí qué familias maneja/);
   });
 });

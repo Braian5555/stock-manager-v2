@@ -24,7 +24,7 @@ import { RESTOCK_LEVEL_LABEL, restockList, usageSinceIso } from '../restockServi
 import { deleteProduct, emptyProduct, saveProduct } from '../productService';
 import { recipeConsumption, registerProduction, undoProduction } from '../productionService';
 import { applyMovement, MOVEMENT_LABEL, revertMovement, statusOf, STATUS_LABEL, stockByOutlet } from '../stockService';
-import { createTransfer, transferCode, voidTransfer } from '../transferService';
+import { createTransfer, outletCategoryIds, transferCode, voidTransfer } from '../transferService';
 import { ymdAdd } from '../bakeryService';
 
 // ───────────── Esquemas (formato de Gemini) ─────────────
@@ -790,14 +790,15 @@ export const TOOLS: ToolDef[] = [
       const outlet = await resolveOutlet(a.punto);
       const stock = stockByOutlet(await db.movements.filter((m) => m.outletId === outlet.id).toArray()).get(outlet.id) ?? new Map<string, number>();
       const lk = await lookups();
-      const products = await db.products.bulkGet([...stock.keys()]);
+      const cats = new Set(outletCategoryIds(outlet, await db.categories.toArray()));
+      const products = (await db.products.toArray()).filter((p) => p.active && ((!!p.categoryId && cats.has(p.categoryId)) || (stock.get(p.id) ?? 0) !== 0));
       const q = s(a.buscar);
       const rows = products
-        .filter((p): p is Product => !!p && (!q || matches(q, p.name, p.sku)))
+        .filter((p) => !q || matches(q, p.name, p.sku))
         .map((p) => ({ ref: ctx.refs.ref(p.id), producto: p.name, cantidad: stock.get(p.id) ?? 0, unidad: lk.unit(p.unitId), familia: lk.category(p.categoryId) || 'Sin familia' }))
-        .filter((r) => r.cantidad !== 0)
         .sort((x, y) => x.familia.localeCompare(y.familia, 'es') || x.producto.localeCompare(y.producto, 'es'));
-      return { punto: outlet.name, productos: rows.slice(0, 150), total: rows.length, link: `/stock?punto=${outlet.id}` };
+      const conStock = rows.filter((r) => r.cantidad !== 0);
+      return { punto: outlet.name, productos: (conStock.length ? conStock : rows).slice(0, 150), con_stock: conStock.length, en_cero: rows.length - conStock.length, total: rows.length, link: `/stock?punto=${outlet.id}` };
     },
   },
   {

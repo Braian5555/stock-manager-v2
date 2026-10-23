@@ -4,6 +4,7 @@ import { nowIso, uuid } from '../utils/id';
 import { round3 } from '../utils/format';
 import { applyMovement, outletStockOf, stockByOutlet } from './stockService';
 import { getCurrentActor } from './userService';
+import { outletCategoryIds } from './transferService';
 
 export interface StartCountInput {
   name?: string;
@@ -18,21 +19,23 @@ export interface StartCountInput {
 
 /** Inicia un conteo con los productos activos que cumplen el filtro (ubicación / familia). */
 export async function startCount(input: StartCountInput): Promise<InventoryCount> {
-  return db.transaction('rw', [db.counts, db.countItems, db.products, db.externalReferences, db.movements, db.outlets], async () => {
+  return db.transaction('rw', [db.counts, db.countItems, db.products, db.externalReferences, db.movements, db.outlets, db.categories], async () => {
     const t = nowIso();
     const outlet = input.outletId ? await db.outlets.get(input.outletId) : undefined;
     if (input.outletId && !outlet) throw new Error('El punto no existe.');
     // En un punto se compara siempre contra el stock de la app (Maxirest no informa stock por punto acá).
     const baseline = outlet ? 'local' : (input.baseline ?? 'local');
     const atOutlet = outlet ? stockByOutlet(await db.movements.toArray()).get(outlet.id) ?? new Map<string, number>() : undefined;
+    // En un punto se cuenta lo que recibió y todo lo de las familias que maneja (aunque esté en 0).
+    const outletCats = outlet ? new Set(outletCategoryIds(outlet, await db.categories.toArray())) : undefined;
     const products = (await db.products.toArray()).filter(
       (p) =>
         p.active &&
-        (outlet ? atOutlet!.has(p.id) : !input.locationId || p.locationId === input.locationId) &&
+        (outlet ? atOutlet!.has(p.id) || (!!p.categoryId && outletCats!.has(p.categoryId)) : !input.locationId || p.locationId === input.locationId) &&
         (!input.categoryId || p.categoryId === input.categoryId) &&
         (!input.productIds || input.productIds.includes(p.id)),
     );
-    if (outlet && !products.length) throw new Error(`${outlet.name} todavía no recibió mercadería por remito.`);
+    if (outlet && !products.length) throw new Error(`${outlet.name} no tiene productos para contar: elegí qué familias maneja o mandale mercadería por remito.`);
     const external =
       baseline === 'local'
         ? new Map<string, number | undefined>()

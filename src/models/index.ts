@@ -412,6 +412,8 @@ export interface Outlet extends BaseEntity {
   /** Cómo se llama este depósito/punto en Maxirest (para el Excel de importación). */
   maxirestName?: string;
   active: boolean;
+  /** Familias que maneja el punto: sus productos aparecen en el stock del punto (aunque estén en 0) y se cuentan. */
+  categoryIds?: ID[];
 }
 
 export interface TransferItem {

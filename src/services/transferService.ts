@@ -10,7 +10,8 @@
  * en Maxirest" hasta que alguien lo carga allá (a mano o con el Excel) y lo marca como cargado.
  */
 import { db } from '../database/db';
-import type { Outlet, Transfer, TransferItem } from '../models';
+import type { Category, Outlet, Transfer, TransferItem } from '../models';
+import { normalize } from '../utils/format';
 import { nowIso, uuid } from '../utils/id';
 import { round3 } from '../utils/format';
 import { applyMovement } from './stockService';
@@ -26,6 +27,22 @@ export const MAXIREST_LABEL: Record<Transfer['maxirest'], string> = {
 
 // ───────────── Puntos ─────────────
 
+/**
+ * Familias que maneja un punto. Si nunca se eligieron, son las bebidas (lo que se vende en todos los
+ * puntos), así se pueden contar desde el primer día.
+ */
+export function outletCategoryIds(outlet: Pick<Outlet, 'categoryIds'> | undefined, categories: Pick<Category, 'id' | 'name'>[]): string[] {
+  if (outlet?.categoryIds) return outlet.categoryIds;
+  return categories.filter((c) => /^bebida/.test(normalize(c.name))).map((c) => c.id);
+}
+
+/** Cambia las familias que maneja el punto. */
+export async function setOutletCategories(id: string, categoryIds: string[]): Promise<void> {
+  const o = await db.outlets.get(id);
+  if (!o) throw new Error('El punto no existe.');
+  await db.outlets.update(id, { categoryIds: [...new Set(categoryIds)], updatedAt: nowIso() });
+}
+
 export async function saveOutlet(d: { id?: string; name: string; maxirestName?: string; active: boolean }): Promise<Outlet> {
   const name = d.name.trim();
   if (!name) throw new Error('Ingresá el nombre del punto.');
@@ -33,7 +50,7 @@ export async function saveOutlet(d: { id?: string; name: string; maxirestName?: 
   if (all.some((o) => o.id !== d.id && o.name.toLocaleLowerCase('es') === name.toLocaleLowerCase('es'))) throw new Error('Ya existe un punto con ese nombre.');
   const prev = d.id ? await db.outlets.get(d.id) : undefined;
   const t = nowIso();
-  const o: Outlet = { id: prev?.id ?? uuid(), createdAt: prev?.createdAt ?? t, updatedAt: t, name, maxirestName: d.maxirestName?.trim() || undefined, active: d.active };
+  const o: Outlet = { id: prev?.id ?? uuid(), createdAt: prev?.createdAt ?? t, updatedAt: t, name, maxirestName: d.maxirestName?.trim() || undefined, active: d.active, ...(prev?.categoryIds ? { categoryIds: prev.categoryIds } : {}) };
   await db.outlets.put(o);
   return o;
 }

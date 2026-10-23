@@ -96,6 +96,6 @@ describe('remitos internos', () => {
     expect((await db.products.get(leche))!.stock).toBe(18);
 
     const empty = await saveOutlet({ name: 'Nuevo', active: true });
-    await expect(startCount({ outletId: empty.id })).rejects.toThrow(/todavía no recibió/);
+    await expect(startCount({ outletId: empty.id })).rejects.toThrow(/no tiene productos para contar/);
   });
 });

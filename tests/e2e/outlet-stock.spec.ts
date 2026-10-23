@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { go, loadDemo } from './helpers';
+import { dialog, go, loadDemo } from './helpers';
 
 test('Stock: elegir un punto muestra lo que recibió, separado por familia', async ({ page }) => {
   await loadDemo(page);
@@ -21,6 +21,19 @@ test('Stock: elegir un punto muestra lo que recibió, separado por familia', asy
   await expect(page.getByText('Stock en Confitería según los remitos recibidos')).toBeVisible();
   await expect(page.locator('.list-group-title', { hasText: 'Bebidas' })).toBeVisible();
   await expect(page.locator('.list-item', { hasText: 'Agua mineral 500 ml' })).toContainText('6');
+  // Todas las bebidas aparecen para contarlas, aunque el punto nunca las haya recibido.
+  await expect(page.getByText('Familias que se cuentan acá: Bebidas')).toBeVisible();
+  await expect(page.locator('.list-item', { hasText: 'Gaseosa cola 1,5 L' })).toContainText('0');
+  // Se puede elegir otra familia para el punto.
+  await page.getByRole('button', { name: 'Familias del punto' }).click();
+  await dialog(page).getByLabel('Hielo').check();
+  await dialog(page).getByRole('button', { name: 'Guardar' }).click();
+  await expect(page.getByText('Familias que se cuentan acá: Bebidas, Hielo')).toBeVisible();
+  await expect(page.locator('.list-group-title', { hasText: 'Hielo' })).toBeVisible();
+  await page.getByRole('button', { name: 'Contar este punto' }).click();
+  await expect(page).toHaveURL(/#\/conteo\//);
+  await expect(page.getByText('Gaseosa cola 1,5 L').first()).toBeVisible();
+  await go(page, '/stock');
   await page.getByRole('button', { name: 'Depósito Central' }).click();
   await expect(page.getByRole('article', { name: 'Agua mineral 500 ml' })).toBeVisible();
 });
