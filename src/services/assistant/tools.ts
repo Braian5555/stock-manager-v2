@@ -24,7 +24,7 @@ import { RESTOCK_LEVEL_LABEL, restockList, usageSinceIso } from '../restockServi
 import { deleteProduct, emptyProduct, saveProduct } from '../productService';
 import { recipeConsumption, registerProduction, undoProduction } from '../productionService';
 import { applyMovement, MOVEMENT_LABEL, revertMovement, statusOf, STATUS_LABEL, stockByOutlet } from '../stockService';
-import { createTransfer, outletCategoryIds, transferCode, voidTransfer } from '../transferService';
+import { createTransfer, outletAlerts, outletCategoryIds, transferCode, voidTransfer } from '../transferService';
 import { ymdAdd } from '../bakeryService';
 
 // ───────────── Esquemas (formato de Gemini) ─────────────
@@ -783,7 +783,7 @@ export const TOOLS: ToolDef[] = [
   {
     name: 'stock_punto',
     label: 'Consultó el stock de un punto',
-    description: 'Qué mercadería tiene un punto (Confitería, Xenote…) según los remitos que recibió y sus conteos.',
+    description: 'Qué mercadería tiene un punto (Confitería, Xenote…) según los remitos que recibió y sus conteos, y qué le falta (lo que está por debajo del mínimo del punto).',
     parameters: obj({ punto: str('Nombre del punto.'), buscar: str('Filtrar por nombre de producto (opcional).') }, ['punto']),
     perms: ['stock.view', 'stock.move'],
     run: async (a, ctx) => {
@@ -798,7 +798,8 @@ export const TOOLS: ToolDef[] = [
         .map((p) => ({ ref: ctx.refs.ref(p.id), producto: p.name, cantidad: stock.get(p.id) ?? 0, unidad: lk.unit(p.unitId), familia: lk.category(p.categoryId) || 'Sin familia' }))
         .sort((x, y) => x.familia.localeCompare(y.familia, 'es') || x.producto.localeCompare(y.producto, 'es'));
       const conStock = rows.filter((r) => r.cantidad !== 0);
-      return { punto: outlet.name, productos: (conStock.length ? conStock : rows).slice(0, 150), con_stock: conStock.length, en_cero: rows.length - conStock.length, total: rows.length, link: `/stock?punto=${outlet.id}` };
+      const faltan = outletAlerts(outlet, stock, products).map((x) => ({ producto: x.product.name, hay: x.qty, minimo: x.min, faltan: x.missing, unidad: lk.unit(x.product.unitId) }));
+      return { punto: outlet.name, faltan, productos: (conStock.length ? conStock : rows).slice(0, 150), con_stock: conStock.length, en_cero: rows.length - conStock.length, total: rows.length, link: `/stock?punto=${outlet.id}`, ...(Object.keys(outlet.minStock ?? {}).length ? {} : { aviso: 'Este punto no tiene mínimos cargados: no se puede saber qué falta.' }) };
     },
   },
   {

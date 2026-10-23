@@ -99,3 +99,24 @@ describe('remitos internos', () => {
     await expect(startCount({ outletId: empty.id })).rejects.toThrow(/no tiene productos para contar/);
   });
 });
+
+describe('alertas de stock por punto', () => {
+  it('avisa lo que está en el mínimo o por debajo, sólo con mínimo cargado', async () => {
+    const { outletAlerts, setOutletMin } = await import('../../src/services/transferService');
+    const { emptyProduct, saveProduct } = await import('../../src/services/productService');
+    const t0 = '2026-10-23T10:00:00.000Z';
+    await db.outlets.add({ id: 'o1', name: 'Confi', active: true, createdAt: t0, updatedAt: t0 });
+    const pepsi = await saveProduct({ ...emptyProduct(), name: 'Pepsi lata' });
+    const agua = await saveProduct({ ...emptyProduct(), name: 'Agua' });
+    const coca = await saveProduct({ ...emptyProduct(), name: 'Coca' });
+    await setOutletMin('o1', pepsi.id, 12);
+    await setOutletMin('o1', agua.id, 6);
+    await setOutletMin('o1', coca.id, 4);
+    const stock = new Map([[pepsi.id, 3], [coca.id, 10]]);
+    const products = await db.products.toArray();
+    const alerts = outletAlerts(await db.outlets.get('o1'), stock, products);
+    expect(alerts.map((a) => [a.product.name, a.level, a.qty, a.missing])).toEqual([['Agua', 'out', 0, 6], ['Pepsi lata', 'low', 3, 9]]);
+    await setOutletMin('o1', agua.id, undefined);
+    expect(outletAlerts(await db.outlets.get('o1'), stock, products).map((a) => a.product.name)).toEqual(['Pepsi lata']);
+  });
+});

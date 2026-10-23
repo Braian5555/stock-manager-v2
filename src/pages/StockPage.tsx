@@ -6,7 +6,8 @@ import { Link, useSearchParams } from 'react-router';
 import { db } from '../database/db';
 import { useLookups, useOutlets, useProducts, EMPTY } from '../hooks/useData';
 import type { Product, StockStatus } from '../models';
-import { STATUS_LABEL, statusOf } from '../services/stockService';
+import { STATUS_LABEL, statusOf, stockByOutlet } from '../services/stockService';
+import { outletAlerts } from '../services/transferService';
 import { menuLabel } from '../services/settingsService';
 import { useSettings } from '../store/settings';
 import { ScanButton } from '../components/scanner/ScanButton';
@@ -28,6 +29,12 @@ export function StockPage() {
   const lk = useLookups();
   const [params, setParams] = useSearchParams();
   const outlets = useOutlets().filter((o) => o.active);
+  // Cuántas cosas faltan en cada punto (para verlo sin entrar a cada uno).
+  const outletMoves = useLiveQuery(() => db.movements.filter((m) => !!m.outletId).toArray(), []) ?? EMPTY;
+  const missingByOutlet = useMemo(() => {
+    const st = stockByOutlet(outletMoves);
+    return new Map(outlets.map((o) => [o.id, outletAlerts(o, st.get(o.id), products).length]));
+  }, [outletMoves, outlets, products]);
   // Dónde mirar: Depósito Central (el stock de siempre) o un punto (lo que recibió por remitos).
   const punto = outlets.some((o) => o.id === params.get('punto')) ? params.get('punto')! : '';
   const setPunto = (id: string) => {
@@ -102,7 +109,7 @@ export function StockPage() {
       {outlets.length > 0 && (can('transfers') || can('stock.view')) && (
         <div style={{ marginBottom: 12, overflowX: 'auto' }}>
           <Segmented<string> label="Dónde" value={punto || 'central'} onChange={(v) => setPunto(v === 'central' ? '' : v)}
-            options={[{ value: 'central', label: 'Depósito Central' }, ...outlets.map((o) => ({ value: o.id, label: o.name }))]} />
+            options={[{ value: 'central', label: 'Depósito Central' }, ...outlets.map((o) => ({ value: o.id, label: missingByOutlet.get(o.id) ? `${o.name} · faltan ${missingByOutlet.get(o.id)}` : o.name }))]} />
         </div>
       )}
       {punto ? <OutletStockPanel key={punto} outletId={punto} /> : (<>

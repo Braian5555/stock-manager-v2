@@ -24,6 +24,20 @@ test('Stock: elegir un punto muestra lo que recibió, separado por familia', asy
   // Todas las bebidas aparecen para contarlas, aunque el punto nunca las haya recibido.
   await expect(page.getByText('Familias que se cuentan acá: Bebidas')).toBeVisible();
   await expect(page.locator('.list-item', { hasText: 'Gaseosa cola 1,5 L' })).toContainText('0');
+  // Sin mínimos no avisa; con mínimo cargado avisa lo que falta, también en el botón del punto.
+  await expect(page.getByText('Para que avise lo que falta en Confitería')).toBeVisible();
+  await page.getByRole('button', { name: 'Mínimos' }).click();
+  const min = page.getByLabel('Mínimo de Agua mineral 500 ml en Confitería');
+  await min.fill('10');
+  await min.press('Enter');
+  await page.getByRole('button', { name: 'Listo con los mínimos' }).click();
+  await expect(page.getByText('Falta 1 producto en Confitería')).toBeVisible();
+  await expect(page.locator('.list-item', { hasText: 'Agua mineral 500 ml' })).toContainText('Bajo');
+  await expect(page.locator('.list-item', { hasText: 'Agua mineral 500 ml' })).toContainText('faltan 4');
+  await expect(page.getByRole('button', { name: 'Confitería · faltan 1' })).toBeVisible();
+  await page.getByRole('button', { name: 'Ver solo lo que falta' }).click();
+  await expect(page.locator('.list-item')).toHaveCount(1);
+  await page.getByRole('button', { name: 'Ver todo' }).click();
   // Se puede elegir otra familia para el punto.
   await page.getByRole('button', { name: 'Familias del punto' }).click();
   await dialog(page).getByLabel('Hielo').check();

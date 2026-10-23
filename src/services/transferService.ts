@@ -10,7 +10,7 @@
  * en Maxirest" hasta que alguien lo carga allá (a mano o con el Excel) y lo marca como cargado.
  */
 import { db } from '../database/db';
-import type { Category, Outlet, Transfer, TransferItem } from '../models';
+import type { Category, Outlet, Product, Transfer, TransferItem } from '../models';
 import { normalize } from '../utils/format';
 import { nowIso, uuid } from '../utils/id';
 import { round3 } from '../utils/format';
@@ -36,6 +36,36 @@ export function outletCategoryIds(outlet: Pick<Outlet, 'categoryIds'> | undefine
   return categories.filter((c) => /^bebida/.test(normalize(c.name))).map((c) => c.id);
 }
 
+/** Mínimo de un producto en un punto (sin valor o 0 = no avisa). */
+export async function setOutletMin(outletId: string, productId: string, min: number | undefined): Promise<void> {
+  await db.transaction('rw', db.outlets, async () => {
+    const o = await db.outlets.get(outletId);
+    if (!o) throw new Error('El punto no existe.');
+    const next = { ...(o.minStock ?? {}) };
+    if (min === undefined || !(min > 0)) delete next[productId];
+    else next[productId] = round3(min);
+    await db.outlets.update(outletId, { minStock: next, updatedAt: nowIso() });
+  });
+}
+
+export type OutletAlertLevel = 'out' | 'low';
+export interface OutletAlert { product: Product; qty: number; min: number; level: OutletAlertLevel; missing: number }
+
+/** Lo que falta en un punto: productos con mínimo cargado que están en el mínimo o por debajo. */
+export function outletAlerts(outlet: Pick<Outlet, 'minStock'> | undefined, stock: Map<string, number> | undefined, products: Product[]): OutletAlert[] {
+  const mins = outlet?.minStock ?? {};
+  const byId = new Map(products.map((p) => [p.id, p]));
+  const out: OutletAlert[] = [];
+  for (const [id, min] of Object.entries(mins)) {
+    const p = byId.get(id);
+    if (!p || !p.active || !(min > 0)) continue;
+    const qty = stock?.get(id) ?? 0;
+    if (qty > min) continue;
+    out.push({ product: p, qty, min, level: qty <= 0 ? 'out' : 'low', missing: round3(min - Math.max(0, qty)) });
+  }
+  return out.sort((a, b) => (a.level === b.level ? a.product.name.localeCompare(b.product.name, 'es') : a.level === 'out' ? -1 : 1));
+}
+
 /** Cambia las familias que maneja el punto. */
 export async function setOutletCategories(id: string, categoryIds: string[]): Promise<void> {
   const o = await db.outlets.get(id);
@@ -50,7 +80,7 @@ export async function saveOutlet(d: { id?: string; name: string; maxirestName?: 
   if (all.some((o) => o.id !== d.id && o.name.toLocaleLowerCase('es') === name.toLocaleLowerCase('es'))) throw new Error('Ya existe un punto con ese nombre.');
   const prev = d.id ? await db.outlets.get(d.id) : undefined;
   const t = nowIso();
-  const o: Outlet = { id: prev?.id ?? uuid(), createdAt: prev?.createdAt ?? t, updatedAt: t, name, maxirestName: d.maxirestName?.trim() || undefined, active: d.active, ...(prev?.categoryIds ? { categoryIds: prev.categoryIds } : {}) };
+  const o: Outlet = { id: prev?.id ?? uuid(), createdAt: prev?.createdAt ?? t, updatedAt: t, name, maxirestName: d.maxirestName?.trim() || undefined, active: d.active, ...(prev?.categoryIds ? { categoryIds: prev.categoryIds } : {}), ...(prev?.minStock ? { minStock: prev.minStock } : {}) };
   await db.outlets.put(o);
   return o;
 }

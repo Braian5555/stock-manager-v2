@@ -1,16 +1,16 @@
 import { useLiveQuery } from 'dexie-react-hooks';
-import { ClipboardCheck, Store, Tags } from 'lucide-react';
+import { AlertTriangle, ClipboardCheck, Copy, SlidersHorizontal, Store, Tags } from 'lucide-react';
 import { Fragment, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { db } from '../../database/db';
 import { startCount } from '../../services/countService';
 import { stockByOutlet } from '../../services/stockService';
-import { outletCategoryIds, setOutletCategories } from '../../services/transferService';
+import { outletAlerts, outletCategoryIds, setOutletCategories, setOutletMin } from '../../services/transferService';
 import { Modal } from '../ui/Modal';
 import { useLookups, useOutlets, useProducts } from '../../hooks/useData';
 import { useFeedback } from '../../store/feedback';
 import { useSession } from '../../store/session';
-import { EmptyState, SearchInput, Select } from '../ui';
+import { EmptyState, NumberInput, SearchInput, Select } from '../ui';
 import { fmtNumber, matches } from '../../utils/format';
 
 /** Stock de un punto. Con `outletId` muestra ese punto fijo (sin el selector), como en la pantalla de Stock. */
@@ -30,9 +30,27 @@ export function OutletStockPanel({ outletId: fixedId }: { outletId?: string } = 
   const outlet = outlets.find((o) => o.id === current);
   const cats = new Set(outletCategoryIds(outlet, lk.categories));
   const [editCats, setEditCats] = useState(false);
+  const [editMins, setEditMins] = useState(false);
+  const [onlyMissing, setOnlyMissing] = useState(false);
+  // Mínimos que se están escribiendo: se guardan al salir del campo (no en cada tecla).
+  const [draft, setDraft] = useState<Record<string, number | undefined>>({});
+  const saveMin = (productId: string, typed: string) => {
+    if (!outlet) return;
+    const cleared = typed.trim() === '';
+    if (!cleared && !(productId in draft)) return;
+    const v = cleared ? undefined : draft[productId];
+    setDraft((d) => { const n = { ...d }; delete n[productId]; return n; });
+    if ((v ?? 0) !== (outlet.minStock?.[productId] ?? 0)) void run(() => setOutletMin(outlet.id, productId, v));
+  };
+  const canEdit = can('catalog.manage') || can('admin');
+  const alerts = outletAlerts(outlet, stock, products);
+  const alertOf = new Map(alerts.map((a) => [a.product.id, a]));
+  const hasMins = Object.keys(outlet?.minStock ?? {}).length > 0;
+  const outCount = alerts.filter((a) => a.level === 'out').length;
   // Lo que maneja el punto (sus familias, aunque esté en 0) más lo que recibió por remito.
   const rows = products
-    .filter((p) => p.active && ((!!p.categoryId && cats.has(p.categoryId)) || (stock?.get(p.id) ?? 0) !== 0) && matches(q, p.name, p.sku))
+    .filter((p) => p.active && ((!!p.categoryId && cats.has(p.categoryId)) || (stock?.get(p.id) ?? 0) !== 0 || alertOf.has(p.id)) && matches(q, p.name, p.sku))
+    .filter((p) => !onlyMissing || alertOf.has(p.id))
     .map((p) => ({ p, qty: stock?.get(p.id) ?? 0 }))
     .sort((a, b) => (lk.category(a.p.categoryId) || '~').localeCompare(lk.category(b.p.categoryId) || '~', 'es') || a.p.name.localeCompare(b.p.name, 'es'));
 
@@ -53,8 +71,31 @@ export function OutletStockPanel({ outletId: fixedId }: { outletId?: string } = 
         )}
         <SearchInput value={q} onChange={setQ} placeholder="Buscar producto" label="Buscar producto en el punto" />
         {can('count.do') && rows.length > 0 && <button type="button" className="btn" onClick={count}><ClipboardCheck size={18} aria-hidden /> Contar este punto</button>}
-        {(can('catalog.manage') || can('admin')) && outlet && <button type="button" className="btn btn-ghost" onClick={() => setEditCats(true)}><Tags size={18} aria-hidden /> Familias del punto</button>}
+        {canEdit && outlet && <button type="button" className={`btn ${editMins ? 'btn-primary' : 'btn-ghost'}`} aria-pressed={editMins} onClick={() => setEditMins((v) => !v)}><SlidersHorizontal size={18} aria-hidden /> {editMins ? 'Listo con los mínimos' : 'Mínimos'}</button>}
+        {canEdit && outlet && <button type="button" className="btn btn-ghost" onClick={() => setEditCats(true)}><Tags size={18} aria-hidden /> Familias del punto</button>}
       </div>
+      {outlet && alerts.length > 0 && (
+        <div className="alert alert-warn" role="status">
+          <AlertTriangle size={18} aria-hidden />
+          <div className="grow">
+            <b>{alerts.length === 1 ? 'Falta 1 producto' : `Faltan ${alerts.length} productos`} en {outlet.name}</b>
+            {outCount > 0 && <>: {outCount} sin stock</>}{alerts.length - outCount > 0 && <>{outCount > 0 ? ' y ' : ': '}{alerts.length - outCount} bajo el mínimo</>}.
+            <div className="row wrap" style={{ gap: 6, marginTop: 6 }}>
+              <button type="button" className="btn btn-sm" aria-pressed={onlyMissing} onClick={() => setOnlyMissing((v) => !v)}>{onlyMissing ? 'Ver todo' : 'Ver solo lo que falta'}</button>
+              <button type="button" className="btn btn-sm btn-ghost" onClick={() => void run(async () => {
+                const text = `Faltan en ${outlet.name}:\n${alerts.map((a) => `- ${a.product.name}: hay ${fmtNumber(a.qty)}, mínimo ${fmtNumber(a.min)} (faltan ${fmtNumber(a.missing)} ${lk.unit(a.product.unitId)})`).join('\n')}`;
+                await navigator.clipboard.writeText(text);
+              }, 'Lista copiada: pegala en WhatsApp')}><Copy size={15} aria-hidden /> Copiar lista</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {outlet && !alerts.length && hasMins && <p className="small" style={{ margin: '0 0 8px' }}>Nada por debajo del mínimo en {outlet.name}, según el último conteo.</p>}
+      {outlet && !hasMins && rows.length > 0 && (
+        <p className="small muted" style={{ margin: '0 0 8px' }}>
+          Para que avise lo que falta en {outlet.name}, cargá cuánto tiene que haber de cada producto{canEdit ? <> con <b>Mínimos</b></> : ' (lo hace un administrador)'}.
+        </p>
+      )}
       {editCats && outlet && (
         <OutletCategoriesModal name={outlet.name} categories={lk.categories} selected={[...cats]} onClose={() => setEditCats(false)}
           onSave={async (ids) => { if (await run(async () => { await setOutletCategories(outlet.id, ids); return true; }, 'Familias guardadas')) setEditCats(false); }} />
@@ -74,8 +115,17 @@ export function OutletStockPanel({ outletId: fixedId }: { outletId?: string } = 
               <div className="list-item">
                 <div className="grow">
                   <div className="list-title truncate">{p.name}</div>
-                  {p.sku && <div className="list-sub">Cód. {p.sku}</div>}
+                  <div className="list-sub">
+                    {alertOf.get(p.id) && <span className={`badge ${alertOf.get(p.id)!.level === 'out' ? 'badge-error' : 'badge-warn'}`}>{alertOf.get(p.id)!.level === 'out' ? 'Sin stock' : 'Bajo'}</span>}
+                    {outlet?.minStock?.[p.id] ? <> mín {fmtNumber(outlet.minStock[p.id])}{alertOf.get(p.id) ? ` · faltan ${fmtNumber(alertOf.get(p.id)!.missing)}` : ''}</> : null}
+                    {p.sku && <>{outlet?.minStock?.[p.id] ? ' · ' : ''}Cód. {p.sku}</>}
+                  </div>
                 </div>
+                {editMins && outlet && (
+                  <NumberInput aria-label={`Mínimo de ${p.name} en ${outlet.name}`} placeholder="Mín." min={0} style={{ width: 80 }}
+                    value={p.id in draft ? draft[p.id] : outlet.minStock?.[p.id]} onChange={(v) => setDraft((d) => ({ ...d, [p.id]: v }))} onBlur={(e) => saveMin(p.id, e.currentTarget.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} />
+                )}
                 <strong className={`num ${qty < 0 ? 'neg' : ''}`}>{fmtNumber(qty)} {lk.unit(p.unitId)}</strong>
               </div>
               </Fragment>

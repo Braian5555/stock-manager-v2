@@ -414,6 +414,8 @@ export interface Outlet extends BaseEntity {
   active: boolean;
   /** Familias que maneja el punto: sus productos aparecen en el stock del punto (aunque estén en 0) y se cuentan. */
   categoryIds?: ID[];
+  /** Mínimo de cada producto en este punto (productId → cantidad): por debajo, avisa que falta. */
+  minStock?: Record<ID, number>;
 }
 
 export interface TransferItem {
