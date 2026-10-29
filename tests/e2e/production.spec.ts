@@ -239,4 +239,10 @@ test('pastelera: entra directo a Pastelería y no ve Producción', async ({ page
   await page.evaluate(() => { location.hash = '#/produccion'; });
   await expect(page).toHaveURL(/#\/pasteleria$/);
   await expect(page.getByRole('heading', { name: 'Pastelería', level: 1 })).toBeVisible();
+  // El asistente sí lo puede abrir (para pasar recetas de una foto).
+  await page.evaluate(() => { location.hash = '#/asistente'; });
+  await page.waitForTimeout(500);
+  await expect(page).toHaveURL(/#\/asistente$/);
+  await page.reload();
+  await expect(page).toHaveURL(/#\/asistente$/);
 });

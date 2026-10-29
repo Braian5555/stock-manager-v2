@@ -193,6 +193,28 @@ describe('asistente: consultas y cambios', () => {
     expect(e.getState().messages.at(-1)?.text).toBe('Guardé la receta.');
   });
 
+  it('pastelera: pasa una receta de una foto, crea lo que falta y queda en Pastelería', async () => {
+    const { harina } = await seed();
+    await db.categories.add({ id: 'pas', name: 'Pastelería', createdAt: t, updatedAt: t } as never);
+    const pastry = ROLE_PERMISSIONS.pastry;
+    const names = toolsFor((p) => pastry.includes(p)).map((x) => x.name);
+    expect(names).toEqual(expect.arrayContaining(['guardar_receta', 'crear_producto', 'anotar_produccion', 'buscar_productos']));
+    expect(names).not.toContain('registrar_movimientos');
+    const { transport, requests } = scripted([
+      call({ name: 'crear_producto', args: { nombre: 'Torta rogel', unidad: 'u' } }),
+      call({ name: 'guardar_receta', args: { producto: 'Torta rogel', rinde: 1, insumos: [{ producto: 'Harina 000', cantidad: 0.5 }] } }),
+      say('Listo, guardé la receta de la torta rogel.'),
+    ]);
+    const e = engine(pastry, transport);
+    await e.send('Pasá la receta de esta foto');
+    expect(requests[0].systemInstruction.parts[0].text).toMatch(/lo que se elabora va en la familia Pastelería/);
+    await e.confirm(e.getState().messages.at(-1)!.id);
+    await e.confirm(e.getState().messages.at(-1)!.id);
+    const torta = (await db.products.toArray()).find((x) => x.name === 'Torta rogel')!;
+    expect(torta.categoryId).toBe('pas');
+    expect(torta.recipe).toEqual({ yield: 1, items: [{ productId: harina.id, quantity: 0.5 }] });
+  });
+
   it('si falla la conexión se puede reintentar sin romper la conversación', async () => {
     await seed();
     const { transport, requests } = scripted([new Error('Se alcanzó el límite gratis de Gemini por ahora.'), say('Hola!')]);

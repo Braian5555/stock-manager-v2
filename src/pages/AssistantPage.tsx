@@ -26,6 +26,7 @@ const SUGGESTIONS: Suggestion[] = [
   { text: 'Llegó mercadería: te mando la foto del remito para cargarla', perms: ['stock.move'], photo: true },
   { text: 'Pasá a la app la receta de esta foto', perms: ['recipes', 'catalog.manage'], photo: true },
   { text: 'Anotá que salieron 40 medialunas', perms: ['production'] },
+  { text: 'Anotá que salieron 2 tortas', perms: ['pastry'] },
   { text: '¿Qué productos están en negativo?', perms: ['stock.view'] },
 ];
 

@@ -60,7 +60,8 @@ export function AppLayout() {
   // Al entrar alguien que usa una sola sección (p. ej. el panadero), se abre directo esa.
   const single = soleModule(visible);
   useEffect(() => {
-    if (single && !visible.some((k) => location.pathname === MODULE_PATH[k])) navigate(MODULE_PATH[single], { replace: true });
+    // El asistente y la ayuda también los puede abrir.
+    if (single && !visible.some((k) => location.pathname === MODULE_PATH[k]) && !/^\/(asistente|ayuda|acerca)/.test(location.pathname)) navigate(MODULE_PATH[single], { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- sólo al cambiar de usuario
   }, [user?.id, single]);
   const sections = visibleSections(settings, visible);

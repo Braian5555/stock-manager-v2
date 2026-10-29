@@ -25,7 +25,7 @@ import { deleteProduct, emptyProduct, saveProduct } from '../productService';
 import { recipeConsumption, registerProduction, undoProduction } from '../productionService';
 import { applyMovement, MOVEMENT_LABEL, revertMovement, statusOf, STATUS_LABEL, stockByOutlet } from '../stockService';
 import { createTransfer, outletAlerts, outletCategoryIds, transferCode, voidTransfer } from '../transferService';
-import { ymdAdd } from '../bakeryService';
+import { lineFamilyIds, ymdAdd, type ProductionLine } from '../bakeryService';
 
 // ───────────── Esquemas (formato de Gemini) ─────────────
 
@@ -195,12 +195,19 @@ function productRow(p: Product, lk: Lk, ctx: ToolContext) {
   };
 }
 
-const PRODUCT_PERMS: Permission[] = ['stock.view', 'catalog.manage', 'count.do', 'production', 'recipes', 'invoices', 'stock.move'];
+const PRODUCT_PERMS: Permission[] = ['stock.view', 'catalog.manage', 'count.do', 'production', 'pastry', 'recipes', 'invoices', 'stock.move'];
+
+/** Si la persona trabaja en una sola línea (panadera → Producción, pastelera → Pastelería). */
+export function userLine(ctx: Pick<ToolContext, 'can'>): ProductionLine | undefined {
+  const prod = ctx.can('production');
+  const pastry = ctx.can('pastry');
+  return pastry && !prod ? 'pastry' : prod && !pastry ? 'production' : undefined;
+}
 
 // ───────────── Pantallas (para "llevame a…") ─────────────
 
 const SCREENS: Record<string, keyof typeof MODULE_PATH> = {
-  inicio: 'dashboard', stock: 'stock', productos: 'products', conteo: 'count', produccion: 'production', vitrina: 'showcase',
+  inicio: 'dashboard', stock: 'stock', productos: 'products', conteo: 'count', produccion: 'production', pasteleria: 'pastry', vitrina: 'showcase',
   movimientos: 'movements', facturas: 'invoices', familias: 'categories', unidades: 'units', ubicaciones: 'locations',
   usuarios: 'users', configuracion: 'settings', nube: 'cloud', exportar: 'export', diagnostico: 'diagnostics',
 };
@@ -893,7 +900,7 @@ export const TOOLS: ToolDef[] = [
       maximo: num('Stock máximo (opcional).'),
       proveedor: str('Nombre de un proveedor existente (opcional).'),
     }, ['nombre']),
-    perms: ['catalog.manage'],
+    perms: ['catalog.manage', 'recipes'],
     prepare: async (a, ctx) => {
       const name = s(a.nombre);
       if (!name) throw new ToolError('Falta el nombre.');
@@ -924,7 +931,7 @@ export const TOOLS: ToolDef[] = [
         title: 'Crear producto',
         lines, notes,
         execute: async () => {
-          if (!ctx.can('catalog.manage')) throw new ToolError('Ya no tenés permiso para crear productos.');
+          if (!ctx.can('catalog.manage') && !ctx.can('recipes')) throw new ToolError('Ya no tenés permiso para crear productos.');
           const again = (await db.products.toArray()).find((p) => p.active && normalize(p.name) === normalize(name));
           if (again) return { result: { ok: true, ref: ctx.refs.ref(again.id), ya_existia: true }, done: `Ya existía “${again.name}”` };
           const p = await saveProduct({
@@ -1044,13 +1051,16 @@ export const TOOLS: ToolDef[] = [
           const cur = await db.products.get(p.id);
           if (!cur) throw new ToolError('El producto ya no existe.');
           const previous = cur.recipe;
-          await saveProduct({ ...cur, recipe: { yield: yieldQty, items } });
+          // Lo que elabora la panadera o la pastelera, si no tiene familia, va a la de su sección (así lo ve ahí).
+          const line = userLine(ctx);
+          const lineFam = line && !cur.categoryId ? [...lineFamilyIds(ctx.settings, await db.categories.toArray(), line)][0] : undefined;
+          await saveProduct({ ...cur, ...(lineFam ? { categoryId: lineFam } : {}), recipe: { yield: yieldQty, items } });
           return {
             result: { ok: true, insumos: items.length }, done: `Receta guardada (${items.length} insumos)`,
             undo: async () => {
               const now = await db.products.get(p.id);
               if (!now) throw new ToolError('El producto ya no existe.');
-              await saveProduct({ ...now, recipe: previous });
+              await saveProduct({ ...now, ...(lineFam ? { categoryId: undefined } : {}), recipe: previous });
               return previous ? 'Deshecho: volvió la receta anterior' : 'Deshecho: el producto quedó sin receta';
             },
           };
