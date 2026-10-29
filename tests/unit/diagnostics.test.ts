@@ -84,3 +84,12 @@ describe('empezar de cero', () => {
     expect(byId(await runDiagnostics(cloud), 'stock-mismatch').level).toBe('ok');
   });
 });
+
+describe('diagnóstico de la nube', () => {
+  it('mientras la nube se conecta no avisa como problema', async () => {
+    const r = await runDiagnostics({ phase: 'loading' } as never);
+    const c = byId(r, 'cloud');
+    expect(c.level).toBe('info');
+    expect(c.summary).toMatch(/todavía se está conectando/);
+  });
+});

@@ -228,7 +228,10 @@ test('facturas: "Leer factura con IA" lee sola al sacar la foto, y una factura y
   await expect(dialog(page).getByRole('img', { name: 'Hoja 1' })).toBeVisible({ timeout: 20_000 });
   await dialog(page).getByRole('button', { name: 'Guardar factura' }).click();
   await expect(page.getByText('Factura guardada')).toBeVisible();
+  // Al guardar se cierra la carga y se abre la factura: se espera a que esté abierta antes de cerrarla.
+  await expect(page.getByRole('dialog').getByRole('heading', { name: /^Factura/ })).toBeVisible();
   await dialog(page).getByRole('button', { name: 'Cerrar' }).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0); // que no quede ninguna ventana encima
 
   await go(page, '/configuracion');
   await page.getByRole('link', { name: /Lectura con IA/ }).first().click();
@@ -247,7 +250,10 @@ test('facturas: "Leer factura con IA" lee sola al sacar la foto, y una factura y
   await expect(d.getByRole('listitem').filter({ hasText: 'HARINA 000 X KG' })).toContainText('Reconocido');
   await d.getByRole('button', { name: 'Guardar factura' }).click();
   await expect(page.getByText('Factura guardada')).toBeVisible();
+  // Al guardar se cierra la carga y se abre la factura: se espera a que esté abierta antes de cerrarla.
+  await expect(page.getByRole('dialog').getByRole('heading', { name: /^Factura/ })).toBeVisible();
   await dialog(page).getByRole('button', { name: 'Cerrar' }).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0); // que no quede ninguna ventana encima
 
   // 2) La factura cargada antes: al abrirla aparece "Leer con IA" y la lee.
   await page.getByRole('button', { name: /^Factura/ }).filter({ hasNotText: '0001-' }).first().click();

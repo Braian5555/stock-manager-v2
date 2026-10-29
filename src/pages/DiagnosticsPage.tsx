@@ -58,6 +58,11 @@ export function DiagnosticsPage() {
   useEffect(() => {
     void check();
   }, [check]);
+  // Si se revisó mientras la nube todavía se conectaba, se vuelve a revisar cuando termina.
+  const checkedWhileLoading = report?.checks.some((c) => c.id === 'cloud' && c.summary.startsWith('La nube todavía'));
+  useEffect(() => {
+    if (checkedWhileLoading && cloud.phase !== 'loading') void check();
+  }, [checkedWhileLoading, cloud.phase, check]);
 
   const copy = async () => {
     try {

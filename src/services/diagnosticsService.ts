@@ -298,7 +298,7 @@ export async function runDiagnostics(cloud: CloudInfo): Promise<DiagnosticReport
   const stalePending = !!cloud.pending && cloud.pending > 0 && (!cloud.lastSyncAt || Date.now() - Date.parse(cloud.lastSyncAt) > 30 * 60_000);
   checks.push(
     cloud.phase !== 'linked'
-      ? { id: 'cloud', title: 'Nube', level: cloud.phase === 'unconfigured' ? 'info' : 'warn', summary: cloud.phase === 'signed_out' ? 'No hay sesión iniciada en la nube: los cambios quedan sólo en este dispositivo.' : cloud.phase === 'no_workspace' ? 'Sesión iniciada pero sin espacio de trabajo: los datos no se comparten.' : `Estado de la nube: ${cloud.phase}.` }
+      ? { id: 'cloud', title: 'Nube', level: cloud.phase === 'unconfigured' || cloud.phase === 'loading' ? 'info' : 'warn', summary: cloud.phase === 'loading' ? 'La nube todavía se está conectando: se revisa de nuevo sola en unos segundos.' : cloud.phase === 'signed_out' ? 'No hay sesión iniciada en la nube: los cambios quedan sólo en este dispositivo.' : cloud.phase === 'no_workspace' ? 'Sesión iniciada pero sin espacio de trabajo: los datos no se comparten.' : `Estado de la nube: ${cloud.phase}.` }
       : cloud.syncState === 'error' || cloud.error
         ? { id: 'cloud', title: 'Nube', level: 'error', summary: `Error de sincronización: ${cloud.error ?? 'desconocido'}.` }
         : stalePending

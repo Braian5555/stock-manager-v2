@@ -44,8 +44,13 @@ export function CountsPage() {
   const outletName = new Map(outlets.map((o) => [o.id, o.name]));
   const [form, setForm] = useState<{ name: string; locationId: string; categoryId: string; baseline: CountBaseline; outletId: string }>({ name: '', locationId: '', categoryId: '', baseline: 'local', outletId: '' });
 
+  const [creating, setCreating] = useState(false);
   const create = async () => {
+    // Un solo conteo por toque (doble clic o conexión lenta no arman dos).
+    if (creating) return;
+    setCreating(true);
     const c = await run(() => startCount({ name: form.name, locationId: form.locationId || undefined, categoryId: form.categoryId || undefined, baseline: form.baseline, outletId: form.outletId || undefined }));
+    setCreating(false);
     if (c) navigate(`/conteo/${c.id}`);
   };
 
@@ -84,7 +89,7 @@ export function CountsPage() {
         )}
       </div>
       <Modal open={open} title="Nuevo conteo" onClose={() => setOpen(false)}
-        footer={<><button type="button" className="btn" onClick={() => setOpen(false)}>Cancelar</button><button type="submit" form="count-form" className="btn btn-primary">Empezar conteo</button></>}>
+        footer={<><button type="button" className="btn" onClick={() => setOpen(false)}>Cancelar</button><button type="submit" form="count-form" className="btn btn-primary" disabled={creating}>Empezar conteo</button></>}>
         <form id="count-form" className="form-grid" onSubmit={(e) => { e.preventDefault(); void create(); }}>
           <Field label="Nombre" hint="opcional"><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder={`Conteo ${new Date().toLocaleDateString('es-AR')}`} data-autofocus /></Field>
           {outlets.some((o) => o.active) && (

@@ -54,10 +54,25 @@ export function OutletStockPanel({ outletId: fixedId }: { outletId?: string } = 
     .map((p) => ({ p, qty: stock?.get(p.id) ?? 0 }))
     .sort((a, b) => (lk.category(a.p.categoryId) || '~').localeCompare(lk.category(b.p.categoryId) || '~', 'es') || a.p.name.localeCompare(b.p.name, 'es'));
 
+  // Si ya hay un conteo abierto de este punto, se sigue ese (tocar dos veces no arma conteos repetidos).
+  const openCount = useLiveQuery(
+    async () => {
+      if (!current) return undefined;
+      const list = await db.counts.filter((c) => c.status === 'abierto' && c.outletId === current).toArray();
+      return list.sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
+    },
+    [current],
+  );
+  const [starting, setStarting] = useState(false);
+
   if (!outlets.length) return <div className="card"><EmptyState icon={<Store size={40} />} title="Todavía no hay puntos">Crealos en la pestaña Puntos.</EmptyState></div>;
 
   const count = async () => {
+    if (starting) return;
+    if (openCount) return navigate(`/conteo/${openCount.id}`);
+    setStarting(true);
     const c = await run(() => startCount({ outletId: current }));
+    setStarting(false);
     if (c) navigate(`/conteo/${c.id}`);
   };
 
@@ -70,7 +85,7 @@ export function OutletStockPanel({ outletId: fixedId }: { outletId?: string } = 
           </Select>
         )}
         <SearchInput value={q} onChange={setQ} placeholder="Buscar producto" label="Buscar producto en el punto" />
-        {can('count.do') && rows.length > 0 && <button type="button" className="btn" onClick={count}><ClipboardCheck size={18} aria-hidden /> Contar este punto</button>}
+        {can('count.do') && rows.length > 0 && <button type="button" className="btn" disabled={starting} onClick={count}><ClipboardCheck size={18} aria-hidden /> {openCount ? 'Seguir el conteo abierto' : 'Contar este punto'}</button>}
         {canEdit && outlet && <button type="button" className={`btn ${editMins ? 'btn-primary' : 'btn-ghost'}`} aria-pressed={editMins} onClick={() => setEditMins((v) => !v)}><SlidersHorizontal size={18} aria-hidden /> {editMins ? 'Listo con los mínimos' : 'Mínimos'}</button>}
         {canEdit && outlet && <button type="button" className="btn btn-ghost" onClick={() => setEditCats(true)}><Tags size={18} aria-hidden /> Familias del punto</button>}
       </div>

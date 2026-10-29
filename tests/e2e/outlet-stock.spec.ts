@@ -46,7 +46,13 @@ test('Stock: elegir un punto muestra lo que recibió, separado por familia', asy
   await expect(page.locator('.list-group-title', { hasText: 'Hielo' })).toBeVisible();
   await page.getByRole('button', { name: 'Contar este punto' }).click();
   await expect(page).toHaveURL(/#\/conteo\//);
+  const countUrl = page.url();
   await expect(page.getByText('Gaseosa cola 1,5 L').first()).toBeVisible();
+  // Volver a tocar no arma otro conteo: sigue el que está abierto.
+  await go(page, '/stock');
+  await page.getByRole('button', { name: /^Confitería/ }).click();
+  await page.getByRole('button', { name: 'Seguir el conteo abierto' }).click();
+  await expect(page).toHaveURL(countUrl);
   await go(page, '/stock');
   await page.getByRole('button', { name: 'Depósito Central' }).click();
   await expect(page.getByRole('article', { name: 'Agua mineral 500 ml' })).toBeVisible();
