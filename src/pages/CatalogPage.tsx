@@ -1,5 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks';
-import { ChevronRight, ClipboardList, ListPlus, MapPin, Mail, Pencil, Phone, Plus, Ruler, Tags, Trash2, Truck } from 'lucide-react';
+import { ChevronRight, ClipboardList, ListPlus, MapPin, Mail, Pencil, Phone, Plus, RotateCcw, Ruler, Tags, Trash2, Truck } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import type { Table } from 'dexie';
@@ -12,6 +12,8 @@ import { useSettings } from '../store/settings';
 import { useProducts, EMPTY } from '../hooks/useData';
 import { Modal } from '../components/ui/Modal';
 import { PurchaseSheetModal } from '../components/PurchaseSheetModal';
+import { FamilyZeroModal } from '../components/FamilyZeroModal';
+import { useSession } from '../store/session';
 import { EmptyState, Field, Input, PageHeader, SearchInput, Textarea } from '../components/ui';
 import { matches } from '../utils/format';
 import { statusOf } from '../services/stockService';
@@ -61,6 +63,9 @@ export function CatalogPage({ kind }: { kind: Kind }) {
   const [bulkText, setBulkText] = useState<string | null>(null);
   // Planillas de compra (sólo proveedores): undefined = cerrado, '' = abierta sin proveedor elegido.
   const [sheetFor, setSheetFor] = useState<string | undefined>();
+  // Poner en 0 el stock de una familia (administrador).
+  const [zeroFor, setZeroFor] = useState<string | null>(null);
+  const { can } = useSession();
   const Icon = cfg.icon;
 
   useEffect(() => {
@@ -184,6 +189,9 @@ export function CatalogPage({ kind }: { kind: Kind }) {
                 {kind === 'supplier' && (usage.get(r.id) ?? 0) > 0 && (
                   <button type="button" className="btn btn-sm btn-ghost icon-btn" aria-label={`Planilla de compra de ${r.name}`} title="Planilla de compra" onClick={() => setSheetFor(r.id)}><ClipboardList size={16} /></button>
                 )}
+                {kind === 'category' && can('admin') && (usage.get(r.id) ?? 0) > 0 && (
+                  <button type="button" className="btn btn-sm btn-ghost icon-btn" aria-label={`Poner en 0 el stock de ${r.name}`} title="Poner el stock en 0" onClick={() => setZeroFor(r.id)}><RotateCcw size={16} /></button>
+                )}
                 <button type="button" className="btn btn-sm btn-ghost icon-btn" aria-label={`Editar ${r.name}`} onClick={() => setEditing(r)}><Pencil size={16} /></button>
                 <button type="button" className="btn btn-sm btn-ghost icon-btn btn-danger" aria-label={`Eliminar ${r.name}`} onClick={() => remove(r)}><Trash2 size={16} /></button>
               </div>
@@ -191,6 +199,7 @@ export function CatalogPage({ kind }: { kind: Kind }) {
           </div>
         )}
       </div>
+      {kind === 'category' && <FamilyZeroModal categoryId={zeroFor} onClose={() => setZeroFor(null)} />}
       {kind === 'supplier' && <PurchaseSheetModal open={sheetFor !== undefined} initial={sheetFor || undefined} onClose={() => setSheetFor(undefined)} />}
       <Modal
         open={!!editing}
