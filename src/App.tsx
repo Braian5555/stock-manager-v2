@@ -90,6 +90,7 @@ export function App() {
                 <Route path="conteo" element={<Guard module="count"><CountsPage /></Guard>} />
                 <Route path="conteo/:id" element={<Guard module="count"><CountDetailPage /></Guard>} />
                 <Route path="produccion" element={<Guard module="production"><ProductionPage /></Guard>} />
+                <Route path="pasteleria" element={<Guard module="pastry"><ProductionPage line="pastry" key="pastry" /></Guard>} />
                 <Route path="vitrina" element={<Guard module="showcase"><ShowcasePage /></Guard>} />
                 <Route path="diagnostico" element={<Guard module="diagnostics"><DiagnosticsPage /></Guard>} />
                 <Route path="pedidos" element={<Guard module="orders"><OrdersPage /></Guard>} />

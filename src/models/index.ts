@@ -198,7 +198,7 @@ export type LogoKind = 'default' | 'emoji' | 'image';
 export type ModuleKey =
   | 'dashboard' | 'stock' | 'count' | 'orders' | 'products' | 'suppliers' | 'locations' | 'categories'
   | 'units' | 'movements' | 'reconciliation' | 'export' | 'settings' | 'integrations' | 'cloud' | 'users' | 'invoices' | 'transfers'
-  | 'reports' | 'production' | 'showcase' | 'diagnostics';
+  | 'reports' | 'production' | 'pastry' | 'showcase' | 'diagnostics';
 
 export interface MenuItemSetting {
   key: ModuleKey;
@@ -230,6 +230,8 @@ export interface Settings extends BaseEntity {
    * se llaman parecido a "Panadería" o "Pastelería".
    */
   productionCategoryIds?: ID[];
+  /** Familias que se ven en Pastelería (si falta: las que se llaman pastelería o repostería). */
+  pastryCategoryIds?: ID[];
   /** Dirección del servidor que lee facturas con IA (Cloudflare Worker). */
   aiReaderUrl?: string;
 }

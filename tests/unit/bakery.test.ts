@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { db } from '../../src/database/db';
-import { bakerySummary, closeDay, closedOn, planOf, savePlan, ymdAdd } from '../../src/services/bakeryService';
+import { bakerySummary, closeDay, closedOn, lineFamilyIds, planOf, productionFamilyIds, savePlan, ymdAdd } from '../../src/services/bakeryService';
 import { registerProduction, undoProduction } from '../../src/services/productionService';
 import { duplicateProduct, emptyProduct, saveProduct } from '../../src/services/productService';
 import { revertMovement } from '../../src/services/stockService';
@@ -87,11 +87,33 @@ describe('panadería: el plan no se pierde por otras ediciones', () => {
 });
 
 describe('familias de producción', () => {
-  it('por defecto panadería/pastelería; si se eligen, sólo esas', async () => {
-    const { productionFamilyIds } = await import('../../src/services/bakeryService');
+  it('por defecto panadería/pastelería; si se eligen, esas más las de pastelería', () => {
     const cats = [{ id: 'a', name: 'Panaderia' }, { id: 'b', name: 'Pastelería' }, { id: 'c', name: 'Bebidas' }, { id: 'd', name: 'Preparaciones' }];
     expect([...productionFamilyIds({}, cats)].sort()).toEqual(['a', 'b']);
-    expect([...productionFamilyIds({ productionCategoryIds: ['d', 'x'] }, cats)]).toEqual(['d']);
+    expect([...productionFamilyIds({ productionCategoryIds: ['d', 'x'] }, cats)].sort()).toEqual(['b', 'd']);
     expect(productionFamilyIds({}, [{ id: 'c', name: 'Bebidas' }]).size).toBe(0);
+  });
+});
+
+describe('líneas de producción: Producción y Pastelería', () => {
+  const cats = [
+    { id: 'pan', name: 'Panadería' },
+    { id: 'pas', name: 'Pastelería' },
+    { id: 'rep', name: 'Repostería fina' },
+    { id: 'beb', name: 'Bebidas' },
+  ];
+  it('por defecto toma las familias por nombre, cada una en su línea', () => {
+    expect([...lineFamilyIds({}, cats, 'production')]).toEqual(['pan']);
+    expect([...lineFamilyIds({}, cats, 'pastry')]).toEqual(['pas', 'rep']);
+    expect([...productionFamilyIds({}, cats)].sort()).toEqual(['pan', 'pas', 'rep']);
+  });
+  it('las elegidas mandan y se ignoran las familias que ya no existen', () => {
+    const s = { productionCategoryIds: ['beb'], pastryCategoryIds: ['pan', 'borrada'] };
+    expect([...lineFamilyIds(s, cats, 'production')]).toEqual(['beb']);
+    expect([...lineFamilyIds(s, cats, 'pastry')]).toEqual(['pan']);
+    expect([...lineFamilyIds({ pastryCategoryIds: ['borrada'] }, cats, 'pastry')]).toEqual(['pas', 'rep']);
+  });
+  it('sin familias de pastelería, la línea queda vacía', () => {
+    expect(lineFamilyIds({}, [{ id: 'beb', name: 'Bebidas' }], 'pastry').size).toBe(0);
   });
 });

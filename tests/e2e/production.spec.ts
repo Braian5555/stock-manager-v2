@@ -22,11 +22,12 @@ test('producción: usuario panadero ve sólo Producción, anota con dos toques y
   }
   await login(page, 'Panadero', '2468');
 
-  // Entra directo a Producción; la navegación sólo ofrece Producción.
+  // Entra directo a Producción; la navegación sólo ofrece Producción y Pastelería.
   await expect(page.getByRole('heading', { name: 'Producción', level: 1 })).toBeVisible();
   await expect(page).toHaveURL(/#\/produccion$/);
   const nav = page.getByRole('navigation', { name: isMobile ? 'Navegación inferior' : 'Navegación principal' });
   await expect(nav.getByRole('link', { name: 'Producción' })).toBeVisible();
+  if (!isMobile) await expect(nav.getByRole('link', { name: 'Pastelería' })).toBeVisible();
   await expect(nav.getByRole('link', { name: 'Stock' })).toHaveCount(0);
 
   // Busca, toca y anota 12
@@ -188,4 +189,24 @@ test('producción muestra sólo las familias elegidas (sin bebidas ni el resto)'
   await expect(page.getByText('No hay productos con ese nombre.')).toBeVisible();
   await page.getByLabel('Buscar producto').fill('');
   await expect(grid.getByRole('listitem').filter({ hasText: 'Agua mineral' })).toHaveCount(0);
+});
+
+test('pastelería: sección propia con sus familias, separada de producción', async ({ page }) => {
+  await loadDemo(page);
+  await go(page, '/pasteleria');
+  await expect(page.getByRole('heading', { name: 'Pastelería', level: 1 })).toBeVisible();
+  await expect(page.getByText('Todavía no hay familias de pastelería')).toBeVisible();
+  await page.getByRole('button', { name: 'Elegir familias' }).click();
+  const d = page.getByRole('dialog');
+  await d.getByRole('checkbox', { name: 'Mostrar Almacén en Pastelería' }).check();
+  await d.getByRole('button', { name: 'Guardar' }).click();
+  await expect(page.getByText('Familias de pastelería guardadas')).toBeVisible();
+  const grid = page.getByRole('list', { name: 'Productos' });
+  await expect(grid.getByRole('listitem').filter({ hasText: 'Harina 000' })).toBeVisible();
+  await expect(grid.getByRole('listitem').filter({ hasText: 'Agua mineral' })).toHaveCount(0);
+
+  // Producción no cambia: sigue sin familias propias elegidas.
+  await go(page, '/produccion');
+  await expect(page.getByRole('heading', { name: 'Producción', level: 1 })).toBeVisible();
+  await expect(page.getByText('Todavía no hay familias de pastelería')).toHaveCount(0);
 });

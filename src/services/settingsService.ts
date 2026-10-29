@@ -11,6 +11,7 @@ export const MODULES: { key: ModuleKey; label: string; primary?: boolean; locked
   { key: 'products', label: 'Productos' },
   { key: 'count', label: 'Conteo', primary: true },
   { key: 'production', label: 'Producción' },
+  { key: 'pastry', label: 'Pastelería' },
   { key: 'showcase', label: 'Vitrina' },
   { key: 'orders', label: 'Pedidos', primary: true },
   { key: 'movements', label: 'Movimientos' },

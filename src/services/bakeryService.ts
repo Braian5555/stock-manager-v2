@@ -182,10 +182,22 @@ export function closedOn(movements: StockMovement[], date: string): Map<string, 
   return out;
 }
 
-/** Familias que se ven en Producción: las elegidas, o por defecto las de panadería/pastelería. */
-export function productionFamilyIds(settings: { productionCategoryIds?: string[] }, categories: { id: string; name: string }[]): Set<string> {
-  const chosen = settings.productionCategoryIds?.filter((id) => categories.some((c) => c.id === id));
+export type ProductionLine = 'production' | 'pastry';
+type LineSettings = { productionCategoryIds?: string[]; pastryCategoryIds?: string[] };
+const normName = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+
+/**
+ * Familias de una línea: Producción (panadería) o Pastelería. Las elegidas en la pantalla, o por
+ * defecto las que se llaman panadería (Producción) o pastelería/repostería (Pastelería).
+ */
+export function lineFamilyIds(settings: LineSettings, categories: { id: string; name: string }[], line: ProductionLine): Set<string> {
+  const chosen = (line === 'pastry' ? settings.pastryCategoryIds : settings.productionCategoryIds)?.filter((id) => categories.some((c) => c.id === id));
   if (chosen && chosen.length) return new Set(chosen);
-  const norm = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
-  return new Set(categories.filter((c) => /panad|pastel|reposter/.test(norm(c.name))).map((c) => c.id));
+  const re = line === 'pastry' ? /pastel|reposter/ : /panad/;
+  return new Set(categories.filter((c) => re.test(normName(c.name))).map((c) => c.id));
+}
+
+/** Todo lo que se produce (Producción y Pastelería): para el Inicio, la Vitrina y el diagnóstico. */
+export function productionFamilyIds(settings: LineSettings, categories: { id: string; name: string }[]): Set<string> {
+  return new Set([...lineFamilyIds(settings, categories, 'production'), ...lineFamilyIds(settings, categories, 'pastry')]);
 }

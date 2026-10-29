@@ -8,7 +8,7 @@ import { syncPending } from '../integrations/integrationService';
 import { UpdatePrompt } from '../pwa/UpdatePrompt';
 import { useFeedback } from '../store/feedback';
 import { useSettings } from '../store/settings';
-import { MODULE_ICON, MODULE_PATH, bottomNavModules, moduleOfPath, navLabel, visibleModules, visibleSections, type VisibleSection } from './modules';
+import { MODULE_ICON, MODULE_PATH, bottomNavModules, moduleOfPath, soleModule, navLabel, visibleModules, visibleSections, type VisibleSection } from './modules';
 import { useAutoSync } from '../hooks/useAutoSync';
 import { SyncBadge } from '../components/SyncBadge';
 import { UserMenu } from '../components/auth/UserMenu';
@@ -58,9 +58,9 @@ export function AppLayout() {
   const visible = visibleModules(settings, canAny);
   const navigate = useNavigate();
   // Al entrar alguien que usa una sola sección (p. ej. el panadero), se abre directo esa.
-  const single = visible.filter((k) => k !== 'settings').length === 1 ? visible.find((k) => k !== 'settings') : undefined;
+  const single = soleModule(visible);
   useEffect(() => {
-    if (single && location.pathname !== MODULE_PATH[single]) navigate(MODULE_PATH[single], { replace: true });
+    if (single && !visible.some((k) => location.pathname === MODULE_PATH[k])) navigate(MODULE_PATH[single], { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- sólo al cambiar de usuario
   }, [user?.id, single]);
   const sections = visibleSections(settings, visible);

@@ -1,5 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks';
-import { BookOpen, Check, ChefHat, Pencil, Search, Tags, Undo2 } from 'lucide-react';
+import { BookOpen, CakeSlice, Check, ChefHat, Pencil, Search, Tags, Undo2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { db } from '../database/db';
 import { EMPTY, useLookups, useProducts } from '../hooks/useData';
@@ -7,11 +7,11 @@ import { startOfDayIso, useToday } from '../hooks/useToday';
 import type { Product, StockMovement } from '../models';
 import { recipeConsumption, registerProduction, undoProduction } from '../services/productionService';
 import { useFeedback } from '../store/feedback';
-import { PageHeader, Segmented } from '../components/ui';
+import { EmptyState, PageHeader, Segmented } from '../components/ui';
 import { RecipeModal } from '../components/RecipeModal';
 import { PlanView, SummaryView } from '../components/bakery/BakeryViews';
-import { productionFamilyIds } from '../services/bakeryService';
-import { updateSettings } from '../services/settingsService';
+import { lineFamilyIds, type ProductionLine } from '../services/bakeryService';
+import { menuLabel, updateSettings } from '../services/settingsService';
 import { useSettings } from '../store/settings';
 import { useSession } from '../store/session';
 import { Modal } from '../components/ui/Modal';
@@ -32,7 +32,8 @@ function quickSteps(unit: string): number[] {
  * Producción: pantalla pensada para el panadero / cocinero. Toca lo que hizo, pone cuánto
  * y listo — suma al stock como movimiento "Producción" con su nombre.
  */
-export function ProductionPage() {
+export function ProductionPage({ line = 'production' }: { line?: ProductionLine } = {}) {
+  const pastry = line === 'pastry';
   const products = useProducts();
   const lk = useLookups();
   const { run, notify } = useFeedback();
@@ -67,17 +68,25 @@ export function ProductionPage() {
   const history = useLiveQuery(() => db.movements.where('type').equals('produccion').toArray(), []) ?? EMPTY;
   const undone = useLiveQuery(() => db.movements.where('type').equals('ajuste').filter((m) => m.origin === 'deshacer').toArray(), []) ?? EMPTY;
   const undoneKeys = useMemo(() => new Set(undone.map((m) => m.idempotencyKey)), [undone]);
-  const today = useMemo(
-    () => history.filter((m) => m.createdAt >= since).sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
-    [history, since],
-  );
 
   // Sólo los productos de las familias de producción (panadería, pastelería…): nada de bebidas
   // ni verduras. Si ninguna familia coincide, se muestran todos para no dejar la pantalla vacía.
-  const famIds = useMemo(() => productionFamilyIds(settings, lk.categories), [settings, lk.categories]);
+  const famIds = useMemo(() => lineFamilyIds(settings, lk.categories, line), [settings, lk.categories, line]);
+  // Producción sin familias muestra todo (para no quedar vacía); Pastelería muestra sólo lo suyo.
   const active = useMemo(
-    () => products.filter((p) => p.active && (!famIds.size || (p.categoryId && famIds.has(p.categoryId)))).sort((a, b) => a.name.localeCompare(b.name, 'es')),
-    [products, famIds],
+    () => products.filter((p) => p.active && ((!famIds.size && !pastry) || (p.categoryId && famIds.has(p.categoryId)))).sort((a, b) => a.name.localeCompare(b.name, 'es')),
+    [products, famIds, pastry],
+  );
+  const activeIds = useMemo(() => new Set(active.map((p) => p.id)), [active]);
+  // Movimientos de esta línea para el plan y el resumen: sus productos y lo que se consumió para hacerlos.
+  const lineMoves = useMemo(() => {
+    const prodIds = new Set(recent.filter((m) => m.type === 'produccion' && activeIds.has(m.productId)).map((m) => m.id));
+    return recent.filter((m) => activeIds.has(m.productId) || (!!m.refId && prodIds.has(m.refId)) || m.idempotencyKey?.startsWith('undo:'));
+  }, [recent, activeIds]);
+  // Lo anotado hoy en esta línea (Pastelería no muestra lo de panadería, y al revés).
+  const today = useMemo(
+    () => history.filter((m) => m.createdAt >= since && activeIds.has(m.productId)).sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+    [history, since, activeIds],
   );
   // "Lo de siempre": lo que más se produjo (sin contar lo deshecho).
   const frequent = useMemo(() => {
@@ -122,7 +131,7 @@ export function ProductionPage() {
   return (
     <div className="production">
       <PageHeader
-        title="Producción"
+        title={menuLabel(settings, line)}
         subtitle={new Date().toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })}
         actions={<>
           {can('admin') && <button type="button" className="btn btn-sm btn-ghost" onClick={() => setFamOpen(true)}><Tags size={16} aria-hidden /> Familias</button>}
@@ -130,12 +139,21 @@ export function ProductionPage() {
         </>}
       />
 
-      {view === 'recetas' ? (
+      {pastry && !famIds.size ? (
+        <div className="card">
+          <EmptyState icon={<CakeSlice size={40} />} title="Todavía no hay familias de pastelería"
+            action={can('admin') ? <button type="button" className="btn btn-primary" onClick={() => setFamOpen(true)}><Tags size={18} aria-hidden /> Elegir familias</button> : undefined}>
+            {can('admin')
+              ? 'Elegí qué familias son de pastelería (por ejemplo, creá la familia “Pastelería” en Familias y pasale las tortas, budines, alfajores…). Sus productos aparecen acá para anotar, planificar y ver sus recetas.'
+              : 'Pedile a un administrador que elija qué familias son de pastelería.'}
+          </EmptyState>
+        </div>
+      ) : view === 'recetas' ? (
         <RecipeList products={active} lk={lk} q={rq} onQ={setRq} onEdit={setEditing} />
       ) : view === 'plan' ? (
-        <PlanView products={active} lk={lk} movements={recent} canEdit={canEdit} onPick={(p, remaining) => open(p, remaining)} />
+        <PlanView products={active} lk={lk} movements={lineMoves} canEdit={canEdit} onPick={(p, remaining) => open(p, remaining)} />
       ) : view === 'resumen' ? (
-        <SummaryView products={products} lk={lk} movements={recent} />
+        <SummaryView products={active} lk={lk} movements={lineMoves} />
       ) : (<>
 
       <label className="production-search">
@@ -244,7 +262,7 @@ export function ProductionPage() {
         )}
       </Modal>
       <RecipeModal product={editing} onClose={() => setEditing(null)} />
-      <FamiliesModal open={famOpen} onClose={() => setFamOpen(false)} current={famIds} />
+      <FamiliesModal open={famOpen} onClose={() => setFamOpen(false)} current={famIds} line={line} />
     </div>
   );
 }
@@ -287,7 +305,9 @@ function RecipeList({ products, lk, q, onQ, onEdit }: {
 }
 
 /** Elegir qué familias aparecen en Producción (sólo administradores). */
-function FamiliesModal({ open, onClose, current }: { open: boolean; onClose: () => void; current: Set<string> }) {
+function FamiliesModal({ open, onClose, current, line }: { open: boolean; onClose: () => void; current: Set<string>; line: ProductionLine }) {
+  const settings = useSettings();
+  const title = menuLabel(settings, line);
   const lk = useLookups();
   const products = useProducts();
   const { run } = useFeedback();
@@ -299,18 +319,18 @@ function FamiliesModal({ open, onClose, current }: { open: boolean; onClose: () 
   const recipes = (id: string) => products.filter((p) => p.active && p.categoryId === id && p.recipe?.items.length).length;
   const toggle = (id: string, on: boolean) => setSel((cur) => { const n = new Set(cur); if (on) n.add(id); else n.delete(id); return n; });
   const save = async () => {
-    const ok = await run(() => updateSettings({ productionCategoryIds: [...sel] }).then(() => true), 'Familias de producción guardadas');
+    const ok = await run(() => updateSettings(line === 'pastry' ? { pastryCategoryIds: [...sel] } : { productionCategoryIds: [...sel] }).then(() => true), `Familias de ${title.toLowerCase()} guardadas`);
     if (ok) onClose();
   };
   return (
-    <Modal open={open} title="Familias de producción" onClose={onClose}
+    <Modal open={open} title={`Familias de ${title.toLowerCase()}`} onClose={onClose}
       footer={<><button type="button" className="btn" onClick={onClose}>Cancelar</button><button type="button" className="btn btn-primary" disabled={!sel.size} onClick={save}>Guardar</button></>}>
       <div className="stack">
-        <p className="small muted">Producción (anotar, plan y recetas) muestra sólo los productos de estas familias. Así el panadero no ve bebidas, verduras ni el resto del depósito. Los insumos de las recetas se eligen igual de cualquier familia.</p>
+        <p className="small muted">{title} (anotar, plan y recetas) muestra sólo los productos de estas familias. Así no aparecen bebidas, verduras ni el resto del depósito. Los insumos de las recetas se eligen igual de cualquier familia.</p>
         <div className="list">
           {[...lk.categories].sort((a, b) => a.name.localeCompare(b.name, 'es')).map((c) => (
             <label key={c.id} className="list-item check">
-              <input type="checkbox" checked={sel.has(c.id)} onChange={(e) => toggle(c.id, e.target.checked)} aria-label={`Mostrar ${c.name} en Producción`} />
+              <input type="checkbox" checked={sel.has(c.id)} onChange={(e) => toggle(c.id, e.target.checked)} aria-label={`Mostrar ${c.name} en ${title}`} />
               <span className="grow">{c.name}</span>
               <span className="small muted num">{count(c.id)} productos{recipes(c.id) ? ` · ${recipes(c.id)} con receta` : ''}</span>
             </label>

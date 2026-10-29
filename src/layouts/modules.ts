@@ -1,6 +1,6 @@
 import {
   ArrowLeftRight, BarChart3, Boxes, ClipboardCheck, Cloud, Download, Forklift, Home, MapPin, Package, Plug, Receipt, Ruler, Scale, Settings as SettingsIcon,
-  ShoppingCart, Stethoscope, Store, Tags, Truck, UserCog, ChefHat,
+  ShoppingCart, Stethoscope, Store, Tags, Truck, UserCog, ChefHat, CakeSlice,
   type LucideIcon,
 } from 'lucide-react';
 import type { ModuleKey, Permission, Settings } from '../models';
@@ -22,6 +22,7 @@ export const MODULE_PATH: Record<ModuleKey, string> = {
   reconciliation: '/conciliacion',
   reports: '/reportes',
   production: '/produccion',
+  pastry: '/pasteleria',
   showcase: '/vitrina',
   diagnostics: '/diagnostico',
   export: '/exportar',
@@ -47,6 +48,7 @@ export const MODULE_ICON: Record<ModuleKey, LucideIcon> = {
   reconciliation: Scale,
   reports: BarChart3,
   production: ChefHat,
+  pastry: CakeSlice,
   showcase: Store,
   diagnostics: Stethoscope,
   export: Download,
@@ -77,7 +79,7 @@ export const RETIRED_PERMISSIONS: ReadonlySet<Permission> = new Set<Permission>(
 
 /** Grupos para "Más" (celular y computadora). */
 export const MODULE_GROUPS: { title: string; keys: ModuleKey[] }[] = [
-  { title: 'Operación diaria', keys: ['dashboard', 'stock', 'count', 'production', 'showcase', 'movements', 'invoices'] },
+  { title: 'Operación diaria', keys: ['dashboard', 'stock', 'count', 'production', 'pastry', 'showcase', 'movements', 'invoices'] },
   { title: 'Catálogo', keys: ['products', 'categories', 'units', 'locations'] },
   { title: 'Administración', keys: ['cloud', 'users', 'export', 'integrations', 'diagnostics', 'settings'] },
 ];
@@ -99,6 +101,7 @@ export const MODULE_PERMISSIONS: Record<ModuleKey, Permission[]> = {
   reconciliation: ['admin'],
   reports: ['movements.view', 'export'],
   production: ['production', 'recipes'],
+  pastry: ['production', 'recipes'],
   showcase: ['stock.move'],
   diagnostics: ['admin'],
   export: ['export'],
@@ -122,6 +125,17 @@ export function navLabel(settings: Settings, key: ModuleKey): string {
 /** Módulos visibles para esta persona, en el orden del menú configurado. */
 export function visibleModules(settings: Settings, canAny: (p: Permission[]) => boolean): ModuleKey[] {
   return settings.menu.filter((m) => m.visible && moduleEnabled(m.key) && canAny(MODULE_PERMISSIONS[m.key])).map((m) => m.key);
+}
+
+const PRODUCTION_LINES: ModuleKey[] = ['production', 'pastry'];
+/**
+ * Quien usa una sola cosa (p. ej. el panadero: Producción y Pastelería) entra directo ahí y
+ * nunca ve "sin permiso". Devuelve ese módulo de inicio, o undefined si usa varias secciones.
+ */
+export function soleModule(visible: ModuleKey[]): ModuleKey | undefined {
+  const list = visible.filter((k) => k !== 'settings');
+  if (list.length === 1) return list[0];
+  return list.length > 1 && list.every((k) => PRODUCTION_LINES.includes(k)) ? list[0] : undefined;
 }
 
 /** Barra superior (computadora): los fijados, en el orden del menú; el resto queda en "Más". */
@@ -165,6 +179,7 @@ export const SECTIONS: Section[] = [
   { key: 'inicio', icon: Home, modules: ['dashboard'] },
   { key: 'stock', icon: Boxes, modules: ['stock', 'movements', 'count', 'reconciliation'] },
   { key: 'produccion', icon: ChefHat, modules: ['production'] },
+  { key: 'pasteleria', icon: CakeSlice, modules: ['pastry'] },
   { key: 'vitrina', icon: Store, modules: ['showcase'] },
   { key: 'productos', icon: Package, modules: ['products', 'categories', 'units', 'locations'] },
   { key: 'facturas', icon: Receipt, modules: ['invoices'] },
