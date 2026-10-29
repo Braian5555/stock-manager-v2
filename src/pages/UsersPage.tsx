@@ -13,9 +13,10 @@ import { Badge, Field, Input, PageHeader, Select } from '../components/ui';
 import { UserAvatar } from '../components/auth/UserAvatar';
 
 const ROLE_HELP: Record<UserRole, string> = {
-  production: 'Sólo anota lo que produce y ve el plan del día. Una única pantalla con botones grandes.',
+  production: 'Panadería: sólo Producción. Anota lo que produce, ve el plan del día y las recetas.',
+  pastry: 'Pastelería: sólo Pastelería. Anota lo que produce, ve el plan del día y las recetas.',
   admin: 'Todo, incluidos usuarios, configuración, nube e integraciones.',
-  manager: 'Todo el trabajo diario (stock, conteos, producción y recetas, productos, facturas, exportar). Sin administración.',
+  manager: 'Todo el trabajo diario (stock, conteos, producción, pastelería y recetas, productos, facturas, exportar). Sin administración.',
   staff: 'Ver stock y hacer conteos.',
   custom: 'Elegí permiso por permiso.',
 };

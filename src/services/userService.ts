@@ -23,7 +23,8 @@ export const PERMISSION_LABEL: Record<Permission, string> = {
   invoices: 'Cargar, ver y descargar facturas',
   transfers: 'Hacer remitos internos a los puntos y marcarlos en Maxirest',
   admin: 'Administración (usuarios, configuración, integraciones, nube y backups)',
-  production: 'Anotar producción (panadería, cocina)',
+  production: 'Producción: anotar lo que se produce (panadería, cocina)',
+  pastry: 'Pastelería: anotar lo que se produce en pastelería',
   recipes: 'Ver y editar recetas de producción',
 };
 
@@ -31,16 +32,19 @@ export const ROLE_LABEL: Record<UserRole, string> = {
   admin: 'Administrador',
   manager: 'Encargado',
   staff: 'Empleado',
-  production: 'Producción',
+  production: 'Panadería (producción)',
+  pastry: 'Pastelería',
   custom: 'Personalizado',
 };
 
 export const ROLE_PERMISSIONS: Record<Exclude<UserRole, 'custom'>, Permission[]> = {
   admin: [...PERMISSIONS],
-  manager: ['stock.view', 'stock.move', 'count.do', 'count.apply', 'orders.manage', 'orders.receive', 'catalog.manage', 'movements.view', 'export', 'invoices', 'transfers', 'production', 'recipes'],
+  manager: ['stock.view', 'stock.move', 'count.do', 'count.apply', 'orders.manage', 'orders.receive', 'catalog.manage', 'movements.view', 'export', 'invoices', 'transfers', 'production', 'recipes', 'pastry'],
   staff: ['stock.view', 'count.do', 'orders.receive', 'invoices'],
   /** Sólo anota lo que produce (p. ej. el panadero): ve una sola pantalla. */
   production: ['production', 'recipes'],
+  /** Sólo Pastelería (p. ej. la pastelera): anota, ve el plan y las recetas de pastelería. */
+  pastry: ['pastry', 'recipes'],
 };
 
 /**

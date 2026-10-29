@@ -298,11 +298,11 @@ export type StockStatus = 'normal' | 'bajo' | 'critico' | 'sin_stock';
 
 export const PERMISSIONS = [
   'stock.view', 'stock.move', 'count.do', 'count.apply', 'orders.manage', 'orders.receive', 'catalog.manage',
-  'movements.view', 'export', 'admin', 'invoices', 'transfers', 'production', 'recipes',
+  'movements.view', 'export', 'admin', 'invoices', 'transfers', 'production', 'recipes', 'pastry',
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];
 
-export type UserRole = 'admin' | 'manager' | 'staff' | 'production' | 'custom';
+export type UserRole = 'admin' | 'manager' | 'staff' | 'production' | 'pastry' | 'custom';
 
 /**
  * Usuario interno de la app (nombre + PIN), creado por un administrador.

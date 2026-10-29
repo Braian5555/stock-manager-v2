@@ -1063,7 +1063,7 @@ export const TOOLS: ToolDef[] = [
     label: 'Preparó una producción',
     description: 'Anota lo que se produjo (panadería, cocina): suma al producto y, si tiene receta, descuenta los insumos. La persona confirma antes de anotar.',
     parameters: obj({ producto: str('Referencia o nombre.'), cantidad: num('Cantidad producida, en la unidad del producto.') }, ['producto', 'cantidad']),
-    perms: ['production'],
+    perms: ['production', 'pastry'],
     prepare: async (a, ctx) => {
       const p = await resolveProduct(a.producto, ctx);
       const qty = n(a.cantidad);
@@ -1076,12 +1076,12 @@ export const TOOLS: ToolDef[] = [
         lines: [`+${fmtNumber(qty)} ${lk.unit(p.unitId)} · ${p.name}`, ...used.map((c) => `Descuenta ${fmtNumber(c.quantity)} ${lk.unit(products.get(c.productId)?.unitId)} · ${c.name}`)],
         notes: p.recipe ? [] : ['No tiene receta: sólo se suma lo producido.'],
         execute: async () => {
-          if (!ctx.can('production')) throw new ToolError('Ya no tenés permiso para anotar producción.');
+          if (!ctx.can('production') && !ctx.can('pastry')) throw new ToolError('Ya no tenés permiso para anotar producción.');
           const r = await registerProduction(p.id, qty);
           return {
             result: { ok: true, insumos_descontados: r.consumed.length }, done: `Anotado: ${fmtNumber(qty)} ${lk.unit(p.unitId)} de ${p.name}`,
             undo: async () => {
-              if (!ctx.can('production')) throw new ToolError('No tenés permiso para anotar producción.');
+              if (!ctx.can('production') && !ctx.can('pastry')) throw new ToolError('No tenés permiso para anotar producción.');
               await undoProduction(r.movement);
               return 'Deshecho: se sacó la producción y volvieron los insumos';
             },

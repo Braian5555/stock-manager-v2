@@ -22,12 +22,12 @@ test('producción: usuario panadero ve sólo Producción, anota con dos toques y
   }
   await login(page, 'Panadero', '2468');
 
-  // Entra directo a Producción; la navegación sólo ofrece Producción y Pastelería.
+  // Entra directo a Producción; la navegación sólo ofrece Producción (Pastelería es de la pastelera).
   await expect(page.getByRole('heading', { name: 'Producción', level: 1 })).toBeVisible();
   await expect(page).toHaveURL(/#\/produccion$/);
   const nav = page.getByRole('navigation', { name: isMobile ? 'Navegación inferior' : 'Navegación principal' });
   await expect(nav.getByRole('link', { name: 'Producción' })).toBeVisible();
-  if (!isMobile) await expect(nav.getByRole('link', { name: 'Pastelería' })).toBeVisible();
+  await expect(nav.getByRole('link', { name: 'Pastelería' })).toHaveCount(0);
   await expect(nav.getByRole('link', { name: 'Stock' })).toHaveCount(0);
 
   // Busca, toca y anota 12
@@ -209,4 +209,34 @@ test('pastelería: sección propia con sus familias, separada de producción', a
   await go(page, '/produccion');
   await expect(page.getByRole('heading', { name: 'Producción', level: 1 })).toBeVisible();
   await expect(page.getByText('Todavía no hay familias de pastelería')).toHaveCount(0);
+});
+
+test('pastelera: entra directo a Pastelería y no ve Producción', async ({ page, isMobile }) => {
+  await loadDemo(page);
+  await go(page, '/usuarios');
+  await page.getByRole('button', { name: 'Nuevo usuario' }).click();
+  const d = dialog(page);
+  await d.getByLabel('Nombre').fill('Pastelera');
+  await d.getByLabel(/^PIN( ·|$)/).fill('1357');
+  await d.getByLabel('Repetí el PIN').fill('1357');
+  await d.getByLabel('Rol').selectOption('pastry');
+  await d.getByRole('button', { name: 'Guardar' }).click();
+  await expect(page.getByText('Pastelera', { exact: true })).toBeVisible();
+
+  if (isMobile) {
+    await go(page, '/mas');
+    await page.getByRole('button', { name: 'Bloquear / cambiar usuario' }).click();
+  } else {
+    await page.getByRole('button', { name: /^Usuario:/ }).click();
+    await page.getByRole('menuitem', { name: 'Bloquear / cambiar usuario' }).click();
+  }
+  await login(page, 'Pastelera', '1357');
+  await expect(page.getByRole('heading', { name: 'Pastelería', level: 1 })).toBeVisible();
+  await expect(page).toHaveURL(/#\/pasteleria$/);
+  const nav = page.getByRole('navigation', { name: isMobile ? 'Navegación inferior' : 'Navegación principal' });
+  await expect(nav.getByRole('link', { name: 'Producción' })).toHaveCount(0);
+  // Un enlace a Producción la devuelve a Pastelería.
+  await page.evaluate(() => { location.hash = '#/produccion'; });
+  await expect(page).toHaveURL(/#\/pasteleria$/);
+  await expect(page.getByRole('heading', { name: 'Pastelería', level: 1 })).toBeVisible();
 });

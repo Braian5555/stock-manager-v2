@@ -117,3 +117,17 @@ describe('líneas de producción: Producción y Pastelería', () => {
     expect(lineFamilyIds({}, [{ id: 'beb', name: 'Bebidas' }], 'pastry').size).toBe(0);
   });
 });
+
+describe('roles de panadería y pastelería', () => {
+  it('la panadera sólo tiene Producción y la pastelera sólo Pastelería', async () => {
+    const { effectivePermissions } = await import('../../src/services/userService');
+    const { MODULE_PERMISSIONS } = await import('../../src/layouts/modules');
+    const can = (role: 'production' | 'pastry', module: 'production' | 'pastry') =>
+      MODULE_PERMISSIONS[module].some((p) => effectivePermissions({ role, permissions: [] }).includes(p));
+    expect(can('production', 'production')).toBe(true);
+    expect(can('production', 'pastry')).toBe(false);
+    expect(can('pastry', 'pastry')).toBe(true);
+    expect(can('pastry', 'production')).toBe(false);
+    expect(effectivePermissions({ role: 'manager', permissions: [] })).toContain('pastry');
+  });
+});
