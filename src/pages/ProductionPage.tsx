@@ -1,5 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks';
-import { BookOpen, CakeSlice, Check, ChefHat, Pencil, Search, Tags, Undo2 } from 'lucide-react';
+import { BookOpen, CakeSlice, Check, ChefHat, Pencil, Plus, Search, Tags, Undo2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { db } from '../database/db';
 import { EMPTY, useLookups, useProducts } from '../hooks/useData';
@@ -10,6 +10,7 @@ import { useFeedback } from '../store/feedback';
 import { EmptyState, PageHeader, Segmented } from '../components/ui';
 import { RecipeModal } from '../components/RecipeModal';
 import { PlanView, SummaryView } from '../components/bakery/BakeryViews';
+import { NewProductModal } from '../components/bakery/NewProductModal';
 import { lineFamilyIds, type ProductionLine } from '../services/bakeryService';
 import { menuLabel, updateSettings } from '../services/settingsService';
 import { useSettings } from '../store/settings';
@@ -62,6 +63,8 @@ export function ProductionPage({ line = 'production' }: { line?: ProductionLine 
   const twoMonthsAgo = useMemo(() => new Date(Date.now() - 62 * 86_400_000).toISOString(), [todayYmd]);
   const recent = useLiveQuery(() => db.movements.where('createdAt').aboveOrEqual(twoMonthsAgo).toArray(), [twoMonthsAgo]) ?? EMPTY;
   const [editing, setEditing] = useState<Product | null>(null);
+  /** Producto nuevo (con el nombre que se buscó, si había). null = cerrado. */
+  const [newName, setNewName] = useState<string | null>(null);
   const [rq, setRq] = useState('');
 
   const since = useMemo(() => startOfDayIso(todayYmd), [todayYmd]);
@@ -134,6 +137,7 @@ export function ProductionPage({ line = 'production' }: { line?: ProductionLine 
         title={menuLabel(settings, line)}
         subtitle={new Date().toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })}
         actions={<>
+          {canRecipes && <button type="button" className="btn btn-sm" onClick={() => setNewName('')}><Plus size={16} aria-hidden /> Nuevo producto</button>}
           {can('admin') && <button type="button" className="btn btn-sm btn-ghost" onClick={() => setFamOpen(true)}><Tags size={16} aria-hidden /> Familias</button>}
           <Segmented label="Vista" value={view} onChange={setView} options={views} />
         </>}
@@ -142,14 +146,19 @@ export function ProductionPage({ line = 'production' }: { line?: ProductionLine 
       {pastry && !famIds.size ? (
         <div className="card">
           <EmptyState icon={<CakeSlice size={40} />} title="Todavía no hay familias de pastelería"
-            action={can('admin') ? <button type="button" className="btn btn-primary" onClick={() => setFamOpen(true)}><Tags size={18} aria-hidden /> Elegir familias</button> : undefined}>
-            {can('admin')
-              ? 'Elegí qué familias son de pastelería (por ejemplo, creá la familia “Pastelería” en Familias y pasale las tortas, budines, alfajores…). Sus productos aparecen acá para anotar, planificar y ver sus recetas.'
-              : 'Pedile a un administrador que elija qué familias son de pastelería.'}
+            action={can('admin') || canRecipes ? <div className="row wrap" style={{ gap: 8, justifyContent: 'center' }}>
+              {canRecipes && <button type="button" className="btn btn-primary" onClick={() => setNewName('')}><Plus size={18} aria-hidden /> Nuevo producto</button>}
+              {can('admin') && <button type="button" className="btn" onClick={() => setFamOpen(true)}><Tags size={18} aria-hidden /> Elegir familias</button>}
+            </div> : undefined}>
+            {canRecipes
+              ? 'Creá lo que se elabora (tortas, budines, alfajores…) con “Nuevo producto”: queda en la familia “Pastelería” y le cargás la receta.' + (can('admin') ? ' O elegí qué familias que ya existen son de pastelería.' : '')
+              : can('admin')
+                ? 'Elegí qué familias son de pastelería (por ejemplo, creá la familia “Pastelería” en Familias y pasale las tortas, budines, alfajores…). Sus productos aparecen acá para anotar, planificar y ver sus recetas.'
+                : 'Pedile a un administrador que elija qué familias son de pastelería.'}
           </EmptyState>
         </div>
       ) : view === 'recetas' ? (
-        <RecipeList products={active} lk={lk} q={rq} onQ={setRq} onEdit={setEditing} />
+        <RecipeList products={active} lk={lk} q={rq} onQ={setRq} onEdit={setEditing} onNew={() => setNewName(rq.trim())} />
       ) : view === 'plan' ? (
         <PlanView products={active} lk={lk} movements={lineMoves} canEdit={canEdit} onPick={(p, remaining) => open(p, remaining)} />
       ) : view === 'resumen' ? (
@@ -173,7 +182,10 @@ export function ProductionPage({ line = 'production' }: { line?: ProductionLine 
       )}
 
       {list.length === 0 ? (
-        <p className="muted production-empty">{q.trim() ? 'No hay productos con ese nombre.' : 'No hay productos en esta familia.'}</p>
+        <div className="production-empty">
+          <p className="muted">{q.trim() ? 'No hay productos con ese nombre.' : 'No hay productos en esta familia.'}</p>
+          {canRecipes && q.trim() && <button type="button" className="btn" onClick={() => setNewName(q.trim())}><Plus size={16} aria-hidden /> Crear “{q.trim()}”</button>}
+        </div>
       ) : (
         <div className="production-grid" role="list" aria-label="Productos">
           {list.slice(0, 120).map((p) => (
@@ -262,14 +274,16 @@ export function ProductionPage({ line = 'production' }: { line?: ProductionLine 
         )}
       </Modal>
       <RecipeModal product={editing} onClose={() => setEditing(null)} />
+      <NewProductModal open={newName !== null} line={line} initialName={newName ?? ''} lineFamilies={[...famIds]} onClose={() => setNewName(null)}
+        onCreated={(p, kind) => { setNewName(null); setQ(''); setRq(''); if (kind === 'elaborado') setEditing(p); }} />
       <FamiliesModal open={famOpen} onClose={() => setFamOpen(false)} current={famIds} line={line} />
     </div>
   );
 }
 
 /** Todas las recetas: buscar un producto y tocarlo para ver o cambiar su receta. */
-function RecipeList({ products, lk, q, onQ, onEdit }: {
-  products: Product[]; lk: ReturnType<typeof useLookups>; q: string; onQ: (v: string) => void; onEdit: (p: Product) => void;
+function RecipeList({ products, lk, q, onQ, onEdit, onNew }: {
+  products: Product[]; lk: ReturnType<typeof useLookups>; q: string; onQ: (v: string) => void; onEdit: (p: Product) => void; onNew: () => void;
 }) {
   const withRecipe = products.filter((p) => p.recipe?.items.length);
   const list = q.trim()
@@ -298,7 +312,12 @@ function RecipeList({ products, lk, q, onQ, onEdit }: {
             </button>
           );
         })}
-        {list.length === 0 && <p className="muted small card-pad">{q.trim() ? 'No hay productos con ese nombre.' : 'Todavía no hay recetas.'}</p>}
+        {list.length === 0 && (
+          <div className="card-pad">
+            <p className="muted small">{q.trim() ? 'No hay productos con ese nombre.' : 'Todavía no hay recetas.'}</p>
+            <button type="button" className="btn btn-sm" onClick={onNew}><Plus size={15} aria-hidden /> {q.trim() ? `Crear “${q.trim()}”` : 'Nuevo producto'}</button>
+          </div>
+        )}
       </div>
     </div>
   );

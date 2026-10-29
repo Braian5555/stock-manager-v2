@@ -246,3 +246,27 @@ test('pastelera: entra directo a Pastelería y no ve Producción', async ({ page
   await page.reload();
   await expect(page).toHaveURL(/#\/asistente$/);
 });
+
+test('pastelería: crear un producto nuevo y su receta (con un insumo nuevo) sin entrar a Productos', async ({ page }) => {
+  await loadDemo(page);
+  await go(page, '/pasteleria');
+  await page.getByRole('button', { name: 'Nuevo producto' }).first().click();
+  const d = dialog(page);
+  await d.getByLabel('Nombre').fill('Torta rogel');
+  await d.getByRole('button', { name: 'Crear y cargar receta' }).click();
+  await expect(page.getByText('Creado “Torta rogel”')).toBeVisible();
+  const r = page.getByRole('dialog', { name: 'Receta: Torta rogel' });
+  await r.getByLabel('Agregar insumo').fill('Harina 000');
+  await r.getByLabel('Cantidad de Harina 000').fill('0,5');
+  await r.getByLabel('Agregar insumo').fill('Dulce de leche repostero');
+  await r.getByLabel('Unidad del insumo nuevo').selectOption({ label: 'kg' });
+  await r.getByRole('button', { name: 'Crear insumo' }).click();
+  await r.getByLabel('Cantidad de Dulce de leche repostero').fill('1');
+  await r.getByRole('button', { name: 'Guardar receta' }).click();
+  await expect(page.getByText('Receta guardada')).toBeVisible();
+  // Queda en Pastelería (familia creada sola) con su receta.
+  const grid = page.getByRole('list', { name: 'Productos' });
+  await grid.getByRole('listitem').filter({ hasText: 'Torta rogel' }).click();
+  await expect(dialog(page)).toContainText('Harina 000');
+  await expect(dialog(page)).toContainText('Dulce de leche repostero');
+});

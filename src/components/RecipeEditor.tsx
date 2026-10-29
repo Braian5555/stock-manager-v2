@@ -8,11 +8,14 @@ import { NumberInput } from './ui';
  * Receta de un producto que se elabora: cuánto rinde una tanda y qué insumos lleva.
  * Al anotar una producción se descuentan en proporción.
  */
-export function RecipeEditor({ value, onChange, products, lk, selfId, unit }: {
+export function RecipeEditor({ value, onChange, products, lk, selfId, unit, onCreate }: {
   value?: Recipe; onChange: (r: Recipe | undefined) => void; products: Product[]; lk: Lookups; selfId?: string; unit: string;
+  /** Si está, se puede crear en el momento un insumo que no existe (con la unidad elegida). */
+  onCreate?: (name: string, unitId: string) => Promise<Product | undefined>;
 }) {
   const listId = useId();
   const [pick, setPick] = useState('');
+  const [newUnit, setNewUnit] = useState(() => lk.units.find((u) => u.abbreviation === 'kg')?.id ?? lk.units[0]?.id ?? '');
   const r: Recipe = value ?? { yield: 1, items: [] };
   const byId = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
   const options = useMemo(() => products.filter((p) => p.active && p.id !== selfId && !r.items.some((i) => i.productId === p.id)), [products, selfId, r.items]);
@@ -77,6 +80,20 @@ export function RecipeEditor({ value, onChange, products, lk, selfId, unit }: {
         <datalist id={listId}>{options.map((p) => <option key={p.id} value={p.name} />)}</datalist>
         <button type="button" className="btn" onClick={() => add(pick)} disabled={!pick.trim()}><Plus size={16} aria-hidden /> Agregar</button>
       </div>
+      {onCreate && pick.trim() && !products.some((p) => p.active && p.name.trim().toLowerCase() === pick.trim().toLowerCase()) && (
+        <div className="recipe-add">
+          <span className="small muted grow">¿No está en la lista? Crear “{pick.trim()}” que se cuenta en</span>
+          <select className="select" aria-label="Unidad del insumo nuevo" value={newUnit} onChange={(e) => setNewUnit(e.target.value)} style={{ width: 'auto' }}>
+            {lk.units.map((u) => <option key={u.id} value={u.id}>{u.abbreviation}</option>)}
+          </select>
+          <button type="button" className="btn" onClick={async () => {
+            const p = await onCreate(pick.trim(), newUnit);
+            if (!p) return;
+            update({ ...r, items: [...r.items, { productId: p.id, quantity: 0 }] });
+            setPick('');
+          }}><Plus size={16} aria-hidden /> Crear insumo</button>
+        </div>
+      )}
     </fieldset>
   );
 }

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useLookups, useProducts } from '../hooks/useData';
 import type { Product, Recipe } from '../models';
 import { saveProduct } from '../services/productService';
+import { createQuickProduct } from '../services/lineProductService';
 import { useFeedback } from '../store/feedback';
 import { RecipeEditor } from './RecipeEditor';
 import { Modal } from './ui/Modal';
@@ -50,7 +51,8 @@ export function RecipeModal({ product, onClose }: { product: Product | null; onC
       }
     >
       <div className="form-grid">
-        <RecipeEditor value={recipe} onChange={setRecipe} products={products} lk={lk} selfId={product.id} unit={lk.unit(product.unitId)} />
+        <RecipeEditor value={recipe} onChange={setRecipe} products={products} lk={lk} selfId={product.id} unit={lk.unit(product.unitId)}
+          onCreate={(name, unitId) => run(() => createQuickProduct({ name, unitId, elaborated: false, categoryId: lk.categories.find((c) => /almac/i.test(c.name))?.id }), `Creado “${name}”`)} />
         {incomplete > 0 && <p className="small span-all" style={{ color: 'var(--out)' }}>Falta la cantidad de {incomplete === 1 ? 'un insumo' : `${incomplete} insumos`}.</p>}
         <p className="small muted span-all">Los cambios valen para las producciones que se anoten desde ahora; las ya anotadas no se modifican.</p>
       </div>
