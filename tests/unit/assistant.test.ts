@@ -215,6 +215,30 @@ describe('asistente: consultas y cambios', () => {
     expect(torta.recipe).toEqual({ yield: 1, items: [{ productId: harina.id, quantity: 0.5 }] });
   });
 
+  it('lista de panadería: anota toda la producción junta, descuenta insumos y se deshace', async () => {
+    const { harina, pan } = await seed();
+    await saveProduct({ ...(await db.products.get(pan.id))!, recipe: { yield: 10, items: [{ productId: harina.id, quantity: 6 }] } });
+    const scon = await saveProduct({ ...emptyProduct(), name: 'Scons', unitId: 'u' });
+    const chipa = await saveProduct({ ...emptyProduct(), name: 'Chipá', unitId: 'u' });
+    const { transport, requests } = scripted([
+      call({ name: 'anotar_produccion', args: { producciones: [{ producto: 'Scons', cantidad: 116 }, { producto: 'Chipá', cantidad: 114 }, { producto: 'Pan francés', cantidad: 5 }] } }),
+      say('Listo, anoté la producción.'),
+    ]);
+    const e = engine(ROLE_PERMISSIONS.production, transport);
+    await e.send('116 scons, 114 chipa y 5 kg de pan: agregá todo al stock');
+    expect(requests[0].systemInstruction.parts[0].text).toMatch(/usá anotar_produccion con TODA la lista/);
+    const msg = e.getState().messages.at(-1)!;
+    expect(msg.proposals?.[0]).toMatchObject({ title: 'Anotar producción de 3 productos', lines: ['+116 u · Scons', '+114 u · Chipá', '+5 kg · Pan francés', 'Descuenta 3 kg · Harina 000'] });
+    await e.confirm(msg.id);
+    expect((await db.products.get(scon.id))!.stock).toBe(116);
+    expect((await db.products.get(chipa.id))!.stock).toBe(114);
+    expect((await db.products.get(harina.id))!.stock).toBe(47);
+    expect(await db.movements.where('type').equals('produccion').count()).toBe(3);
+    await e.undo(msg.id, 0);
+    expect((await db.products.get(scon.id))!.stock).toBe(0);
+    expect((await db.products.get(harina.id))!.stock).toBe(50);
+  });
+
   it('si falla la conexión se puede reintentar sin romper la conversación', async () => {
     await seed();
     const { transport, requests } = scripted([new Error('Se alcanzó el límite gratis de Gemini por ahora.'), say('Hola!')]);

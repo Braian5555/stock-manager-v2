@@ -216,6 +216,8 @@ const SCREENS: Record<string, keyof typeof MODULE_PATH> = {
 
 /** Remitos ya hechos por clave de confirmación (un doble toque no hace dos remitos). */
 const sentTransfers = new Map<string, import('../../models').Transfer>();
+/** Producciones ya anotadas por clave de confirmación. */
+const sentProductions = new Map<string, StockMovement[]>();
 
 export const TOOLS: ToolDef[] = [
   {
@@ -1070,29 +1072,63 @@ export const TOOLS: ToolDef[] = [
   },
   {
     name: 'anotar_produccion',
-    label: 'Preparó una producción',
-    description: 'Anota lo que se produjo (panadería, cocina): suma al producto y, si tiene receta, descuenta los insumos. La persona confirma antes de anotar.',
-    parameters: obj({ producto: str('Referencia o nombre.'), cantidad: num('Cantidad producida, en la unidad del producto.') }, ['producto', 'cantidad']),
+    label: 'Preparó producción',
+    description: 'Anota lo que se produjo en panadería, pastelería o cocina (medialunas, croissants, scons, chipá, panes, tortas…): suma a cada producto y, si tiene receta, descuenta los insumos. Mandá TODOS los productos de la lista juntos en una sola llamada. También es para "agregá al stock" de cosas que se elaboran acá. La persona confirma antes de anotar.',
+    parameters: obj({
+      producciones: arr(obj({ producto: str('Referencia (p12) o nombre.'), cantidad: num('Cantidad producida, en la unidad del producto.') }, ['producto', 'cantidad']), 'Uno o más productos (máximo 60).'),
+    }, ['producciones']),
     perms: ['production', 'pastry'],
     prepare: async (a, ctx) => {
-      const p = await resolveProduct(a.producto, ctx);
-      const qty = n(a.cantidad);
-      if (!qty || qty <= 0) throw new ToolError('Falta cuánto se produjo.');
+      // Compatibilidad: un solo producto con "producto" y "cantidad".
+      const rows = list(a.producciones).length ? list(a.producciones) : a.producto !== undefined ? [{ producto: a.producto, cantidad: a.cantidad }] : [];
+      if (!rows.length) throw new ToolError('No hay nada para anotar.');
+      if (rows.length > 60) throw new ToolError('Máximo 60 productos por vez.');
       const lk = await lookups();
       const products = new Map((await db.products.toArray()).map((x) => [x.id, x]));
-      const used = recipeConsumption(p, qty, products);
+      const plan: { p: Product; qty: number }[] = [];
+      const missing: string[] = [];
+      for (const r of rows) {
+        let p: Product;
+        try { p = await resolveProduct(r.producto, ctx); } catch (e) { missing.push(e instanceof Error ? e.message : String(r.producto)); continue; }
+        const qty = n(r.cantidad);
+        if (!qty || qty <= 0) { missing.push(`Falta cuánto se produjo de “${p.name}”.`); continue; }
+        const prev = plan.find((x) => x.p.id === p.id);
+        if (prev) prev.qty = round3(prev.qty + qty);
+        else plan.push({ p, qty: round3(qty) });
+      }
+      if (missing.length) throw new ToolError(`No anoté nada todavía. Hay que resolver: ${missing.join(' ')} Si un producto no existe, se puede crear con crear_producto (en la familia de panadería o pastelería) y después anotar todo junto.`);
+      const consumed = new Map<string, { name: string; qty: number; unitId?: string }>();
+      for (const { p, qty } of plan) for (const c of recipeConsumption(p, qty, products)) {
+        const cur = consumed.get(c.productId) ?? { name: c.name, qty: 0, unitId: products.get(c.productId)?.unitId };
+        cur.qty = round3(cur.qty + c.quantity);
+        consumed.set(c.productId, cur);
+      }
+      const noRecipe = plan.filter((x) => !x.p.recipe?.items.length).map((x) => x.p.name);
+      const one = plan.length === 1 ? plan[0] : undefined;
       return {
-        title: `Anotar producción de “${p.name}”`,
-        lines: [`+${fmtNumber(qty)} ${lk.unit(p.unitId)} · ${p.name}`, ...used.map((c) => `Descuenta ${fmtNumber(c.quantity)} ${lk.unit(products.get(c.productId)?.unitId)} · ${c.name}`)],
-        notes: p.recipe ? [] : ['No tiene receta: sólo se suma lo producido.'],
-        execute: async () => {
+        title: one ? `Anotar producción de “${one.p.name}”` : `Anotar producción de ${plan.length} productos`,
+        lines: [
+          ...plan.map(({ p, qty }) => `+${fmtNumber(qty)} ${lk.unit(p.unitId)} · ${p.name}`),
+          ...[...consumed.values()].map((c) => `Descuenta ${fmtNumber(c.qty)} ${lk.unit(c.unitId)} · ${c.name}`),
+        ],
+        notes: noRecipe.length ? [one ? 'No tiene receta: sólo se suma lo producido.' : `Sin receta (sólo se suma lo producido): ${noRecipe.join(', ')}.`] : [],
+        execute: async (key) => {
           if (!ctx.can('production') && !ctx.can('pastry')) throw new ToolError('Ya no tenés permiso para anotar producción.');
-          const r = await registerProduction(p.id, qty);
+          // Un doble toque en "Confirmar" no anota dos veces.
+          let done = sentProductions.get(key);
+          if (!done) {
+            done = [];
+            for (const { p, qty } of plan) done.push((await registerProduction(p.id, qty)).movement);
+            sentProductions.set(key, done);
+          }
+          const moves = done;
           return {
-            result: { ok: true, insumos_descontados: r.consumed.length }, done: `Anotado: ${fmtNumber(qty)} ${lk.unit(p.unitId)} de ${p.name}`,
+            result: { ok: true, productos: plan.length, insumos_descontados: consumed.size },
+            done: one ? `Anotado: ${fmtNumber(one.qty)} ${lk.unit(one.p.unitId)} de ${one.p.name}` : `Anotada la producción de ${plan.length} productos`,
             undo: async () => {
               if (!ctx.can('production') && !ctx.can('pastry')) throw new ToolError('No tenés permiso para anotar producción.');
-              await undoProduction(r.movement);
+              for (const m of [...moves].reverse()) await undoProduction(m);
+              sentProductions.delete(key);
               return 'Deshecho: se sacó la producción y volvieron los insumos';
             },
           };
