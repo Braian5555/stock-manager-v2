@@ -46,7 +46,12 @@ export function assistantError(status: number, body: unknown): Error {
   return new Error(`Gemini devolvió un error (${status}${detail ? `: ${detail}` : ''}). Probá de nuevo; si se repite, mandale este mensaje a Claude.`);
 }
 
-const REQUEST_TIMEOUT_MS = 90_000;
+/** Una lista larga ("agregá todo esto al stock") puede tardar: se espera hasta 2 minutos y medio. */
+const REQUEST_TIMEOUT_MS = 150_000;
+/** Razonamiento acotado: con listas largas Gemini "piensa" de más y no llega a contestar a tiempo. */
+const THINKING_BUDGET = 2048;
+/** Si el modelo configurado no acepta el límite de razonamiento, se manda sin él (y se recuerda). */
+let skipThinkingConfig = false;
 /** Esperas antes de reintentar cuando Gemini responde "saturado". */
 export const RETRY_WAITS_MS = [1500, 4000];
 
@@ -63,7 +68,13 @@ export function workerTransport(rawUrl: string): Transport {
     } catch (e) {
       throw new Error('Para usar el asistente, la app tiene que estar conectada a la nube (Cuenta y nube).', { cause: e });
     }
-    const payload = JSON.stringify(body);
+    const strip = (b: Record<string, unknown>) => {
+      const g = b.generationConfig as Record<string, unknown> | undefined;
+      if (!g?.thinkingConfig) return b;
+      const { thinkingConfig: _omit, ...rest } = g; // eslint-disable-line @typescript-eslint/no-unused-vars
+      return { ...b, generationConfig: rest };
+    };
+    let payload = JSON.stringify(skipThinkingConfig ? strip(body) : body);
     // Gemini gratis a veces responde "saturado" (5xx) por unos segundos: se reintenta solo.
     for (let attempt = 0; ; attempt++) {
       let r: Response;
@@ -78,13 +89,19 @@ export function workerTransport(rawUrl: string): Transport {
           signal: ctrl.signal,
         });
       } catch (e) {
-        if (ctrl.signal.aborted) throw new Error('La IA tardó demasiado en responder. Probá de nuevo.', { cause: e });
+        if (ctrl.signal.aborted) throw new Error('La IA tardó demasiado en responder. Probá de nuevo; si es una lista larga, mandala en partes (10 a 15 productos por mensaje).', { cause: e });
         throw new Error('No se pudo conectar con el servidor de IA. Revisá la conexión.', { cause: e });
       } finally {
         clearTimeout(timer);
       }
       const json = await r.json().catch(() => null);
       if (r.ok) return json;
+      if (r.status === 400 && !skipThinkingConfig && /thinking/i.test(JSON.stringify(json))) {
+        skipThinkingConfig = true;
+        payload = JSON.stringify(strip(body));
+        attempt--;
+        continue;
+      }
       if (r.status >= 500 && attempt < RETRY_WAITS_MS.length) {
         await new Promise((res) => setTimeout(res, RETRY_WAITS_MS[attempt]));
         continue;
@@ -104,7 +121,7 @@ export function buildAssistantRequest(system: string, contents: GContent[], tool
     // Gemini rechaza objetos sin propiedades: las herramientas sin datos van sin "parameters".
     tools: [{ functionDeclarations: tools.map((t) => ({ name: t.name, description: t.description, ...(Object.keys(t.parameters.properties ?? {}).length ? { parameters: t.parameters } : {}) })) }],
     // Margen amplio: en los modelos que "piensan", el razonamiento también cuenta en este límite.
-    generationConfig: { maxOutputTokens: 16384 },
+    generationConfig: { maxOutputTokens: 16384, thinkingConfig: { thinkingBudget: THINKING_BUDGET } },
   };
 }
 
