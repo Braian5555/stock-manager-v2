@@ -114,15 +114,20 @@ function geminiError(status: number, body: unknown): Error {
 }
 
 /** Qué IA tiene configurada el servidor (se consulta una vez cada 10 minutos). */
-const providerCache = new Map<string, { provider: 'gemini' | 'anthropic'; until: number }>();
+const providerCache = new Map<string, { provider: 'gemini' | 'anthropic'; model?: string; until: number }>();
 export async function workerProvider(url: string): Promise<'gemini' | 'anthropic'> {
   const hit = providerCache.get(url);
   if (hit && hit.until > Date.now()) return hit.provider;
   const r = await testReader(url);
   if (!r.configured) throw new Error('El servidor de lectura no tiene ninguna clave cargada (GEMINI_API_KEY o ANTHROPIC_API_KEY).');
   const provider = r.provider === 'anthropic' ? 'anthropic' : 'gemini';
-  providerCache.set(url, { provider, until: Date.now() + 10 * 60_000 });
+  providerCache.set(url, { provider, model: r.model, until: Date.now() + 10 * 60_000 });
   return provider;
+}
+
+/** Modelo que informa el servidor (después de workerProvider); undefined si no lo informa. */
+export function workerModel(url: string): string | undefined {
+  return providerCache.get(url)?.model;
 }
 
 const READ_RETRY_WAITS_MS = [2000, 5000];

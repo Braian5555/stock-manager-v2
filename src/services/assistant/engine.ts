@@ -7,7 +7,7 @@ import { db } from '../../database/db';
 import type { AppUser, Permission, Settings } from '../../models';
 import { cloudSession } from '../../cloud/cloudService';
 import { nowIso, uuid } from '../../utils/id';
-import { workerProvider } from '../invoiceAI';
+import { workerModel, workerProvider } from '../invoiceAI';
 import { logError } from '../diagnosticsService';
 import { PERMISSION_LABEL, ROLE_LABEL } from '../userService';
 import { RefMap, ToolError, toolsFor, userLine, type Proposal, type ToolContext, type ToolDef } from './tools';
@@ -48,8 +48,13 @@ export function assistantError(status: number, body: unknown): Error {
 
 /** Una lista larga ("agregá todo esto al stock") puede tardar: se espera hasta 2 minutos y medio. */
 const REQUEST_TIMEOUT_MS = 150_000;
-/** Razonamiento acotado: con listas largas Gemini "piensa" de más y no llega a contestar a tiempo. */
-const THINKING_BUDGET = 2048;
+/**
+ * Razonamiento acotado: con listas largas Gemini "piensa" de más y no llega a contestar a tiempo.
+ * Gemini 3 se regula con "thinkingLevel"; los 2.x, con "thinkingBudget".
+ */
+export function thinkingFor(model: string | undefined): Record<string, unknown> {
+  return !model || /gemini-[3-9]/i.test(model) ? { thinkingLevel: 'low' } : { thinkingBudget: 1024 };
+}
 /** Si el modelo configurado no acepta el límite de razonamiento, se manda sin él (y se recuerda). */
 let skipThinkingConfig = false;
 /** Esperas antes de reintentar cuando Gemini responde "saturado". */
@@ -74,7 +79,10 @@ export function workerTransport(rawUrl: string): Transport {
       const { thinkingConfig: _omit, ...rest } = g; // eslint-disable-line @typescript-eslint/no-unused-vars
       return { ...b, generationConfig: rest };
     };
-    let payload = JSON.stringify(skipThinkingConfig ? strip(body) : body);
+    const model = workerModel(url);
+    const withThinking = { ...body, generationConfig: { ...(body.generationConfig as Record<string, unknown> | undefined), thinkingConfig: thinkingFor(model) } };
+    let payload = JSON.stringify(skipThinkingConfig ? strip(withThinking) : withThinking);
+    const started = Date.now();
     // Gemini gratis a veces responde "saturado" (5xx) por unos segundos: se reintenta solo.
     for (let attempt = 0; ; attempt++) {
       let r: Response;
@@ -89,6 +97,7 @@ export function workerTransport(rawUrl: string): Transport {
           signal: ctrl.signal,
         });
       } catch (e) {
+        if (ctrl.signal.aborted) logError(new Error(`Asistente IA: sin respuesta en ${Math.round((Date.now() - started) / 1000)} s · modelo ${model ?? '?'} · pedido ${Math.round(payload.length / 1024)} KB`), 'aviso');
         if (ctrl.signal.aborted) throw new Error('La IA tardó demasiado en responder. Probá de nuevo; si es una lista larga, mandala en partes (10 a 15 productos por mensaje).', { cause: e });
         throw new Error('No se pudo conectar con el servidor de IA. Revisá la conexión.', { cause: e });
       } finally {
@@ -98,7 +107,7 @@ export function workerTransport(rawUrl: string): Transport {
       if (r.ok) return json;
       if (r.status === 400 && !skipThinkingConfig && /thinking/i.test(JSON.stringify(json))) {
         skipThinkingConfig = true;
-        payload = JSON.stringify(strip(body));
+        payload = JSON.stringify(strip(withThinking));
         attempt--;
         continue;
       }
@@ -121,7 +130,7 @@ export function buildAssistantRequest(system: string, contents: GContent[], tool
     // Gemini rechaza objetos sin propiedades: las herramientas sin datos van sin "parameters".
     tools: [{ functionDeclarations: tools.map((t) => ({ name: t.name, description: t.description, ...(Object.keys(t.parameters.properties ?? {}).length ? { parameters: t.parameters } : {}) })) }],
     // Margen amplio: en los modelos que "piensan", el razonamiento también cuenta en este límite.
-    generationConfig: { maxOutputTokens: 16384, thinkingConfig: { thinkingBudget: THINKING_BUDGET } },
+    generationConfig: { maxOutputTokens: 8192 },
   };
 }
 
