@@ -88,10 +88,13 @@ export function AssistantPage() {
 
   if (!available) {
     return (
-      <EmptyState icon={<Sparkles size={40} />} title="El asistente todavía no está activado"
-        action={can('admin') ? <Link to="/configuracion/ia" className="btn btn-primary">Activar la IA</Link> : undefined}>
-        {can('admin') ? 'Usa la misma conexión con Gemini que la lectura de facturas.' : 'Pedile a un administrador que active la IA en Configuración.'}
-      </EmptyState>
+      <>
+        <h1 className="sr-only">Asistente</h1>
+        <EmptyState icon={<Sparkles size={40} />} title="El asistente todavía no está activado"
+          action={can('admin') ? <Link to="/configuracion/ia" className="btn btn-primary">Activar la IA</Link> : undefined}>
+          {can('admin') ? 'Usa la misma conexión con Gemini que la lectura de facturas.' : 'Pedile a un administrador que active la IA en Configuración.'}
+        </EmptyState>
+      </>
     );
   }
 

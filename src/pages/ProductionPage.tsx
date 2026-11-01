@@ -76,9 +76,11 @@ export function ProductionPage({ line = 'production' }: { line?: ProductionLine 
   // ni verduras. Si ninguna familia coincide, se muestran todos para no dejar la pantalla vacía.
   const famIds = useMemo(() => lineFamilyIds(settings, lk.categories, line), [settings, lk.categories, line]);
   // Producción sin familias muestra todo (para no quedar vacía); Pastelería muestra sólo lo suyo.
+  // Producción sin familias propias muestra todo, menos lo de Pastelería (que tiene su sección).
+  const pastryIds = useMemo(() => (pastry ? new Set<string>() : lineFamilyIds(settings, lk.categories, 'pastry')), [settings, lk.categories, pastry]);
   const active = useMemo(
-    () => products.filter((p) => p.active && ((!famIds.size && !pastry) || (p.categoryId && famIds.has(p.categoryId)))).sort((a, b) => a.name.localeCompare(b.name, 'es')),
-    [products, famIds, pastry],
+    () => products.filter((p) => p.active && ((!famIds.size && !pastry && !(p.categoryId && pastryIds.has(p.categoryId))) || (p.categoryId && famIds.has(p.categoryId)))).sort((a, b) => a.name.localeCompare(b.name, 'es')),
+    [products, famIds, pastry, pastryIds],
   );
   const activeIds = useMemo(() => new Set(active.map((p) => p.id)), [active]);
   // Movimientos de esta línea para el plan y el resumen: sus productos y lo que se consumió para hacerlos.

@@ -13,18 +13,22 @@ describe('asistente: envío a Gemini', () => {
     const body = buildAssistantRequest('sistema', [{ role: 'user', parts: [{ text: 'hola' }] }], []);
     expect(body.generationConfig).toEqual({ maxOutputTokens: 8192 });
     const sent: Record<string, unknown>[] = [];
+    let rejectBudget = false;
     vi.stubGlobal('fetch', vi.fn(async (_url: string, init: RequestInit) => {
       const b = JSON.parse(String(init.body));
       sent.push(b);
-      if (b.generationConfig.thinkingConfig) return new Response(JSON.stringify({ error: { code: 400, message: 'Unknown name "thinkingConfig" at generation_config' } }), { status: 400 });
+      if (b.generationConfig.thinkingConfig?.thinkingLevel || (b.generationConfig.thinkingConfig && rejectBudget)) return new Response(JSON.stringify({ error: { code: 400, message: 'Unknown name "thinkingConfig" at generation_config' } }), { status: 400 });
       return new Response(JSON.stringify({ candidates: [] }), { status: 200 });
     }));
     const send = workerTransport('https://ia.example.workers.dev/');
     expect(await send(body)).toEqual({ candidates: [] });
-    expect(sent.map((b) => (b.generationConfig as { thinkingConfig?: unknown }).thinkingConfig)).toEqual([{ thinkingLevel: 'low' }, undefined]);
-    // Los siguientes pedidos ya van sin el límite.
+    // 1) thinkingLevel rechazado → 2) thinkingBudget aceptado.
+    expect(sent.map((b) => (b.generationConfig as { thinkingConfig?: unknown }).thinkingConfig)).toEqual([{ thinkingLevel: 'low' }, { thinkingBudget: 1024 }]);
+    // 3) Si después rechaza también el budget, va sin límite y queda así.
+    rejectBudget = true;
     await send(body);
-    expect(sent).toHaveLength(3);
-    expect((sent[2].generationConfig as { thinkingConfig?: unknown }).thinkingConfig).toBeUndefined();
+    await send(body);
+    expect(sent.slice(2).map((b) => (b.generationConfig as { thinkingConfig?: unknown }).thinkingConfig)).toEqual([{ thinkingBudget: 1024 }, undefined, undefined]);
+    expect(sent).toHaveLength(5);
   });
 });

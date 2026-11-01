@@ -811,6 +811,10 @@ hr.sep { border: 0; border-top: 1px solid var(--border); margin: 16px 0; }
 .recipe-unit { min-width: 34px; }
 .recipe-add { display: flex; gap: 8px; }
 .recipe-add .input { flex: 1; }
+/* Crear un insumo que no existe: el texto arriba y unidad + botón abajo (en el celular no entra en una línea). */
+.recipe-create { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 8px; }
+.recipe-create-text { flex: 1 1 100%; }
+@media (min-width: 640px) { .recipe-create-text { flex: 1 1 auto; } }
 
 /* Espacio al final para que la barra inferior no tape el último elemento. */
 .main { padding-bottom: calc(var(--bottom-h) + var(--safe-bottom) + 24px); }

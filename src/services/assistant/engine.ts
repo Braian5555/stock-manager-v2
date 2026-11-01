@@ -55,8 +55,11 @@ const REQUEST_TIMEOUT_MS = 150_000;
 export function thinkingFor(model: string | undefined): Record<string, unknown> {
   return !model || /gemini-[3-9]/i.test(model) ? { thinkingLevel: 'low' } : { thinkingBudget: 1024 };
 }
-/** Si el modelo configurado no acepta el límite de razonamiento, se manda sin él (y se recuerda). */
-let skipThinkingConfig = false;
+/**
+ * Si el modelo no acepta "thinkingLevel" (p. ej. el servidor pasó a un Gemini 2.x porque el 3 estaba
+ * saturado), se prueba con "thinkingBudget" (lo aceptan los dos); si tampoco, sin límite. Se recuerda.
+ */
+let thinkingFallback: 0 | 1 | 2 = 0;
 /** Esperas antes de reintentar cuando Gemini responde "saturado". */
 export const RETRY_WAITS_MS = [1500, 4000];
 
@@ -80,8 +83,11 @@ export function workerTransport(rawUrl: string): Transport {
       return { ...b, generationConfig: rest };
     };
     const model = workerModel(url);
-    const withThinking = { ...body, generationConfig: { ...(body.generationConfig as Record<string, unknown> | undefined), thinkingConfig: thinkingFor(model) } };
-    let payload = JSON.stringify(skipThinkingConfig ? strip(withThinking) : withThinking);
+    const build = () => {
+      const tc = thinkingFallback === 0 ? thinkingFor(model) : thinkingFallback === 1 ? { thinkingBudget: 1024 } : undefined;
+      return JSON.stringify(tc ? { ...body, generationConfig: { ...(body.generationConfig as Record<string, unknown> | undefined), thinkingConfig: tc } } : strip(body));
+    };
+    let payload = build();
     const started = Date.now();
     // Gemini gratis a veces responde "saturado" (5xx) por unos segundos: se reintenta solo.
     for (let attempt = 0; ; attempt++) {
@@ -105,9 +111,9 @@ export function workerTransport(rawUrl: string): Transport {
       }
       const json = await r.json().catch(() => null);
       if (r.ok) return json;
-      if (r.status === 400 && !skipThinkingConfig && /thinking/i.test(JSON.stringify(json))) {
-        skipThinkingConfig = true;
-        payload = JSON.stringify(strip(withThinking));
+      if (r.status === 400 && thinkingFallback < 2 && /thinking/i.test(JSON.stringify(json))) {
+        thinkingFallback = (thinkingFallback === 0 && 'thinkingLevel' in thinkingFor(model) ? 1 : 2);
+        payload = build();
         attempt--;
         continue;
       }

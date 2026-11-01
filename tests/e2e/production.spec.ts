@@ -269,4 +269,9 @@ test('pastelería: crear un producto nuevo y su receta (con un insumo nuevo) sin
   await grid.getByRole('listitem').filter({ hasText: 'Torta rogel' }).click();
   await expect(dialog(page)).toContainText('Harina 000');
   await expect(dialog(page)).toContainText('Dulce de leche repostero');
+  // En Producción (sin familias propias) no aparece lo de Pastelería.
+  await page.keyboard.press('Escape');
+  await go(page, '/produccion');
+  await page.getByLabel('Buscar producto').fill('Torta rogel');
+  await expect(page.getByText('No hay productos con ese nombre.')).toBeVisible();
 });

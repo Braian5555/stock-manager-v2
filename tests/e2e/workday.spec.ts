@@ -148,7 +148,7 @@ test('día de trabajo completo: receta, panadero, Inicio, vitrina, sin conexión
 });
 
 const ALL_ROUTES = [
-  '/', '/stock', '/movimientos', '/conteo', '/produccion', '/vitrina', '/productos', '/familias', '/unidades', '/ubicaciones',
+  '/', '/stock', '/movimientos', '/conteo', '/produccion', '/pasteleria', '/asistente', '/vitrina', '/productos', '/familias', '/unidades', '/ubicaciones',
   '/facturas', '/configuracion', '/usuarios', '/nube', '/exportar', '/integraciones', '/diagnostico', '/ayuda', '/acerca', '/mas',
 ];
 
@@ -156,13 +156,15 @@ test('cada rol en cada pantalla: sin errores, con permisos y sin desbordes en el
   test.setTimeout(180_000);
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(`${page.url()} → ${e.message}`));
+  page.on('console', (m) => { if (m.type() === 'error' && !/Failed to load resource|favicon/.test(m.text())) errors.push(`${page.url()} → consola: ${m.text().slice(0, 200)}`); });
   await loadDemo(page);
   await createUser(page, 'Encargada', '1111', 'manager');
   await createUser(page, 'Cajero', '2222', 'staff');
   await createUser(page, 'Horno', '3333', 'production');
+  await createUser(page, 'Tortas', '4444', 'pastry');
 
   const overflow: string[] = [];
-  for (const [name, pin] of [['Admin Prueba', '1234'], ['Encargada', '1111'], ['Cajero', '2222'], ['Horno', '3333']]) {
+  for (const [name, pin] of [['Admin Prueba', '1234'], ['Encargada', '1111'], ['Cajero', '2222'], ['Horno', '3333'], ['Tortas', '4444']]) {
     if (name !== 'Admin Prueba') {
       await lockScreen(page, isMobile);
       await login(page, name, pin);
@@ -176,7 +178,7 @@ test('cada rol en cada pantalla: sin errores, con permisos y sin desbordes en el
         if (wide > 1) overflow.push(`${name} ${hash}: ${wide}px`);
       }
     }
-    if (name !== 'Horno') {
+    if (name !== 'Horno' && name !== 'Tortas') {
       // El Inicio respeta los permisos de cada rol.
       await go(page, '/');
       const actions = page.getByRole('navigation', { name: 'Acciones rápidas' });

@@ -81,8 +81,8 @@ export function RecipeEditor({ value, onChange, products, lk, selfId, unit, onCr
         <button type="button" className="btn" onClick={() => add(pick)} disabled={!pick.trim()}><Plus size={16} aria-hidden /> Agregar</button>
       </div>
       {onCreate && pick.trim() && !products.some((p) => p.active && p.name.trim().toLowerCase() === pick.trim().toLowerCase()) && (
-        <div className="recipe-add">
-          <span className="small muted grow">¿No está en la lista? Crear “{pick.trim()}” que se cuenta en</span>
+        <div className="recipe-create">
+          <span className="small muted recipe-create-text">¿No está en la lista? Crear “{pick.trim()}” que se cuenta en</span>
           <select className="select" aria-label="Unidad del insumo nuevo" value={newUnit} onChange={(e) => setNewUnit(e.target.value)} style={{ width: 'auto' }}>
             {lk.units.map((u) => <option key={u.id} value={u.id}>{u.abbreviation}</option>)}
           </select>
