@@ -6,6 +6,7 @@ import { useMemo, useState } from 'react';
 import { db } from '../database/db';
 import { MOVEMENT_TYPES, type MovementType, type StockMovement } from '../models';
 import { MOVEMENT_GROUPS, MOVEMENT_LABEL, revertMovement, type MovementGroup } from '../services/stockService';
+import { undoProduction } from '../services/productionService';
 import { menuLabel } from '../services/settingsService';
 import { useOutlets, useProducts, EMPTY } from '../hooks/useData';
 import { useFeedback } from '../store/feedback';
@@ -61,8 +62,11 @@ export function MovementsPage() {
   );
 
   const revert = async (m: StockMovement) => {
-    if (!(await confirm({ title: 'Revertir movimiento', message: `Se registrará un ajuste de ${fmtSigned(-m.delta)} en “${name.get(m.productId)}”. El historial se conserva.`, confirmLabel: 'Revertir' }))) return;
-    await run(() => revertMovement(m), 'Movimiento revertido');
+    // Una producción se deshace entera: vuelve lo producido y también los insumos que descontó la receta.
+    const production = m.type === 'produccion';
+    const message = `Se registrará un ajuste de ${fmtSigned(-m.delta)} en “${name.get(m.productId)}”${production ? ' y vuelven los insumos que descontó la receta' : ''}. El historial se conserva.`;
+    if (!(await confirm({ title: production ? 'Deshacer producción' : 'Revertir movimiento', message, confirmLabel: 'Revertir' }))) return;
+    await run(() => (production ? undoProduction(m) : revertMovement(m).then(() => undefined)), production ? 'Producción deshecha: volvieron los insumos' : 'Movimiento revertido');
   };
 
   return (
