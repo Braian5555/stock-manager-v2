@@ -191,3 +191,23 @@ describe('worker: gateway de Maxirest', () => {
     expect(seen.every((i) => i.credentials === 'omit' && new Headers(i.headers).get('Authorization') === `Bearer ${t}` && new Headers(i.headers).get('X-Workspace') === 'ws_123')).toBe(true);
   });
 });
+
+describe('conectar Maxirest en un paso', () => {
+  it('usa el servidor de la IA, deja a Stock Manager como fuente principal y queda esperando a Maxirest', async () => {
+    const { connectMaxirest, getIntegration, getCapabilities } = await import('../../src/integrations/integrationService');
+    const net = fakeNet();
+    const orig = globalThis.fetch;
+    globalThis.fetch = (async (url: string, init?: RequestInit) => handle(new Request(url, init), {}, net.f)) as typeof fetch;
+    try {
+      await expect(connectMaxirest(undefined)).rejects.toThrow(/activá la IA/);
+      const r = await connectMaxirest('https://ia.example.workers.dev/');
+      expect(r.ok).toBe(true);
+      const i = await getIntegration();
+      expect(i).toMatchObject({ mode: 'gateway', status: 'conectado', gatewayUrl: 'https://ia.example.workers.dev', stockAuthority: 'stockmanager' });
+      const caps = await getCapabilities();
+      expect(Object.values(caps!).every((v) => v === 'pending_enablement')).toBe(true);
+    } finally {
+      globalThis.fetch = orig;
+    }
+  });
+});

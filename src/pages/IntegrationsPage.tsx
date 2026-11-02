@@ -17,6 +17,7 @@ import { useFeedback } from '../store/feedback';
 import { useSettings } from '../store/settings';
 import { AUTHORITY_LABEL, ConnectionWizard, SyncResults } from '../components/integrations/ConnectionWizard';
 import { ReadinessPanel } from '../components/integrations/ReadinessPanel';
+import { MaxirestConnectCard } from '../components/integrations/MaxirestConnectCard';
 import { MappingPanel } from '../components/integrations/MappingPanel';
 import { ExcelBridgePanel } from '../components/integrations/ExcelBridgePanel';
 import { SyncQueuePanel } from '../components/integrations/SyncQueuePanel';
@@ -68,9 +69,16 @@ export function IntegrationsPage() {
   return (
     <>
       <PageHeader title={menuLabel(settings, 'integrations')} subtitle="Stock Manager funciona completo sin integraciones. Conectar Maxirest es opcional." />
+      {integ.mode !== 'mock' && (
+        <MaxirestConnectCard integ={integ} caps={caps} onCaps={() => void getCapabilities().then(setCaps)} onReview={() => setTab('preparacion')} onResults={setResults} />
+      )}
+      {integ.mode !== 'mock' && results && <div className="card card-pad" style={{ marginTop: 12 }}><SyncResults results={results} /></div>}
+      <details className="card card-pad mx-advanced" open={integ.mode === 'mock' || undefined} style={{ marginTop: 12 }}>
+        <summary><b>Opciones avanzadas</b> <span className="small muted">— modo de prueba, sincronización automática, desconectar</span></summary>
+        <div style={{ marginTop: 12 }}>
       {integ.mode === 'mock' && <div className="alert alert-demo" role="note" style={{ marginBottom: 12 }}><FlaskConical size={18} aria-hidden /> Modo demostración — Maxirest simulado. Ningún dato se envía ni se lee de Maxirest.</div>}
 
-      <section className="card card-pad stack" aria-labelledby="mx">
+      <section className="stack" aria-labelledby="mx">
         <div className="row between wrap">
           <h2 id="mx" className="row"><Plug size={20} aria-hidden /> Maxirest</h2>
           <div className="row"><Badge tone={STATUS_TONE[integ.status]}>{INTEGRATION_STATUS_LABEL[integ.status]}</Badge><Badge>{MODE_LABEL[integ.mode]}</Badge></div>
@@ -94,7 +102,7 @@ export function IntegrationsPage() {
           {live && integ.status !== 'desconectado' && <button type="button" className="btn btn-danger" onClick={disconnect}><Unplug size={18} aria-hidden /> Desconectar</button>}
           {integ.status === 'desconectado' && <button type="button" className="btn" onClick={() => run(reconnectIntegration, 'Integración reactivada')}>Reconectar</button>}
         </div>
-        {results && <SyncResults results={results} />}
+        {integ.mode === 'mock' && results && <SyncResults results={results} />}
         {live && (
           <div className="form-grid cols-2">
             <Field label="Sistema principal de stock">
@@ -110,9 +118,11 @@ export function IntegrationsPage() {
           </div>
         )}
       </section>
+        </div>
+      </details>
 
       <div style={{ margin: '16px 0 12px' }}>
-        <Segmented<Tab> label="Secciones" value={tab} onChange={setTab} options={[{ value: 'preparacion', label: 'Preparación' }, { value: 'estado', label: 'Qué está disponible' }, { value: 'vinculos', label: 'Vínculos' }, { value: 'excel', label: 'Excel Bridge' }, { value: 'cola', label: 'Cola de sincronización' }]} />
+        <Segmented<Tab> label="Secciones" value={tab} onChange={setTab} options={[{ value: 'preparacion', label: 'Preparar datos' }, { value: 'excel', label: 'Excel' }, { value: 'vinculos', label: 'Vínculos' }, { value: 'cola', label: 'Pendientes' }, { value: 'estado', label: 'Detalle técnico' }]} />
       </div>
 
       {tab === 'estado' && (

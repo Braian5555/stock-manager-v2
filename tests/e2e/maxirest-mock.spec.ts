@@ -11,6 +11,7 @@ test.skip(true, 'Módulo retirado de la app');
  */
 async function connectMock(page: Page) {
   await go(page, '/integraciones');
+  await page.getByText('Opciones avanzadas').click();
   await page.getByRole('button', { name: 'Configurar' }).click();
   const d = dialog(page);
   await d.getByLabel(/Demostración — Maxirest simulado/).check();
@@ -77,7 +78,7 @@ test('Maxirest simulado: error comprensible, cola, reintento sin duplicar y desc
 
   await go(page, '/integraciones');
   await page.getByLabel('Simular que Maxirest no responde').uncheck();
-  await page.getByRole('button', { name: 'Cola de sincronización' }).click();
+  await page.getByRole('button', { name: 'Pendientes' }).click();
   await page.getByRole('button', { name: 'Reintentar' }).click();
   await expect(page.getByText('Sincronizado', { exact: true }).first()).toBeVisible();
   await expect(page.getByText('Movimientos pendientes de sincronizar')).toHaveCount(0);
@@ -94,7 +95,7 @@ test('Maxirest simulado: error comprensible, cola, reintento sin duplicar y desc
 test('Excel Bridge: importa un inventario exportado de Maxirest (CSV) y concilia', async ({ page }) => {
   await loadDemo(page);
   await go(page, '/integraciones');
-  await page.getByRole('button', { name: 'Excel Bridge' }).click();
+  await page.getByRole('button', { name: 'Excel', exact: true }).click();
   const csv = 'Código;Nombre;Unidad de medida;Costo;Stock actual;Conteo\nHIE-010;Hielo 10 kg;Bolsa;100;6;\nX-99;Insumo sin vincular;Kg;1;3;\n';
   await page.getByLabel('Excel exportado de Maxirest').setInputFiles({ name: 'inventario.csv', mimeType: 'text/csv', buffer: Buffer.from(csv) });
   await expect(page.getByText('2 filas válidas')).toBeVisible();
@@ -107,7 +108,7 @@ test('Excel Bridge: importa un inventario exportado de Maxirest (CSV) y concilia
   await expect(page.locator('tbody tr', { hasText: 'Hielo 10 kg' })).toContainText('-3');
   await expect(page.locator('tbody tr', { hasText: 'Insumo sin vincular' })).toContainText('No vinculado');
   await go(page, '/integraciones');
-  await page.getByRole('button', { name: 'Excel Bridge' }).click();
+  await page.getByRole('button', { name: 'Excel', exact: true }).click();
   const [dl] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Planilla de control (.xlsx)' }).click()]);
   expect(dl.suggestedFilename()).toMatch(/^maxirest_.*\.xlsx$/);
   const [xls] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: '.xls para Maxirest' }).click()]);

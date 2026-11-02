@@ -64,13 +64,13 @@ export async function maxirestReadiness(): Promise<Readiness> {
 
   const checks: ReadinessCheck[] = [
     withoutCode.length
-      ? { id: 'codes', level: 'warn', title: `${withoutCode.length} ${withoutCode.length === 1 ? 'producto sin' : 'productos sin'} código de Maxirest`, detail: 'Sin el código de insumo, Maxirest no sabe a qué insumo corresponde. Completalo en cada producto (campo Código) o importá el Excel de Maxirest en “Excel Bridge” para vincularlos.', products: withoutCode }
+      ? { id: 'codes', level: 'warn', title: `${withoutCode.length} ${withoutCode.length === 1 ? 'producto sin' : 'productos sin'} código de Maxirest`, detail: 'Sin el código de insumo, Maxirest no sabe a qué insumo corresponde. Completalo en cada producto (campo Código) o importá el Excel de Maxirest en la pestaña “Excel” para vincularlos.', products: withoutCode }
       : { id: 'codes', level: 'ok', title: 'Todos los productos tienen código de Maxirest', detail: `${withCode.length} productos con código.` },
     groups.length
       ? { id: 'duplicates', level: 'warn', title: `${groups.length} ${groups.length === 1 ? 'código repetido' : 'códigos repetidos'}`, detail: 'Dos productos con el mismo código se mandan sumados a un solo insumo de Maxirest. Dejá un código por producto.', groups }
       : { id: 'duplicates', level: 'ok', title: 'Ningún código repetido', detail: 'Cada código corresponde a un solo producto.' },
     !known.size
-      ? { id: 'notInMaxirest', level: 'info', title: 'Falta comparar con los insumos de Maxirest', detail: 'Importá el Excel del inventario de Maxirest en “Excel Bridge” y la app revisa que cada código exista allá.' }
+      ? { id: 'notInMaxirest', level: 'info', title: 'Falta comparar con los insumos de Maxirest', detail: 'Importá el Excel del inventario de Maxirest en la pestaña “Excel” y la app revisa que cada código exista allá.' }
       : notInMaxirest.length
         ? { id: 'notInMaxirest', level: 'warn', title: `${notInMaxirest.length} ${notInMaxirest.length === 1 ? 'código no existe' : 'códigos no existen'} en Maxirest`, detail: 'Tienen código, pero ese código no está en el último Excel de Maxirest. Revisá que esté bien escrito o creá el insumo en Maxirest.', products: notInMaxirest }
         : { id: 'notInMaxirest', level: 'ok', title: 'Todos los códigos existen en Maxirest', detail: `Comparado con ${known.size} insumos de Maxirest.` },
