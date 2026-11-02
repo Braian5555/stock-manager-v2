@@ -7,6 +7,7 @@ import { configureIntegration, getIntegration, syncNow, testConnection } from '.
 import type { StepResult } from '../../integrations/core/syncEngine';
 import type { ConnectionResult } from '../../integrations/core/types';
 import { useFeedback } from '../../store/feedback';
+import { useSettings } from '../../store/settings';
 import { Modal } from '../ui/Modal';
 import { Field, Input, Select } from '../ui';
 import { MappingPanel } from './MappingPanel';
@@ -14,8 +15,8 @@ import { MappingPanel } from './MappingPanel';
 const STEPS = ['Configurar', 'Probar', 'Importar', 'Resumen', 'Mapear', 'Confirmar', 'Sincronizar'];
 
 export const AUTHORITY_LABEL: Record<StockAuthority, string> = {
-  maxirest: 'Maxirest es la fuente principal (recomendado)',
-  stockmanager: 'Stock Manager es la fuente principal',
+  maxirest: 'Maxirest es la fuente principal',
+  stockmanager: 'Stock Manager es la fuente principal (recomendado: se cuenta en la app y Maxirest copia)',
   manual: 'Manual: sólo comparar, nunca ajustar solo',
 };
 
@@ -35,10 +36,11 @@ export function SyncResults({ results }: { results: StepResult[] }) {
 
 export function ConnectionWizard({ open, onClose }: { open: boolean; onClose: (goto?: 'excel') => void }) {
   const { run, notify } = useFeedback();
+  const settings = useSettings();
   const [step, setStep] = useState(0);
   const [mode, setMode] = useState<IntegrationMode>('mock');
   const [url, setUrl] = useState(import.meta.env.VITE_DEFAULT_GATEWAY_URL ?? '');
-  const [authority, setAuthority] = useState<StockAuthority>('maxirest');
+  const [authority, setAuthority] = useState<StockAuthority>('stockmanager');
   const [interval, setIntervalValue] = useState<SyncInterval>('manual');
   const [busy, setBusy] = useState(false);
   const [test, setTest] = useState<ConnectionResult | null>(null);
@@ -56,11 +58,12 @@ export function ConnectionWizard({ open, onClose }: { open: boolean; onClose: (g
     setResults([]);
     void getIntegration().then((i) => {
       setMode(i.mode === 'disabled' ? 'mock' : i.mode);
-      setUrl(i.gatewayUrl ?? import.meta.env.VITE_DEFAULT_GATEWAY_URL ?? '');
+      // Por defecto, el mismo servidor de Cloudflare de la IA (ahí vive también el gateway de Maxirest).
+      setUrl(i.gatewayUrl ?? import.meta.env.VITE_DEFAULT_GATEWAY_URL ?? settings.aiReaderUrl ?? '');
       setAuthority(i.stockAuthority);
       setIntervalValue(i.syncInterval);
     });
-  }, [open]);
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps -- sólo al abrir
 
   const busyRun = async <T,>(fn: () => Promise<T>) => {
     setBusy(true);

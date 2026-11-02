@@ -16,16 +16,32 @@ import { isOnline } from '../core/errors';
  *    NO endpoints de Maxirest. Maxirest no publica una API documentada.
  *  - El gateway declara qué puede hacer en GET /v1/maxirest/capabilities. Sin gateway,
  *    o si el gateway no declara una operación, la operación es NOT_SUPPORTED.
- *  - El frontend nunca envía ni guarda credenciales. La autenticación con Maxirest
- *    (si Maxirest la habilita) vive sólo en el gateway.
+ *  - El frontend nunca envía ni guarda credenciales de Maxirest. Al gateway le manda la sesión de
+ *    Stock Manager (token de Firebase + espacio), igual que a la IA: el gateway verifica que sea
+ *    miembro del espacio y recién ahí usa las credenciales de Maxirest (secretos del gateway).
  */
+export type GatewaySession = () => Promise<{ token: string; wsId: string } | undefined>;
+
+/** Sesión de la nube, si la hay (sin nube el gateway responde 401 en lo que necesita sesión). */
+const cloudGatewaySession: GatewaySession = async () => {
+  try {
+    const { cloudSession } = await import('../../cloud/cloudService');
+    return await cloudSession();
+  } catch {
+    return undefined;
+  }
+};
 export class MaxirestGatewayAdapter extends BaseAdapter {
   readonly id = 'maxirest-gateway';
   readonly kind = 'real' as const;
   readonly label = 'Maxirest';
   private caps?: CapabilityMap;
 
-  constructor(private readonly baseUrl: string | undefined, private readonly fetchImpl: typeof fetch = (...a) => fetch(...a)) {
+  constructor(
+    private readonly baseUrl: string | undefined,
+    private readonly fetchImpl: typeof fetch = (...a) => fetch(...a),
+    private readonly session: GatewaySession = cloudGatewaySession,
+  ) {
     super();
   }
 
@@ -40,11 +56,18 @@ export class MaxirestGatewayAdapter extends BaseAdapter {
   private async request<T>(path: string, init?: RequestInit): Promise<T> {
     if (!isOnline()) throw new IntegrationError('OFFLINE');
     let res: Response;
+    const url = this.url(path);
+    const s = await this.session();
     try {
-      res = await this.fetchImpl(this.url(path), {
+      res = await this.fetchImpl(url, {
         ...init,
-        credentials: 'include',
-        headers: { Accept: 'application/json', ...(init?.body ? { 'Content-Type': 'application/json' } : {}), ...init?.headers },
+        credentials: 'omit',
+        headers: {
+          Accept: 'application/json',
+          ...(init?.body ? { 'Content-Type': 'application/json' } : {}),
+          ...(s ? { Authorization: `Bearer ${s.token}`, 'X-Workspace': s.wsId } : {}),
+          ...init?.headers,
+        },
       });
     } catch (e) {
       if (e instanceof IntegrationError) throw e;

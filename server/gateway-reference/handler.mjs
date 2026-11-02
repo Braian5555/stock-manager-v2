@@ -22,11 +22,11 @@ const CAPABILITIES = Object.fromEntries(OPERATIONS.map((op) => [op, 'pending_ena
 
 function cors(env, req) {
   const origin = req.headers.get('Origin') ?? '';
-  const allowed = (env.GATEWAY_ALLOWED_ORIGIN ?? 'https://braian5555.github.io').split(',').map((s) => s.trim());
+  const allowed = (env.GATEWAY_ALLOWED_ORIGIN ?? 'https://stock-manager-a7cf7.web.app,https://stock-manager-a7cf7.firebaseapp.com').split(',').map((s) => s.trim());
   return {
     'Access-Control-Allow-Origin': allowed.includes(origin) ? origin : allowed[0],
-    'Access-Control-Allow-Credentials': 'true',
-    'Access-Control-Allow-Headers': 'Content-Type, Idempotency-Key',
+    // La PWA manda la sesión de Firebase en Authorization (no cookies).
+    'Access-Control-Allow-Headers': 'Authorization, Content-Type, Idempotency-Key, X-Workspace',
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
     Vary: 'Origin',
   };

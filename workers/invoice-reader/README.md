@@ -9,6 +9,9 @@ espacio en Firestore con la sesión del propio usuario), y reenvía el pedido si
   no está en el plan gratis, sigue con el próximo); `GEMINI_MODEL` fija uno.
 - **Claude (Anthropic, pago)**: secreto `ANTHROPIC_API_KEY`. La app manda a `POST /`.
 - `GET /` informa qué IA tiene clave cargada (la app lo usa para armar el pedido correcto).
+- **Gateway de Maxirest** (`/v1/maxirest/health`, `/capabilities`, y las operaciones del contrato de `docs/maxirest.md`):
+  hoy todo *pendiente de habilitación* (501). Las operaciones con datos piden la sesión de Firebase y ser miembro del espacio.
+  Cuando Maxirest entregue acceso, se implementan en `maxirest()` con secretos `MAXIREST_*`.
 
 Instalar: Cloudflare → Workers & Pages → Create → Worker → *Edit code* → pegar `worker.js` → Deploy.
 En la app: Configuración → Lectura con IA → pegar la dirección `https://….workers.dev`.

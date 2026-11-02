@@ -1296,3 +1296,14 @@ a.hm-row:hover { background: var(--surface-2); }
 .user-cloud.ok { color: var(--ok); }
 .user-cloud.info { color: var(--info); }
 .user-cloud.warn { color: var(--low); }
+
+/* Integraciones → Preparación para Maxirest */
+.readiness { border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
+.readiness-ok .readiness-icon { color: var(--ok, #15803d); }
+.readiness-warn { border-color: color-mix(in srgb, var(--low, #b45309) 45%, var(--border)); }
+.readiness-warn .readiness-icon { color: var(--low, #b45309); }
+.readiness-info .readiness-icon { color: var(--primary); }
+.readiness-list { list-style: none; margin: 0; padding: 0 0 0 30px; display: flex; flex-direction: column; gap: 6px; }
+.readiness-list li { min-width: 0; }
+.progress { height: 8px; border-radius: 99px; background: var(--border); overflow: hidden; }
+.progress > span { display: block; height: 100%; background: var(--primary); border-radius: inherit; }

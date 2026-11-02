@@ -153,3 +153,41 @@ describe('servidor de Cloudflare: Gemini (gratis)', () => {
     expect((await none.json()).error).toContain('GEMINI_API_KEY');
   });
 });
+
+describe('worker: gateway de Maxirest', () => {
+  const mx = (path: string, init: { method?: string; auth?: string; ws?: string; idem?: string } = {}) =>
+    new Request(`https://worker.example/v1/maxirest${path}`, {
+      method: init.method ?? 'GET',
+      headers: { Origin: ORIGIN, ...(init.auth ? { Authorization: `Bearer ${init.auth}` } : {}), ...(init.ws ? { 'X-Workspace': init.ws } : {}), ...(init.idem ? { 'Idempotency-Key': init.idem } : {}) },
+      ...(init.method === 'POST' ? { body: '{}' } : {}),
+    });
+
+  it('informa salud y que todo está pendiente de habilitación (no inventa soporte)', async () => {
+    const { f } = fakeNet();
+    const health = await handle(mx('/health'), {}, f);
+    expect(await health.json()).toEqual({ ok: true, maxirest: 'not_enabled' });
+    const caps = await (await handle(mx('/capabilities'), {}, f)).json();
+    expect(Object.values(caps.capabilities).every((v) => v === 'pending_enablement')).toBe(true);
+    expect(Object.keys(caps.capabilities)).toHaveLength(10);
+  });
+
+  it('los datos del negocio piden sesión y ser miembro; después responde 501', async () => {
+    const { f } = fakeNet({ members: ['uid-braian'] });
+    expect((await handle(mx('/stock'), {}, f)).status).toBe(401);
+    expect((await handle(mx('/stock', { auth: await token(), ws: 'ws_otro' }), {}, fakeNet({ members: ['otro'] }).f)).status).toBe(403);
+    expect((await handle(mx('/stock', { auth: await token(), ws: 'ws_123' }), {}, f)).status).toBe(501);
+    expect((await handle(mx('/stock-adjustments', { method: 'POST', auth: await token(), ws: 'ws_123' }), {}, f)).status).toBe(400);
+    expect((await handle(mx('/stock-adjustments', { method: 'POST', auth: await token(), ws: 'ws_123', idem: 'k1' }), {}, f)).status).toBe(501);
+  });
+
+  it('la app manda la sesión de Firebase al gateway (sin cookies)', async () => {
+    const { MaxirestGatewayAdapter } = await import('../../src/integrations/maxirest/MaxirestGatewayAdapter');
+    const seen: RequestInit[] = [];
+    const f = (async (url: string, init: RequestInit) => { seen.push(init); return handle(new Request(url, init), {}, fakeNet().f); }) as unknown as typeof fetch;
+    const t = await token();
+    const a = new MaxirestGatewayAdapter('https://worker.example', f, async () => ({ token: t, wsId: 'ws_123' }));
+    expect((await a.testConnection()).ok).toBe(true);
+    await expect(a.getStock()).rejects.toMatchObject({ code: 'NOT_SUPPORTED' });
+    expect(seen.every((i) => i.credentials === 'omit' && new Headers(i.headers).get('Authorization') === `Bearer ${t}` && new Headers(i.headers).get('X-Workspace') === 'ws_123')).toBe(true);
+  });
+});

@@ -23,7 +23,8 @@ export function defaultIntegration(): Integration {
     system: 'maxirest',
     mode: 'disabled',
     status: 'no_configurado',
-    stockAuthority: 'maxirest',
+    // Se cuenta en Stock Manager y Maxirest copia (no al revés).
+    stockAuthority: 'stockmanager',
     syncInterval: 'manual',
   };
 }

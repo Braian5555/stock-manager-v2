@@ -10,6 +10,17 @@
 > | **Real (API)** | **No existe.** No se conectó contra ninguna instancia real de Maxirest. No hay API pública documentada que permita hacerlo. |
 >
 > Stock Manager **no dice estar “integrado con Maxirest”**. Dice exactamente lo de arriba.
+>
+> **Actualización 02/11/2026.** Se volvió a buscar documentación pública de una API de Maxirest para stock: sigue sin existir
+> (sólo integraciones de delivery, salón y cobros). Para dejar todo listo:
+> - El **gateway** vive ahora en el mismo Cloudflare Worker de la IA (`workers/invoice-reader/worker.js`, rutas `/v1/maxirest/...`):
+>   verifica la sesión de Firebase y que quien llama sea miembro del espacio, igual que la IA. Todas las operaciones responden
+>   *pendiente de habilitación* hasta que Maxirest entregue acceso; ahí se implementan con secretos `MAXIREST_*` en Cloudflare.
+> - La app le manda al gateway la sesión de Firebase (`Authorization` + `X-Workspace`), sin cookies ni credenciales de Maxirest.
+> - **Integraciones → Preparación** revisa lo que la sincronización necesita: código de insumo en cada producto, sin repetidos,
+>   que cada código exista en Maxirest (contra el último Excel importado), el depósito de Maxirest de cada punto y los remitos
+>   pendientes.
+> - Fuente principal de stock por defecto: **Stock Manager** (se cuenta en la app y Maxirest copia).
 
 ---
 

@@ -6,6 +6,9 @@
  * clave (guardada como secreto en Cloudflare, nunca en la app) y lo reenvía a la IA:
  *   - Gemini de Google (gratis, con límites): secreto GEMINI_API_KEY    → POST /gemini
  *   - Claude de Anthropic (pago):              secreto ANTHROPIC_API_KEY → POST /
+ * Además es el gateway de Maxirest (/v1/maxirest/...): hoy informa que todo está "pendiente de
+ * habilitación" porque Maxirest no publica una API. Cuando Maxirest entregue acceso, las llamadas
+ * reales se agregan en maxirest() con sus credenciales como secretos (MAXIREST_*), nunca en la app.
  *
  * Instalación (una vez): Cloudflare → Workers & Pages → Create → Worker → pegar este archivo → Deploy.
  * Después: Settings → Variables and Secrets → Add → Secret, nombre GEMINI_API_KEY, valor = la clave
@@ -36,7 +39,7 @@ function cors(origin) {
   return {
     'Access-Control-Allow-Origin': ok ? origin : ALLOWED_ORIGINS[0],
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Authorization, Content-Type, X-Workspace',
+    'Access-Control-Allow-Headers': 'Authorization, Content-Type, X-Workspace, Idempotency-Key',
     'Access-Control-Max-Age': '86400',
     Vary: 'Origin',
   };
@@ -89,11 +92,36 @@ async function isMember(wsId, token, uid, fetchImpl = fetch) {
   return members.some((v) => v.stringValue === uid);
 }
 
+/** Operaciones del contrato PWA ⇄ gateway (docs/maxirest.md). */
+const MAXIREST_OPERATIONS = ['getProducts', 'getCategories', 'getUnits', 'getLocations', 'getStock', 'getMovements', 'getInventory', 'createStockAdjustment', 'updateInventory', 'createOrder'];
+
+/** Gateway de Maxirest. Cambiar a 'supported' SÓLO lo implementado y probado contra Maxirest real. */
+async function maxirest(request, env, route, h, fetchImpl) {
+  if (route === '/health') return reply(200, { ok: true, maxirest: env.MAXIREST_API_URL ? 'configurado' : 'not_enabled' }, h);
+  if (route === '/capabilities') return reply(200, { capabilities: Object.fromEntries(MAXIREST_OPERATIONS.map((op) => [op, 'pending_enablement'])) }, h);
+  // El resto toca datos del negocio: sesión de Stock Manager y miembro del espacio.
+  const token = (request.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '');
+  let uid;
+  try {
+    uid = await verifyIdToken(token, fetchImpl);
+  } catch (e) {
+    return reply(401, { message: e.message }, h);
+  }
+  if (!(await isMember(request.headers.get('X-Workspace'), token, uid, fetchImpl))) return reply(403, { message: 'No sos miembro de este espacio de trabajo.' }, h);
+  if (request.method === 'POST' && !request.headers.get('Idempotency-Key')) return reply(400, { message: 'Falta Idempotency-Key' }, h);
+  return reply(501, { message: 'Maxirest todavía no habilitó esta operación.' }, h);
+}
+
 async function handle(request, env, fetchImpl = fetch) {
   const origin = request.headers.get('Origin') ?? '';
   const h = cors(origin);
-  const gemini = new URL(request.url).pathname.replace(/\/+$/, '') === '/gemini';
+  const path = new URL(request.url).pathname.replace(/\/+$/, '');
+  const gemini = path === '/gemini';
   if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: h });
+  if (path.startsWith('/v1/maxirest')) {
+    if (origin && !ALLOWED_ORIGINS.includes(origin)) return reply(403, { message: 'Origen no permitido.' }, h);
+    return maxirest(request, env, path.slice('/v1/maxirest'.length), h, fetchImpl);
+  }
   // Prueba de conexión desde la app (Configuración → Lectura con IA): qué IA tiene clave cargada.
   if (request.method === 'GET') {
     const provider = env.GEMINI_API_KEY ? 'gemini' : env.ANTHROPIC_API_KEY ? 'anthropic' : null;

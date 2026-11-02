@@ -16,13 +16,14 @@ import { menuLabel } from '../services/settingsService';
 import { useFeedback } from '../store/feedback';
 import { useSettings } from '../store/settings';
 import { AUTHORITY_LABEL, ConnectionWizard, SyncResults } from '../components/integrations/ConnectionWizard';
+import { ReadinessPanel } from '../components/integrations/ReadinessPanel';
 import { MappingPanel } from '../components/integrations/MappingPanel';
 import { ExcelBridgePanel } from '../components/integrations/ExcelBridgePanel';
 import { SyncQueuePanel } from '../components/integrations/SyncQueuePanel';
 import { Badge, Field, PageHeader, Segmented, Select } from '../components/ui';
 import { fmtDateTime } from '../utils/format';
 
-type Tab = 'estado' | 'vinculos' | 'excel' | 'cola';
+type Tab = 'preparacion' | 'estado' | 'vinculos' | 'excel' | 'cola';
 const STATUS_TONE = { no_configurado: '', configurado: 'info', conectado: 'ok', error: 'error', desconectado: 'warn' } as const;
 
 export function IntegrationsPage() {
@@ -31,7 +32,7 @@ export function IntegrationsPage() {
   const { run, confirm, notify } = useFeedback();
   const [wizard, setWizard] = useState(false);
   const [params] = useSearchParams();
-  const [tab, setTab] = useState<Tab>((['estado', 'vinculos', 'excel', 'cola'] as Tab[]).find((t) => t === params.get('tab')) ?? 'estado');
+  const [tab, setTab] = useState<Tab>((['preparacion', 'estado', 'vinculos', 'excel', 'cola'] as Tab[]).find((t) => t === params.get('tab')) ?? 'preparacion');
   const [caps, setCaps] = useState<CapabilityMap | null>(null);
   const [results, setResults] = useState<StepResult[] | null>(null);
   const [busy, setBusy] = useState(false);
@@ -111,7 +112,7 @@ export function IntegrationsPage() {
       </section>
 
       <div style={{ margin: '16px 0 12px' }}>
-        <Segmented<Tab> label="Secciones" value={tab} onChange={setTab} options={[{ value: 'estado', label: 'Qué está disponible' }, { value: 'vinculos', label: 'Vínculos' }, { value: 'excel', label: 'Excel Bridge' }, { value: 'cola', label: 'Cola de sincronización' }]} />
+        <Segmented<Tab> label="Secciones" value={tab} onChange={setTab} options={[{ value: 'preparacion', label: 'Preparación' }, { value: 'estado', label: 'Qué está disponible' }, { value: 'vinculos', label: 'Vínculos' }, { value: 'excel', label: 'Excel Bridge' }, { value: 'cola', label: 'Cola de sincronización' }]} />
       </div>
 
       {tab === 'estado' && (
@@ -144,6 +145,7 @@ export function IntegrationsPage() {
           </div>
         </section>
       )}
+      {tab === 'preparacion' && <section className="card card-pad" aria-label="Preparación para Maxirest"><ReadinessPanel /></section>}
       {tab === 'vinculos' && <section className="card card-pad"><MappingPanel /></section>}
       {tab === 'excel' && <section className="card card-pad"><ExcelBridgePanel onImported={() => setTab('vinculos')} /></section>}
       {tab === 'cola' && <section className="card card-pad"><SyncQueuePanel connected={connected} /></section>}
