@@ -1,5 +1,5 @@
 import type { Category, InventoryCount, Invoice, Product, StockMovement } from '../models';
-import { localYmd, round3 } from '../utils/format';
+import { fmtNumber, localYmd, round3 } from '../utils/format';
 import { ymdAdd } from './bakeryService';
 
 /**
@@ -85,13 +85,13 @@ export function explainNegative(product: Product, moves: StockMovement[]): Negat
   const lastPurchase = [...mine].reverse().find((m) => m.type === 'ingreso' && m.delta > 0)?.createdAt;
   const sinceLabel = lastSet ? `desde el ${lastSet.origin === 'conteo' ? 'conteo' : 'ajuste'} del ${new Date(lastSet.createdAt).toLocaleDateString('es-AR')}` : 'desde que se cargó';
   const parts: string[] = [];
-  if (recetas > 0) parts.push(`las recetas descontaron ${recetas}`);
-  if (salidas > 0) parts.push(`salieron ${salidas}`);
-  if (remitos > 0) parts.push(`se mandaron ${remitos} a los puntos`);
+  if (recetas > 0) parts.push(`las recetas descontaron ${fmtNumber(recetas)}`);
+  if (salidas > 0) parts.push(`salieron ${fmtNumber(salidas)}`);
+  if (remitos > 0) parts.push(`se mandaron ${fmtNumber(remitos)} a los puntos`);
   const entered = ingresos + producido;
-  const why = entered <= 0 ? 'y no entró nada' : `y sólo entraron ${round3(entered)}`;
+  const why = entered <= 0 ? 'y no entró nada' : `y sólo entraron ${fmtNumber(round3(entered))}`;
   const hint = recetas > 0 && entered < recetas ? ' Seguramente falta cargar una factura de compra o contarlo.' : ' Contalo para dejarlo bien.';
-  const summary = parts.length ? `${cap(sinceLabel)} ${parts.join(', ')} ${why}.${hint}` : `${cap(sinceLabel)} quedó en negativo.${hint}`;
+  const summary = parts.length ? `${cap(sinceLabel)}, ${parts.join(', ')} ${why}.${hint}` : `${cap(sinceLabel)} quedó en negativo.${hint}`;
   return { since: lastSet?.createdAt, sinceLabel, base, ingresos, producido, recetas, salidas, remitos, otros, lastPurchase, summary };
 }
 

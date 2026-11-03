@@ -17,7 +17,8 @@ describe('para resolver', () => {
     ];
     const r = explainNegative(harina, moves);
     expect(r).toMatchObject({ base: 5, recetas: 46, ingresos: 0, otros: 0 });
-    expect(r.summary).toMatch(/^Desde el conteo del .* las recetas descontaron 46 y no entró nada\. Seguramente falta cargar una factura/);
+    expect(r.summary).toMatch(/^Desde el conteo del .*, las recetas descontaron 46 y no entró nada\. Seguramente falta cargar una factura/);
+    expect(explainNegative(p('Huevos', -112.636), [mv('Huevos', '2026-10-25T10:00:00Z', 'consumo', -112.636, { refId: 'x' })]).summary).toMatch(/descontaron 112,636 y/);
     expect(negativeProducts([harina, p('Sal', 2)]).map((x) => x.id)).toEqual(['Harina']);
   });
 
