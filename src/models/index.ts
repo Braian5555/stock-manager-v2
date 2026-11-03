@@ -72,6 +72,8 @@ export interface Product extends BaseEntity {
   stock: number;
   minStock: number;
   maxStock: number;
+  /** Costo por unidad de stock cargado a mano (si no hay facturas con precio). */
+  cost?: number;
   notes?: string;
   active: boolean;
   externalSystems?: ExternalSystems;

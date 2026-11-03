@@ -153,7 +153,9 @@ async function handle(request, env, fetchImpl = fetch) {
 
   if (gemini) {
     if (!body.startsWith('{"systemInstruction":')) return reply(400, { error: 'Pedido no permitido.' }, h);
-    const models = env.GEMINI_MODEL ? [env.GEMINI_MODEL] : GEMINI_MODELS;
+    // ?lite=1: la app reintenta porque el modelo principal no contestó a tiempo → se arranca por el liviano.
+    const lite = new URL(request.url).searchParams.get('lite') === '1';
+    const models = env.GEMINI_MODEL ? [env.GEMINI_MODEL] : lite ? GEMINI_MODELS.slice(1) : GEMINI_MODELS;
     let last;
     for (const model of models) {
       last = await fetchImpl(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {

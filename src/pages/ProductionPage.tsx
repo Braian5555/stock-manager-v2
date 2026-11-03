@@ -17,7 +17,8 @@ import { useSettings } from '../store/settings';
 import { useSession } from '../store/session';
 import { Modal } from '../components/ui/Modal';
 import { Stepper } from '../components/Stepper';
-import { fmtNumber, fmtTime, matches, round3 } from '../utils/format';
+import { fmtMoney, fmtNumber, fmtTime, matches, round3 } from '../utils/format';
+import { useCosts } from '../hooks/useCosts';
 
 const FREQUENT = '__frecuentes';
 
@@ -82,7 +83,13 @@ export function ProductionPage({ line = 'production' }: { line?: ProductionLine 
     () => products.filter((p) => p.active && ((!famIds.size && !pastry && !(p.categoryId && pastryIds.has(p.categoryId))) || (p.categoryId && famIds.has(p.categoryId)))).sort((a, b) => a.name.localeCompare(b.name, 'es')),
     [products, famIds, pastry, pastryIds],
   );
-  const activeIds = useMemo(() => new Set(active.map((p) => p.id)), [active]);
+  // Insumos (harina, levadura…): están en alguna receta y no tienen receta propia. No se "anotan": se ocultan
+  // de Anotar, Plan y Resumen aunque estén en la misma familia (siguen en Recetas y en Stock).
+  const made = useMemo(() => {
+    const ingredients = new Set(products.flatMap((p) => p.recipe?.items.map((i) => i.productId) ?? []));
+    return active.filter((p) => p.recipe?.items.length || !ingredients.has(p.id));
+  }, [active, products]);
+  const activeIds = useMemo(() => new Set(made.map((p) => p.id)), [made]);
   // Movimientos de esta línea para el plan y el resumen: sus productos y lo que se consumió para hacerlos.
   const lineMoves = useMemo(() => {
     const prodIds = new Set(recent.filter((m) => m.type === 'produccion' && activeIds.has(m.productId)).map((m) => m.id));
@@ -97,18 +104,18 @@ export function ProductionPage({ line = 'production' }: { line?: ProductionLine 
   const frequent = useMemo(() => {
     const n = new Map<string, number>();
     for (const m of history) if (!undoneKeys.has(`undo:${m.id}`)) n.set(m.productId, (n.get(m.productId) ?? 0) + 1);
-    return active.filter((p) => n.has(p.id)).sort((a, b) => n.get(b.id)! - n.get(a.id)! || a.name.localeCompare(b.name, 'es'));
-  }, [history, undoneKeys, active]);
+    return made.filter((p) => n.has(p.id)).sort((a, b) => n.get(b.id)! - n.get(a.id)! || a.name.localeCompare(b.name, 'es'));
+  }, [history, undoneKeys, made]);
   const families = useMemo(() => {
-    const used = new Set(active.map((p) => p.categoryId).filter(Boolean));
+    const used = new Set(made.map((p) => p.categoryId).filter(Boolean));
     return lk.categories.filter((c) => used.has(c.id)).sort((a, b) => a.name.localeCompare(b.name, 'es'));
-  }, [active, lk.categories]);
+  }, [made, lk.categories]);
 
   const defaultChip = frequent.length ? FREQUENT : (families.find((c) => /panader/i.test(c.name))?.id ?? families[0]?.id ?? '');
   const current = chip ?? defaultChip;
   const list = q.trim()
-    ? active.filter((p) => matches(q, p.name, p.sku))
-    : current === FREQUENT ? frequent : active.filter((p) => p.categoryId === current);
+    ? made.filter((p) => matches(q, p.name, p.sku))
+    : current === FREQUENT ? frequent : made.filter((p) => p.categoryId === current);
 
   const open = (p: Product, initial?: number) => {
     setPicked(p);
@@ -162,9 +169,9 @@ export function ProductionPage({ line = 'production' }: { line?: ProductionLine 
       ) : view === 'recetas' ? (
         <RecipeList products={active} lk={lk} q={rq} onQ={setRq} onEdit={setEditing} onNew={() => setNewName(rq.trim())} />
       ) : view === 'plan' ? (
-        <PlanView products={active} lk={lk} movements={lineMoves} canEdit={canEdit} onPick={(p, remaining) => open(p, remaining)} />
+        <PlanView products={made} lk={lk} movements={lineMoves} canEdit={canEdit} onPick={(p, remaining) => open(p, remaining)} />
       ) : view === 'resumen' ? (
-        <SummaryView products={active} lk={lk} movements={lineMoves} />
+        <SummaryView products={made} lk={lk} movements={lineMoves} />
       ) : (<>
 
       <label className="production-search">
@@ -288,6 +295,7 @@ function RecipeList({ products, lk, q, onQ, onEdit, onNew }: {
   products: Product[]; lk: ReturnType<typeof useLookups>; q: string; onQ: (v: string) => void; onEdit: (p: Product) => void; onNew: () => void;
 }) {
   const withRecipe = products.filter((p) => p.recipe?.items.length);
+  const costs = useCosts();
   const list = q.trim()
     ? products.filter((p) => matches(q, p.name, p.sku)).sort((a, b) => Number(!!b.recipe?.items.length) - Number(!!a.recipe?.items.length))
     : withRecipe;
@@ -308,6 +316,7 @@ function RecipeList({ products, lk, q, onQ, onEdit, onNew }: {
                 <span className="list-title">{p.name}</span>
                 <span className="list-sub" style={{ display: 'block' }}>
                   {n ? `Rinde ${fmtNumber(p.recipe!.yield)} ${lk.unit(p.unitId) || 'u'} · ${n} ${n === 1 ? 'insumo' : 'insumos'}` : 'Sin receta: tocá para cargarla'}
+                  {n > 0 && costs.visible && (() => { const c = costs.recipeCost(p.id); return c && c.perUnit > 0 ? <> · costo <b className="num">{fmtMoney(c.perUnit)}</b>/{lk.unit(p.unitId) || 'u'}{c.missing.length ? ' (incompleto)' : ''}{c.pct !== undefined && c.pct >= 5 ? <span className="neg"> · subió {c.pct}%</span> : null}</> : null; })()}
                 </span>
               </span>
               <Pencil size={16} aria-hidden className="muted" />

@@ -103,8 +103,8 @@ test('asistente: consulta, foto de remito con confirmación y conversación que 
   await page.getByLabel('Mensaje para el asistente').fill('Cargá este remito');
   await page.getByRole('button', { name: 'Enviar' }).click();
   const card = thread.getByRole('region', { name: 'Cambios para confirmar' });
-  await expect(card).toContainText('Registrar 1 movimiento');
-  await expect(card).toContainText(`Ingreso +24 bot · Aceite de girasol 900 ml (${before} → ${before! + 24})`);
+  await expect(card).toContainText('Sumar al stock: 1 producto');
+  await expect(card).toContainText(`Suma +24 bot · Aceite de girasol 900 ml: ${before} → ${before! + 24}`);
   expect(await stockOf(page, 'Aceite de girasol 900 ml')).toBe(before);
   await card.getByRole('button', { name: 'Confirmar' }).click();
   await expect(thread.getByText('Listo, cargué el remito.')).toBeVisible();

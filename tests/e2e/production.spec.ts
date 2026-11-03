@@ -274,4 +274,7 @@ test('pastelería: crear un producto nuevo y su receta (con un insumo nuevo) sin
   await go(page, '/produccion');
   await page.getByLabel('Buscar producto').fill('Torta rogel');
   await expect(page.getByText('No hay productos con ese nombre.')).toBeVisible();
+  // La harina ahora es insumo de una receta: no aparece para anotar (se descuenta sola).
+  await page.getByLabel('Buscar producto').fill('Harina 000');
+  await expect(page.getByText('No hay productos con ese nombre.')).toBeVisible();
 });

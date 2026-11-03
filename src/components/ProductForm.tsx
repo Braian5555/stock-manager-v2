@@ -119,6 +119,11 @@ export function ProductForm({ product, open, onClose, preset }: { product?: Prod
         <Field label="Stock máximo">
           <NumberInput value={d.maxStock} onChange={(v) => set('maxStock', v ?? 0)} min={0} />
         </Field>
+        {!d.recipe?.items.length && (
+          <Field label="Costo por unidad" hint="opcional: se usa si no hay facturas con precio">
+            <NumberInput value={d.cost} onChange={(v) => set('cost', v && v > 0 ? v : undefined)} min={0} />
+          </Field>
+        )}
         {isNew && (
           <Field label="Stock inicial" hint="se registra como ingreso">
             <NumberInput value={initial} onChange={setInitial} min={0} />

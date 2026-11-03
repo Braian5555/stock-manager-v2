@@ -53,7 +53,18 @@ export interface ToolContext {
   refs: RefMap;
   /** Fotos del último mensaje de la persona que traía fotos (para guardar facturas). */
   images?: ContextImage[];
+  /** Lo último que escribió la persona (para no confundir "stock actual" con "entró mercadería"). */
+  lastText?: string;
 }
+
+/** "Stock actual", "conté", "hay 12", "quedan"…: la persona dice cuánto HAY (cantidad final), no cuánto entró. */
+export function talksAboutStockLevel(text: string | undefined): boolean {
+  const t = (text ?? '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  if (/\b(sum[aá]|agreg[aá]) (esto |todo )?a lo que (hay|ya hay|habia)\b/.test(t)) return false;
+  return /\b(stock actual|stock de hoy|stock real|stock al|conte|contamos|contaron|contado|conteo|inventario|quedan?|quedaron|hay|tengo|tenemos)\b/.test(t);
+}
+/** "Salieron", "hicimos", "horneamos"…: la persona habla de lo que se produjo. */
+const talksAboutProduction = (text: string | undefined) => /\b(salieron|salio|hicimos|hice|hizo|produj|produc|hornea|elabor|anot[aá] que)/i.test((text ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, ''));
 
 export interface ContextImage { data: string; type: string; thumb: string; width?: number; height?: number; bytes?: number }
 
@@ -614,6 +625,9 @@ export const TOOLS: ToolDef[] = [
         plan.push({ p, type, qty, reason });
       }
       if (!plan.length) throw new ToolError(notes.join(' ') || 'No hay movimientos válidos.');
+      // "Stock actual 30/10: 246 medialunas" es lo que HAY, no lo que entró: sumarlo duplica el stock.
+      if (plan.some((x) => x.type === 'ingreso') && talksAboutStockLevel(ctx.lastText))
+        throw new ToolError('La persona está diciendo cuánto HAY (stock actual / contado), no cuánto entró. Para eso usá tipo "ajuste" (deja el stock en esa cantidad) o cargar_conteo. Si de verdad entró mercadería nueva y hay que sumarla, preguntale primero: "¿Lo sumo a lo que ya hay o dejo el stock en esa cantidad?".');
       // Remito de algo que ya entró por factura en estos días: se avisa (puede ser la misma mercadería).
       const viaInvoice = await recentIngresos(plan.filter((x) => x.type === 'ingreso').map((x) => x.p.id), ['factura'], 10);
       for (const id of new Set(viaInvoice.map((r) => r.productId))) {
@@ -624,11 +638,15 @@ export const TOOLS: ToolDef[] = [
         const before = projected.get(p.id) ?? p.stock;
         const after = type === 'ajuste' ? qty : type === 'ingreso' ? before + qty : before - qty;
         projected.set(p.id, round3(after));
-        const sign = type === 'ajuste' ? `queda en ${fmtNumber(qty)}` : `${type === 'ingreso' ? '+' : '−'}${fmtNumber(qty)}`;
-        return `${MOVEMENT_LABEL[type]} ${sign} ${lk.unit(p.unitId)} · ${p.name} (${fmtNumber(before)} → ${fmtNumber(round3(after))})`;
+        // Bien claro si SUMA, RESTA o DEJA el stock en una cantidad.
+        const q = `${fmtNumber(qty)} ${lk.unit(p.unitId)}`.trim();
+        const verb = type === 'ajuste' ? `Deja en ${q}` : type === 'ingreso' ? `Suma +${q}` : `Resta −${q} (${MOVEMENT_LABEL[type].toLowerCase()})`;
+        return `${verb} · ${p.name}: ${fmtNumber(before)} → ${fmtNumber(round3(after))}`;
       });
+      const kinds = new Set(plan.map((x) => (x.type === 'ajuste' ? 'deja' : x.type === 'ingreso' ? 'suma' : 'resta')));
+      const what = kinds.size > 1 ? 'Registrar' : kinds.has('deja') ? 'Dejar el stock en la cantidad indicada:' : kinds.has('suma') ? 'Sumar al stock:' : 'Restar del stock:';
       return {
-        title: plan.length === 1 ? 'Registrar 1 movimiento' : `Registrar ${plan.length} movimientos`,
+        title: `${what} ${plan.length === 1 ? '1 producto' : `${plan.length} productos`}`,
         lines, notes,
         execute: async (key) => {
           if (!ctx.can('stock.move')) throw new ToolError('Ya no tenés permiso para registrar movimientos.');
@@ -1096,6 +1114,8 @@ export const TOOLS: ToolDef[] = [
         if (prev) prev.qty = round3(prev.qty + qty);
         else plan.push({ p, qty: round3(qty) });
       }
+      if (talksAboutStockLevel(ctx.lastText) && !talksAboutProduction(ctx.lastText))
+        throw new ToolError('La persona está diciendo cuánto HAY (stock actual / contado), no lo que se produjo. Para eso usá registrar_movimientos con tipo "ajuste" (deja el stock en esa cantidad). Si es producción nueva, preguntale primero.');
       if (missing.length) throw new ToolError(`No anoté nada todavía. Hay que resolver: ${missing.join(' ')} Si un producto no existe, se puede crear con crear_producto (en la familia de panadería o pastelería) y después anotar todo junto.`);
       const consumed = new Map<string, { name: string; qty: number; unitId?: string }>();
       for (const { p, qty } of plan) for (const c of recipeConsumption(p, qty, products)) {

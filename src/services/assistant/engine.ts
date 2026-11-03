@@ -46,8 +46,11 @@ export function assistantError(status: number, body: unknown): Error {
   return new Error(`Gemini devolvió un error (${status}${detail ? `: ${detail}` : ''}). Probá de nuevo; si se repite, mandale este mensaje a Claude.`);
 }
 
-/** Una lista larga ("agregá todo esto al stock") puede tardar: se espera hasta 2 minutos y medio. */
-const REQUEST_TIMEOUT_MS = 150_000;
+/**
+ * Espera por intento: si el modelo principal no contesta en 75 s, se prueba UNA vez con el modelo
+ * liviano (el servidor saltea el primero con ?lite=1). En total, como mucho 2 minutos y medio.
+ */
+export const ATTEMPT_TIMEOUT_MS = 75_000;
 /**
  * Razonamiento acotado: con listas largas Gemini "piensa" de más y no llega a contestar a tiempo.
  * Gemini 3 se regula con "thinkingLevel"; los 2.x, con "thinkingBudget".
@@ -90,19 +93,27 @@ export function workerTransport(rawUrl: string): Transport {
     let payload = build();
     const started = Date.now();
     // Gemini gratis a veces responde "saturado" (5xx) por unos segundos: se reintenta solo.
+    let lite = false;
     for (let attempt = 0; ; attempt++) {
       let r: Response;
       // Si la IA no contesta en un tiempo razonable, se corta (si no, queda "Pensando…" para siempre).
       const ctrl = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), REQUEST_TIMEOUT_MS);
+      const timer = setTimeout(() => ctrl.abort(), ATTEMPT_TIMEOUT_MS);
       try {
-        r = await fetch(`${url}/gemini`, {
+        r = await fetch(`${url}/gemini${lite ? '?lite=1' : ''}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.token}`, 'X-Workspace': session.wsId },
           body: payload,
           signal: ctrl.signal,
         });
       } catch (e) {
+        // Primer intento sin respuesta: otra vez, con el modelo liviano (más rápido con listas largas).
+        if (ctrl.signal.aborted && !lite && !model?.includes('lite')) {
+          logError(new Error(`Asistente IA: sin respuesta en ${Math.round((Date.now() - started) / 1000)} s con ${model ?? '?'}: pruebo con el modelo liviano`), 'aviso');
+          lite = true;
+          attempt--;
+          continue;
+        }
         if (ctrl.signal.aborted) logError(new Error(`Asistente IA: sin respuesta en ${Math.round((Date.now() - started) / 1000)} s · modelo ${model ?? '?'} · pedido ${Math.round(payload.length / 1024)} KB`), 'aviso');
         if (ctrl.signal.aborted) throw new Error('La IA tardó demasiado en responder. Probá de nuevo; si es una lista larga, mandala en partes (10 a 15 productos por mensaje).', { cause: e });
         throw new Error('No se pudo conectar con el servidor de IA. Revisá la conexión.', { cause: e });
@@ -245,6 +256,7 @@ export class AssistantEngine {
   private notices: string[] = [];
   /** Fotos del último mensaje que traía fotos (para guardar la factura en Facturas). */
   private lastImages: AttachedImage[] = [];
+  private lastText = '';
   private chatId = uuid();
   private startedAt = nowIso();
   private refEntries?: [string, string][];
@@ -316,7 +328,7 @@ export class AssistantEngine {
     for (const p of products) if (p.active) this.refs.ref(p.id);
     // Los permisos se consultan en el momento (si un administrador los cambia, vale enseguida,
     // también para cambios que ya estaban esperando confirmación).
-    const ctx: ToolContext = { can: (p) => this.deps.can(p), settings: this.deps.settings, today: this.deps.today(), refs: this.refs, images: this.lastImages };
+    const ctx: ToolContext = { can: (p) => this.deps.can(p), settings: this.deps.settings, today: this.deps.today(), refs: this.refs, images: this.lastImages, lastText: this.lastText };
     const tools = toolsFor(this.deps.can);
     return { ctx, tools, system: await systemPrompt(this.deps, ctx, tools) };
   }
@@ -349,6 +361,7 @@ export class AssistantEngine {
     this.notices = [];
     if (notices.length) parts.push({ text: `[Aviso de la app, no lo escribió la persona: ${notices.join(' ')}]` });
     if (images.length) this.lastImages = images.slice(0, 4);
+    this.lastText = clean;
     for (const img of images.slice(0, 4)) parts.push({ inlineData: { mimeType: img.type, data: img.data } });
     parts.push({ text: clean || (images.length > 1 ? 'Te mando estas fotos.' : 'Te mando esta foto.') });
     const userMsg: ChatMessage = { id: uuid(), role: 'user', text: clean, images: images.map((i) => i.thumb) };
@@ -556,6 +569,7 @@ Cómo trabajar:
 - Respondé en castellano rioplatense, corto y claro, como un compañero de trabajo. No uses palabras técnicas ni nombres de herramientas, ids o referencias como "p12".
 - No inventes datos: para stock, movimientos, precios, recetas o facturas consultá con las herramientas. Si algo no se puede saber, decilo.
 - Números en formato argentino: la coma es decimal. "1,000" o "1.000" con tres decimales es 1 (una unidad, no mil); "2,500" es 2.5; "0,250" es un cuarto. Al llamar herramientas mandá el número ya convertido (1, 2.5, 0.25). Si una cantidad te da 1000 o más, revisá que no sea eso.
+- "Stock actual", "conté", "hay 12", "quedan 5": es la cantidad FINAL. Usá registrar_movimientos con tipo "ajuste" (deja el stock en esa cantidad) o cargar_conteo; nunca "ingreso" (sumaría a lo que ya hay y duplicaría el stock). Si no está claro si hay que sumar o dejar en esa cantidad, preguntá.
 - Las cantidades van en la unidad de stock de cada producto (la del catálogo). Si la persona habla de cajas o bultos, usá unidad "compra".
 - ${writes.length ? `Para cambiar datos usá ${writes.join(', ')}: la app le muestra a la persona lo que se va a hacer y recién se aplica cuando confirma. No digas que algo quedó hecho hasta recibir el resultado.` : 'Esta persona sólo puede consultar: no tiene permiso para cambiar datos.'}
 - Si la persona pide algo que su perfil no permite, explicale que lo tiene que pedir a un administrador.

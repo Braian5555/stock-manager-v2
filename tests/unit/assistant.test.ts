@@ -119,8 +119,8 @@ describe('asistente: consultas y cambios', () => {
     e.setDeps({ user: { name: 'Nico', role: 'custom' }, can: () => true, permissions: ROLE_PERMISSIONS.manager, settings: normalizeSettings(undefined), transport: s2.transport, today: () => '2026-10-17' });
     await e.send('Cargá este remito');
     const msg = e.getState().messages.at(-1)!;
-    expect(msg.proposals?.[0]).toMatchObject({ title: 'Registrar 2 movimientos', status: 'pending' });
-    expect(msg.proposals?.[0].lines[0]).toBe('Ingreso +24 u · Aceite de girasol 900 ml (0 → 24)');
+    expect(msg.proposals?.[0]).toMatchObject({ title: 'Sumar al stock: 2 productos', status: 'pending' });
+    expect(msg.proposals?.[0].lines[0]).toBe('Suma +24 u · Aceite de girasol 900 ml: 0 → 24');
     expect((await db.products.get(aceite.id))?.stock).toBe(0); // todavía nada
 
     await e.confirm(msg.id);
@@ -142,7 +142,7 @@ describe('asistente: consultas y cambios', () => {
     const e = engine(ROLE_PERMISSIONS.manager, transport);
     await e.send('Tirá 3 kilos de harina');
     const msg = e.getState().messages.at(-1)!;
-    expect(msg.proposals?.[0].lines[0]).toBe('Pérdida −3 kg · Harina 000 (50 → 47)');
+    expect(msg.proposals?.[0].lines[0]).toBe('Resta −3 kg (pérdida) · Harina 000: 50 → 47');
     e.cancel(msg.id);
     expect((await db.products.get(harina.id))?.stock).toBe(50);
     expect(requests).toHaveLength(1);
@@ -325,7 +325,7 @@ describe('asistente: revisión a fondo', () => {
     expect((await db.products.get(aceite.id))?.stock).toBe(0);
     await e.send('gracias');
     const last = requests[2].contents.at(-1)!;
-    expect(last.parts[0].text).toMatch(/^\[Aviso de la app.*deshizo “Registrar 1 movimiento”/);
+    expect(last.parts[0].text).toMatch(/^\[Aviso de la app.*deshizo “Sumar al stock: 1 producto”/);
     expect(last.parts.at(-1)).toEqual({ text: 'gracias' });
   });
 
@@ -733,5 +733,34 @@ describe('familias de cada punto', () => {
     expect((await db.countItems.where('countId').equals(c2.id).toArray()).map((i) => i.productId).sort()).toEqual([coca.id, harina.id].sort());
     await setOutletCategories('confi', []);
     await expect(startCount({ outletId: 'confi' })).rejects.toThrow(/elegí qué familias maneja/);
+  });
+});
+
+describe('asistente: "stock actual" no se suma', () => {
+  it('si la persona dice cuánto hay, un ingreso vuelve a la IA y el ajuste deja el stock en esa cantidad', async () => {
+    const { pan } = await seed();
+    await db.products.update(pan.id, { stock: 22 });
+    const { transport, requests } = scripted([
+      call({ name: 'registrar_movimientos', args: { movimientos: [{ producto: 'Pan francés', tipo: 'ingreso', cantidad: 35 }] } }),
+      call({ name: 'registrar_movimientos', args: { movimientos: [{ producto: 'Pan francés', tipo: 'ajuste', cantidad: 35 }] } }),
+      say('Listo, quedó en 35.'),
+    ]);
+    const e = engine(ROLE_PERMISSIONS.manager, transport);
+    await e.send('Stock actual 30/10: 35 kg de pan francés');
+    expect(requests[0].systemInstruction.parts[0].text).toMatch(/es la cantidad FINAL/);
+    expect(String(lastResponse(requests[1]).error)).toMatch(/cuánto HAY/);
+    const msg = e.getState().messages.at(-1)!;
+    expect(msg.proposals?.[0]).toMatchObject({ title: 'Dejar el stock en la cantidad indicada: 1 producto', lines: ['Deja en 35 kg · Pan francés: 22 → 35'] });
+    await e.confirm(msg.id);
+    expect((await db.products.get(pan.id))!.stock).toBe(35);
+  });
+
+  it('reconoce cuándo habla de stock y cuándo de algo que entró o se produjo', async () => {
+    const { talksAboutStockLevel } = await import('../../src/services/assistant/tools');
+    expect(talksAboutStockLevel('Stock actual 30/10')).toBe(true);
+    expect(talksAboutStockLevel('conté 12 cocas')).toBe(true);
+    expect(talksAboutStockLevel('hay 5 cajas de aceite')).toBe(true);
+    expect(talksAboutStockLevel('llegaron 12 cocas')).toBe(false);
+    expect(talksAboutStockLevel('sumá esto a lo que ya hay: 10 harinas')).toBe(false);
   });
 });

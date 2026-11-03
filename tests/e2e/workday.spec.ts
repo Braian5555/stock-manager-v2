@@ -203,3 +203,19 @@ test('primer uso con la app vacía: todas las pantallas abren y el Inicio ofrece
   await expect(page.getByRole('region', { name: 'Para reponer' })).toContainText('Nada por debajo del mínimo');
   expect(errors.filter((e) => !/favicon|manifest/i.test(e))).toEqual([]);
 });
+
+test('inicio: "Para resolver" muestra negativos con el porqué y el conteo semanal', async ({ page }) => {
+  await loadDemo(page);
+  await go(page, '/');
+  const card = page.getByRole('region', { name: 'Para resolver' });
+  await expect(card).toBeVisible();
+  await expect(card.getByText(/Conteo semanal:/)).toBeVisible();
+  const neg = card.getByRole('button', { name: /productos? en negativo/ });
+  if (await neg.count()) {
+    await neg.click();
+    await expect(page.getByRole('dialog')).toContainText(/Contar estos/);
+    await page.keyboard.press('Escape');
+  }
+  await card.getByRole('button', { name: /Conteo semanal:/ }).click();
+  await expect(page).toHaveURL(/#\/conteo\/.+/);
+});

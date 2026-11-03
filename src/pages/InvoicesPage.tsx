@@ -29,6 +29,8 @@ export function InvoicesPage() {
   const [supplierId, setSupplierId] = useState('');
   const [month, setMonth] = useState('');
   const [pay, setPay] = useState<'' | 'apagar' | 'pagadas' | 'sindatos'>('');
+  // Desde el Inicio ("facturas sin cargar al stock"): ?stock=pendiente.
+  const [stockPending, setStockPending] = useState(params.get('stock') === 'pendiente');
   const [editing, setEditing] = useState<Invoice | 'new' | undefined>(params.get('nueva') === '1' ? 'new' : undefined);
   // Lectura con IA: sólo si se configuró el servidor (Configuración → Lectura con IA).
   const aiOn = !!settings.aiReaderUrl;
@@ -48,12 +50,13 @@ export function InvoicesPage() {
     () => invoices.filter((i) =>
       (!supplierId || i.supplierId === supplierId) &&
       (!month || i.date.startsWith(month)) &&
+      (!stockPending || (!i.stockAppliedAt && !i.stockElsewhere)) &&
       (!pay || (pay === 'pagadas' ? !!i.payment?.paid : pay === 'apagar' ? !!i.payment && !i.payment.paid : !i.payment?.method && !i.payment?.paid)) &&
       matches(q, i.number, lk.supplier(i.supplierId), i.notes)),
-    [invoices, supplierId, month, pay, q, lk],
+    [invoices, supplierId, month, pay, q, lk, stockPending],
   );
   const sum = list.reduce((s, i) => s + (i.total ?? 0), 0);
-  const filtered = !!(q || supplierId || month || pay);
+  const filtered = !!(q || supplierId || month || pay || stockPending);
   const toPay = list.filter((i) => i.payment && !i.payment.paid).reduce((s, i) => s + (i.total ?? 0), 0);
 
   return (
@@ -98,6 +101,7 @@ export function InvoicesPage() {
           <option value="pagadas">Pagadas</option>
           <option value="sindatos">Sin datos de pago</option>
         </Select>
+        <label className="check small" style={{ alignSelf: 'center' }}><input type="checkbox" checked={stockPending} onChange={(e) => setStockPending(e.target.checked)} /> Sin cargar al stock</label>
       </div>
       {list.length > 0 && (
         <p className="small muted" style={{ margin: '0 0 8px' }}>

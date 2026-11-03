@@ -6,7 +6,7 @@ import { Link } from 'react-router';
 import { useCloud } from '../cloud/cloudService';
 import { EmptyState } from '../components/ui';
 import type { Permission } from '../models';
-import { chatTitle, type AttachedImage, type ChatMessage, type ChatProposal, type ChatSnapshot } from '../services/assistant/engine';
+import { ATTEMPT_TIMEOUT_MS, chatTitle, type AttachedImage, type ChatMessage, type ChatProposal, type ChatSnapshot } from '../services/assistant/engine';
 import { Modal } from '../components/ui/Modal';
 import { compressImage } from '../services/imageService';
 import { deleteConversation, newConversation, openConversation, useAssistant, useAssistantAvailable, useAssistantHistory } from '../store/assistant';
@@ -224,7 +224,7 @@ export function AssistantPage() {
         ))}
         {state.busy && (
           <div className="asst-msg is-ai" role="status">
-            <div className="asst-thinking"><Loader2 size={16} className="spin" aria-hidden /> Pensando…</div>
+            <Thinking />
           </div>
         )}
       </div>
@@ -418,3 +418,20 @@ function Inline({ text }: { text: string }) {
 }
 
 const plain = (t: string) => t.replace(/\*\*([^*]+)\*\*/g, '$1');
+
+/** "Pensando…" con los segundos y qué está pasando si tarda (para que no parezca colgado). */
+function Thinking() {
+  const [secs, setSecs] = useState(0);
+  useEffect(() => {
+    const t0 = Date.now();
+    const id = setInterval(() => setSecs(Math.floor((Date.now() - t0) / 1000)), 1000);
+    return () => clearInterval(id);
+  }, []);
+  const hint = secs >= ATTEMPT_TIMEOUT_MS / 1000 ? 'Tardó más de lo normal: pruebo con un modelo más rápido…' : secs >= 20 ? 'Con listas largas puede tardar hasta un minuto.' : '';
+  return (
+    <div className="asst-thinking">
+      <Loader2 size={16} className="spin" aria-hidden /> Pensando…{secs >= 5 ? <span className="muted"> {secs} s</span> : null}
+      {hint && <div className="small muted">{hint}</div>}
+    </div>
+  );
+}

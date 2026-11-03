@@ -12,6 +12,7 @@ import { useSyncView } from '../components/SyncBadge';
 import {
   ActivityCard, BakeryTodayCard, InvoicesWeekCard, PriceIncreasesCard, RestockCard, ShowcaseCard, useHomePanels, type HomePanels, type Tone,
 } from '../components/dashboard/HomePanels';
+import { AttentionCard } from '../components/dashboard/AttentionCard';
 import { fmtMoney, fmtNumber } from '../utils/format';
 
 /**
@@ -38,10 +39,11 @@ export function DashboardPage() {
   const showcase = allowed('showcase') && <ShowcaseCard key="v" d={d} limit={desktop ? 6 : 4} />;
   const invoices = allowed('invoices') && <InvoicesWeekCard key="f" d={d} limit={desktop ? 5 : 3} />;
   const prices = allowed('invoices') && <PriceIncreasesCard key="p" limit={desktop ? 5 : 3} />;
+  const attention = (allowed('stock') || allowed('invoices') || allowed('count')) && <AttentionCard key="t" />;
   const main = [bakery, activity].filter(Boolean);
-  const side = [restock, showcase, invoices, prices].filter(Boolean);
+  const side = [attention, restock, showcase, invoices, prices].filter(Boolean);
   // En el celular, primero lo urgente (reponer), después el día y la actividad.
-  const mobileOrder = [restock, bakery, showcase, activity, invoices, prices].filter(Boolean);
+  const mobileOrder = [attention, restock, bakery, showcase, activity, invoices, prices].filter(Boolean);
 
   return (
     <div className="hm">

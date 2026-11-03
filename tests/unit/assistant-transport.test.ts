@@ -32,3 +32,21 @@ describe('asistente: envío a Gemini', () => {
     expect(sent).toHaveLength(5);
   });
 });
+
+describe('asistente: si el modelo principal no contesta', () => {
+  afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers(); });
+  it('reintenta una vez con el modelo liviano (?lite=1)', async () => {
+    vi.useFakeTimers();
+    const { workerTransport, buildAssistantRequest, ATTEMPT_TIMEOUT_MS } = await import('../../src/services/assistant/engine');
+    const urls: string[] = [];
+    vi.stubGlobal('fetch', vi.fn((url: string, init: RequestInit) => {
+      urls.push(url);
+      if (!url.includes('lite=1')) return new Promise((_r, rej) => init.signal?.addEventListener('abort', () => rej(new DOMException('aborted', 'AbortError'))));
+      return Promise.resolve(new Response(JSON.stringify({ candidates: [] }), { status: 200 }));
+    }));
+    const p = workerTransport('https://ia.example.workers.dev')(buildAssistantRequest('s', [], []));
+    await vi.advanceTimersByTimeAsync(ATTEMPT_TIMEOUT_MS + 10);
+    expect(await p).toEqual({ candidates: [] });
+    expect(urls).toEqual(['https://ia.example.workers.dev/gemini', 'https://ia.example.workers.dev/gemini?lite=1']);
+  });
+});

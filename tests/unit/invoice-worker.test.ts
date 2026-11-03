@@ -98,8 +98,8 @@ describe('servidor de Cloudflare para leer facturas', () => {
 describe('servidor de Cloudflare: Gemini (gratis)', () => {
   const genv = { GEMINI_API_KEY: 'AIza-secreta' };
   const gbody = async () => JSON.stringify((await import('../../functions/reader.mjs')).buildGeminiRequest([{ type: 'image/jpeg', data: 'AAAA' }], [{ ref: '1', name: 'Coca', unit: 'u', buy: '' }]));
-  const greq = async (opts: { body?: string } = {}) =>
-    new Request('https://worker.example/gemini', {
+  const greq = async (opts: { body?: string; lite?: boolean } = {}) =>
+    new Request(`https://worker.example/gemini${opts.lite ? '?lite=1' : ''}`, {
       method: 'POST',
       headers: { Origin: ORIGIN, Authorization: `Bearer ${await token()}`, 'X-Workspace': 'ws_123', 'Content-Type': 'application/json' },
       body: opts.body ?? (await gbody()),
@@ -127,6 +127,13 @@ describe('servidor de Cloudflare: Gemini (gratis)', () => {
     expect(await r.text()).not.toContain('AIza');
     const g = await handle(new Request('https://worker.example/', { headers: { Origin: ORIGIN } }), genv, net.f);
     expect(await g.json()).toMatchObject({ configured: true, provider: 'gemini', model: 'gemini-3.8-flash' });
+  });
+
+  it('con ?lite=1 (la app reintenta porque el principal tardó) arranca por el modelo liviano', async () => {
+    const net = geminiNet({});
+    const r = await handle(await greq({ lite: true }), genv, net.f);
+    expect(r.status).toBe(200);
+    expect(net.calls.map((c) => c.url)).toEqual(['https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent']);
   });
 
   it('si un modelo no existe o no está en el plan gratis, prueba el siguiente', async () => {

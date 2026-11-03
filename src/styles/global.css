@@ -1136,6 +1136,10 @@ div.plan-row { cursor: default; }
 .hm-list, .hm-timeline, .hm-tiles { list-style: none; margin: 0; padding: 0; }
 .hm-list > li + li > .hm-row, .hm-list > li.hm-row + li.hm-row { border-top: 1px solid var(--border); }
 .hm-row { display: flex; align-items: center; gap: 12px; padding: 11px 16px; color: inherit; text-decoration: none; min-width: 0; }
+button.hm-row { width: 100%; text-align: left; background: none; border: 0; border-radius: 0; font: inherit; cursor: pointer; }
+button.hm-row:hover, a.hm-row:hover { background: var(--surface-2); }
+[aria-labelledby="home-resolver"] .hm-row-sub { white-space: normal; }
+.hm-row > .grow { min-width: 0; }
 a.hm-row:hover { background: var(--surface-2); }
 .hm-row-title { font-weight: 680; font-size: 0.93rem; }
 .hm-row-sub { font-size: 0.78rem; color: var(--text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1244,7 +1248,8 @@ a.hm-row:hover { background: var(--surface-2); }
 .asst-text p:last-child, .asst-text ul:last-child { margin-bottom: 0; }
 .asst-text ul { margin: 0 0 8px; padding-left: 20px; display: grid; gap: 3px; }
 .asst-msg.is-error .asst-text { color: var(--out); }
-.asst-thinking { display: inline-flex; align-items: center; gap: 8px; color: var(--text-3); font-size: 0.92rem; }
+.asst-thinking { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; color: var(--text-3); font-size: 0.92rem; }
+.asst-thinking > .small { flex-basis: 100%; }
 .asst-copy { align-self: flex-start; display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; border: 0; border-radius: 6px; background: transparent; color: var(--text-3); font: inherit; font-size: 0.8rem; cursor: pointer; }
 .asst-copy:hover { background: var(--surface-3); color: var(--text); }
 
@@ -1319,3 +1324,12 @@ a.hm-row:hover { background: var(--surface-2); }
 .mx-help summary { cursor: pointer; font-size: 0.9rem; }
 .mx-help pre { white-space: pre-wrap; background: var(--surface-2); padding: 10px; border-radius: 8px; margin: 8px 0; }
 .mx-advanced > summary { cursor: pointer; }
+
+/* Inicio → Para resolver → negativos */
+.neg-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.neg-list li { display: flex; flex-direction: column; gap: 3px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+.neg-list li:last-child { border-bottom: 0; }
+
+/* Receta → costo */
+.recipe-cost { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border-radius: 10px; background: var(--surface-2); }
+.recipe-cost ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 3px; }
