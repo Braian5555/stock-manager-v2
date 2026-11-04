@@ -38,8 +38,10 @@ const LEGACY_DEFAULT_ORDERS: ModuleKey[][] = [
 
 /** Barra superior por defecto (computadora). */
 export const DEFAULT_NAV_TOP: ModuleKey[] = ['dashboard', 'stock', 'products', 'count', 'orders', 'movements', 'transfers', 'suppliers', 'invoices', 'reports'];
-/** Barra inferior por defecto (celular). */
-export const DEFAULT_NAV_BOTTOM: ModuleKey[] = ['dashboard', 'stock', 'orders', 'movements'];
+/** Barra inferior por defecto (celular): lo de todos los días. Conteo y Movimientos están en las pestañas de Stock. */
+export const DEFAULT_NAV_BOTTOM: ModuleKey[] = ['dashboard', 'stock', 'production', 'invoices'];
+/** Barras inferiores por defecto de versiones anteriores: si nunca se cambiaron, pasan a la nueva. */
+const LEGACY_NAV_BOTTOM: ModuleKey[][] = [['dashboard', 'stock', 'orders', 'movements']];
 export const MAX_NAV_BOTTOM = 4;
 
 /** Verde petróleo del logo. */
@@ -95,7 +97,8 @@ export function normalizeSettings(s: Partial<Settings> | undefined): Settings {
   if (LEGACY_SECONDARY.includes(String(merged.secondaryColor).toLowerCase())) merged.secondaryColor = base.secondaryColor;
   merged.menu = ordered.map((m) => (MODULES.find((x) => x.key === m.key)?.locked ? { ...m, visible: true } : m));
   merged.navTop = (Array.isArray(s?.navTop) ? s.navTop : DEFAULT_NAV_TOP).filter((k) => known.has(k));
-  merged.navBottom = (Array.isArray(s?.navBottom) ? s.navBottom : DEFAULT_NAV_BOTTOM).filter((k) => known.has(k)).slice(0, MAX_NAV_BOTTOM);
+  const savedBottom = Array.isArray(s?.navBottom) && !LEGACY_NAV_BOTTOM.some((o) => o.join(',') === s.navBottom!.join(',')) ? s.navBottom : DEFAULT_NAV_BOTTOM;
+  merged.navBottom = savedBottom.filter((k) => known.has(k)).slice(0, MAX_NAV_BOTTOM);
   return merged;
 }
 

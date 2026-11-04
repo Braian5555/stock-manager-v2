@@ -46,6 +46,15 @@
   color-scheme: light;
 }
 
+/* Accesibilidad (por dispositivo): letra más grande y más contraste. Todo el CSS usa rem. */
+html.text-grande { font-size: 112.5%; }
+html.text-muy-grande { font-size: 125%; }
+html.text-grande, html.text-muy-grande { --header-h: 64px; --bottom-h: 74px; }
+html.high-contrast { --text-2: #2c3236; --text-3: #3f474b; --border: #b9b4ab; --border-strong: #8f8a82; }
+html.high-contrast[data-theme='dark'] { --text-2: #dfe4e5; --text-3: #c7cdcf; --border: #5a6569; --border-strong: #7b878b; }
+html.high-contrast :focus-visible { outline-width: 4px; outline-color: var(--primary); }
+html.high-contrast .btn { border-width: 2px; }
+
 :root[data-theme='dark'] {
   --primary-fg: color-mix(in srgb, var(--primary) 45%, #e8f4f2);
   --primary-soft: color-mix(in srgb, var(--primary) 26%, transparent);
@@ -78,7 +87,7 @@ body {
   background: var(--bg);
   color: var(--text);
   font-family: var(--font);
-  font-size: 15px;
+  font-size: 0.9375rem; /* 15px; escala con "Tamaño de letra" */
   line-height: 1.5;
   font-feature-settings: 'tnum' 0;
   -webkit-font-smoothing: antialiased;
@@ -343,7 +352,7 @@ a.stat:hover { border-color: var(--border-strong); box-shadow: var(--shadow-rais
 .input, .select, .textarea {
   width: 100%; min-height: 44px; padding: 10px 12px;
   background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
-  font-size: 16px; /* evita zoom en iOS */
+  font-size: max(16px, 1rem); /* evita zoom en iOS; crece con "Tamaño de letra" */
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 .textarea { min-height: 80px; resize: vertical; }
@@ -1333,3 +1342,7 @@ a.hm-row:hover { background: var(--surface-2); }
 /* Receta → costo */
 .recipe-cost { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border-radius: 10px; background: var(--surface-2); }
 .recipe-cost ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 3px; }
+
+/* Volver a Configuración desde Usuarios, Cuenta, Exportar… (sin pestañas arriba) */
+.back-link { display: inline-flex; align-items: center; gap: 4px; min-height: 44px; margin: -8px 0 4px -4px; padding: 0 6px; color: var(--text-2); font-weight: 650; text-decoration: none; border-radius: var(--radius-sm); }
+.back-link:hover { color: var(--text); background: var(--surface-2); }

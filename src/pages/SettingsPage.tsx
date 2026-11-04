@@ -1,7 +1,7 @@
 import { lazyPage } from '../utils/lazyPage';
 import {
   ArrowDown, ArrowLeft, ArrowUp, Boxes, Building2, ChevronRight, Cloud, Copy, Download, Eye, EyeOff, ImageUp, LayoutGrid, Package, Palette, Plug,
-  RefreshCw, RotateCcw, ShieldCheck, Smartphone, Sparkles, Stethoscope, UserCog, type LucideIcon,
+  RefreshCw, RotateCcw, ShieldCheck, Smartphone, Sparkles, Stethoscope, Type, UserCog, type LucideIcon,
 } from 'lucide-react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Suspense, useEffect, useRef, useState, type ReactNode } from 'react';
@@ -19,6 +19,7 @@ import { CommitInput, Field, NumberInput, PageHeader, Segmented, StatusBadge } f
 import { readableInk } from '../utils/color';
 import { WipeDataSection } from '../components/WipeDataSection';
 import { StockResetSection } from '../components/StockResetSection';
+import { AccessibilitySection } from '../components/AccessibilitySection';
 import { AIReaderSection } from '../components/AIReaderSection';
 import { MODULE_ICON, MODULE_PATH, moduleEnabled, navLabel } from '../layouts/modules';
 import { useCloud } from '../cloud/cloudService';
@@ -55,13 +56,14 @@ const GROUPS: { key: GroupKey; title: string; description: string }[] = [
 /** Configuración: el centro de administración, organizado por categorías. */
 const SECTIONS: Section[] = [
   { key: 'empresa', group: 'negocio', title: 'Empresa y apariencia', description: 'Nombre, subtítulo, logo, colores y tema claro/oscuro.', icon: Building2, render: () => <CompanySection /> },
+  { key: 'accesibilidad', group: 'negocio', title: 'Letra y contraste', description: 'Letra más grande y más contraste en este dispositivo.', icon: Type, render: () => <><PageHeader title="Letra y contraste" subtitle="Para leer y tocar más cómodo en este celular o compu." /><section className="card card-pad"><AccessibilitySection /></section></> },
   { key: 'navegacion', group: 'negocio', title: 'Menú y navegación', description: 'Qué módulos se ven, su orden y nombre, y qué va en cada barra.', icon: LayoutGrid, render: () => <NavigationSection /> },
   { key: 'stock', group: 'inventario', title: 'Stock', description: 'Alertas y stock crítico; familias, unidades y ubicaciones.', icon: Boxes, render: () => <StockSection /> },
   { key: 'productos', group: 'inventario', title: 'Productos', description: 'Productos e importación desde Excel.', icon: Package, render: () => <ProductsSection /> },
   { key: 'usuarios', group: 'personas', title: 'Usuarios y permisos', description: 'Usuarios, roles, permisos, PIN y bloqueo automático.', icon: UserCog, render: () => <UsersPage /> },
   { key: 'nube', group: 'personas', title: 'Cuenta y nube', description: 'Sesión, espacios de trabajo, miembros, invitaciones y sincronización.', icon: Cloud, render: () => <CloudPage /> },
   { key: 'integraciones', group: 'sistema', title: 'Integraciones', description: 'Maxirest, Excel Bridge, gateway, cola y estado de conexión.', icon: Plug, render: () => <IntegrationsPage /> },
-  { key: 'ia', group: 'sistema', title: 'Lectura con IA', description: 'Leer facturas con Claude: dirección del servidor y prueba de conexión.', icon: Sparkles, render: () => <AIReaderSection /> },
+  { key: 'ia', group: 'sistema', title: 'IA (facturas y asistente)', description: 'Servidor de la IA (Gemini): leer facturas con fotos y el Asistente.', icon: Sparkles, render: () => <AIReaderSection /> },
   { key: 'datos', group: 'sistema', title: 'Importar y exportar', description: 'Excel, CSV, PDF, Word, JSON, backup completo y restauración.', icon: Download, render: () => <ExportPage /> },
   { key: 'aplicacion', group: 'sistema', title: 'Aplicación', description: 'Actualizaciones, datos del dispositivo, restablecer y borrar datos.', icon: Smartphone, render: () => <AppSection /> },
   { key: 'diagnostico', group: 'sistema', title: 'Diagnóstico', description: 'Estado del sistema, de Firebase y de la sincronización; versión.', icon: Stethoscope, render: () => <DiagnosticsSection /> },

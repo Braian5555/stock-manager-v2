@@ -8,6 +8,7 @@ import { PageHeader } from '../components/ui';
 import { UserAvatar } from '../components/auth/UserAvatar';
 import { SyncBadge } from '../components/SyncBadge';
 import { useAssistantAvailable } from '../store/assistant';
+import { AccessibilitySection } from '../components/AccessibilitySection';
 
 /** "Más" del celular: lo que no está en la barra inferior, agrupado por tema. */
 export function MorePage() {
@@ -63,6 +64,11 @@ export function MorePage() {
           </nav>
         </section>
       ))}
+
+      <section className="more-section" aria-label="Letra y contraste">
+        <h2 className="more-section-title">Letra y contraste</h2>
+        <div className="card card-pad"><AccessibilitySection compact /></div>
+      </section>
 
       <section className="more-section" aria-label="Ayuda">
         <h2 className="more-section-title">Ayuda</h2>

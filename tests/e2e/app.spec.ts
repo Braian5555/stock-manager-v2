@@ -179,7 +179,7 @@ test('22-23 · navegación adaptada al dispositivo', async ({ page, isMobile }) 
     const bottom = page.getByRole('navigation', { name: 'Navegación inferior' });
     await expect(bottom).toBeVisible();
     await expect(page.getByRole('navigation', { name: 'Navegación principal' })).toBeHidden();
-    for (const l of ['Inicio', 'Stock', 'Conteo', 'Movimientos', 'Más']) await expect(bottom.getByRole('link', { name: l })).toBeVisible();
+    for (const l of ['Inicio', 'Stock', 'Producción', 'Facturas', 'Más']) await expect(bottom.getByRole('link', { name: l })).toBeVisible();
     for (const l of ['Pedidos', 'Remitos']) await expect(bottom.getByRole('link', { name: l })).toHaveCount(0);
     await bottom.getByRole('link', { name: 'Más' }).click();
     await expect(page.getByRole('heading', { name: 'Operación diaria' })).toBeVisible();

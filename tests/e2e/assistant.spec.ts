@@ -59,7 +59,7 @@ async function setup(page: Page) {
   await dialog(page).getByRole('button', { name: 'Crear y subir datos' }).click();
   await expect(page.getByText('Sincronizado').first()).toBeVisible();
   await go(page, '/configuracion');
-  await page.getByRole('link', { name: /Lectura con IA/ }).first().click();
+  await page.getByRole('link', { name: /IA \(facturas y asistente\)/ }).first().click();
   await page.getByLabel(/^Dirección del servidor/).fill(WORKER);
   await page.getByRole('button', { name: 'Guardar' }).click();
   await expect(page.getByText('Conectado con Gemini (Google)')).toBeVisible();

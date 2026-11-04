@@ -219,3 +219,24 @@ test('inicio: "Para resolver" muestra negativos con el porqué y el conteo seman
   await card.getByRole('button', { name: /Conteo semanal:/ }).click();
   await expect(page).toHaveURL(/#\/conteo\/.+/);
 });
+
+test('accesibilidad: letra más grande y más contraste en este dispositivo; Configuración sin pestañas repetidas', async ({ page, isMobile }) => {
+  await loadDemo(page);
+  await go(page, '/configuracion/accesibilidad');
+  await page.getByRole('button', { name: 'Grande', exact: true }).click();
+  await page.getByRole('checkbox', { name: /Más contraste/ }).check();
+  await expect(page.locator('html')).toHaveClass(/text-grande/);
+  await expect(page.locator('html')).toHaveClass(/high-contrast/);
+  await page.reload();
+  await expect(page.locator('html')).toHaveClass(/text-grande/);
+  // Usuarios: vuelve a Configuración con un toque, sin la fila de pestañas de antes.
+  await go(page, '/usuarios');
+  await expect(page.getByRole('navigation', { name: /Pestañas de/ })).toHaveCount(0);
+  await page.getByRole('link', { name: 'Configuración', exact: true }).first().click();
+  await expect(page).toHaveURL(/#\/configuracion$/);
+  if (isMobile) {
+    const nav = page.getByRole('navigation', { name: 'Navegación inferior' });
+    await expect(nav.getByRole('link', { name: 'Producción' })).toBeVisible();
+    await expect(nav.getByRole('link', { name: 'Facturas' })).toBeVisible();
+  }
+});

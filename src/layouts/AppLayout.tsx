@@ -107,7 +107,8 @@ export function AppLayout() {
       </header>
 
       {!isHome && <Sidebar sections={sections} assistant={assistant} active={section?.key ?? (/^\/(ayuda|acerca)/.test(location.pathname) ? 'ayuda' : location.pathname.startsWith('/asistente') ? 'asistente' : undefined)} collapsed={collapsed} onToggle={toggleSidebar} />}
-      {section && section.tabs.length > 1 && <SectionTabs tabs={section.tabs} label={section.label} />}
+      {/* Configuración no lleva pestañas: todo se elige desde sus tarjetas (antes estaba repetido arriba y abajo). */}
+      {section && section.key !== 'config' && section.tabs.length > 1 && <SectionTabs tabs={section.tabs} label={section.label} />}
 
       <UpdatePrompt />
       {!online && (
@@ -126,6 +127,9 @@ export function AppLayout() {
       )}
 
       <main id="contenido" className="main" tabIndex={-1}>
+        {section?.key === 'config' && current !== 'settings' && (
+          <Link to="/configuracion" className="back-link"><ChevronLeft size={18} aria-hidden /> Configuración</Link>
+        )}
         <Suspense fallback={<p className="muted" aria-busy="true">Cargando…</p>}>
           <Outlet />
         </Suspense>

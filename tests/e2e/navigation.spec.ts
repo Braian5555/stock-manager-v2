@@ -51,14 +51,14 @@ test('configuración: qué módulos van en cada barra', async ({ page, isMobile 
     await expect(page.getByRole('link', { name: new RegExp(t) }).first()).toBeVisible();
   await go(page, '/configuracion/navegacion');
   if (isMobile) {
-    // Cambiar Movimientos por Conteo en la barra inferior
-    await page.getByLabel('Movimientos en la barra del celular').click();
-    await expect(page.getByLabel('Movimientos en la barra del celular')).not.toBeChecked();
+    // Cambiar Facturas por Conteo en la barra inferior
+    await page.getByLabel('Facturas en la barra del celular').click();
+    await expect(page.getByLabel('Facturas en la barra del celular')).not.toBeChecked();
     await page.getByLabel('Conteo en la barra del celular').click();
     await expect(page.getByLabel('Conteo en la barra del celular')).toBeChecked();
     const bottom = page.getByRole('navigation', { name: 'Navegación inferior' });
     await expect(bottom.getByRole('link', { name: 'Conteo' })).toBeVisible();
-    await expect(bottom.getByRole('link', { name: 'Movimientos' })).toHaveCount(0);
+    await expect(bottom.getByRole('link', { name: 'Facturas' })).toHaveCount(0);
   } else {
     // En la computadora las secciones están todas en la barra lateral: ocultar un módulo lo saca.
     const top = page.getByRole('navigation', { name: 'Navegación principal' });

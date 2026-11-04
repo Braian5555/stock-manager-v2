@@ -119,7 +119,7 @@ test('facturas: lectura con IA por el servidor de Cloudflare (configuración, pr
 
   // Configurar la dirección del servidor y probarla.
   await go(page, '/configuracion');
-  await page.getByRole('link', { name: /Lectura con IA/ }).first().click();
+  await page.getByRole('link', { name: /IA \(facturas y asistente\)/ }).first().click();
   await page.getByLabel(/^Dirección del servidor/).fill(`${WORKER}/`);
   await page.getByRole('button', { name: 'Guardar' }).click();
   await expect(page.getByText('Conectado con Claude (Anthropic)')).toBeVisible();
@@ -178,7 +178,7 @@ test('facturas: lectura con Gemini (gratis) por el servidor de Cloudflare', asyn
   await expect(page.getByText('Sincronizado').first()).toBeVisible();
 
   await go(page, '/configuracion');
-  await page.getByRole('link', { name: /Lectura con IA/ }).first().click();
+  await page.getByRole('link', { name: /IA \(facturas y asistente\)/ }).first().click();
   await page.getByLabel(/^Dirección del servidor/).fill(WORKER);
   await page.getByRole('button', { name: 'Guardar' }).click();
   await expect(page.getByText('Conectado con Gemini (Google)')).toBeVisible();
@@ -234,7 +234,7 @@ test('facturas: "Leer factura con IA" lee sola al sacar la foto, y una factura y
   await expect(page.getByRole('dialog')).toHaveCount(0); // que no quede ninguna ventana encima
 
   await go(page, '/configuracion');
-  await page.getByRole('link', { name: /Lectura con IA/ }).first().click();
+  await page.getByRole('link', { name: /IA \(facturas y asistente\)/ }).first().click();
   await page.getByLabel(/^Dirección del servidor/).fill(WORKER);
   await page.getByRole('button', { name: 'Guardar' }).click();
   await expect(page.getByText('Conectado con Gemini (Google)')).toBeVisible();
