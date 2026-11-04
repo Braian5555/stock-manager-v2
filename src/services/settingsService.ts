@@ -44,11 +44,11 @@ export const DEFAULT_NAV_BOTTOM: ModuleKey[] = ['dashboard', 'stock', 'productio
 const LEGACY_NAV_BOTTOM: ModuleKey[][] = [['dashboard', 'stock', 'orders', 'movements']];
 export const MAX_NAV_BOTTOM = 4;
 
-/** Verde petróleo del logo. */
-export const DEFAULT_PRIMARY = '#0e6b67';
+/** Rojo de sello (estilo Kraft). */
+export const DEFAULT_PRIMARY = '#b3261e';
 /** Colores por defecto de versiones anteriores: si nunca se cambiaron, se adopta la identidad nueva. */
-const LEGACY_PRIMARY = ['#4f46e5'];
-const LEGACY_SECONDARY = ['#0ea5e9'];
+const LEGACY_PRIMARY = ['#4f46e5', '#0e6b67'];
+const LEGACY_SECONDARY = ['#0ea5e9', '#22282b'];
 
 export const defaultMenu = (): MenuItemSetting[] => MODULES.map((m) => ({ key: m.key, label: m.label, visible: true }));
 
@@ -62,7 +62,7 @@ export function defaultSettings(): Settings {
     subtitle: 'Control de inventario',
     logo: { kind: 'default' },
     primaryColor: DEFAULT_PRIMARY,
-    secondaryColor: '#22282b',
+    secondaryColor: '#3a2315',
     theme: 'system',
     menu: defaultMenu(),
     criticalRatio: 0.5,

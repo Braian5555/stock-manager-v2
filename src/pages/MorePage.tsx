@@ -35,29 +35,26 @@ export function MorePage() {
       )}
 
       {assistant && (
-        <nav className="card list more-section" aria-label="Asistente IA">
-          <Link to="/asistente" className="list-item more-row">
-            <span className="stat-icon" aria-hidden><Sparkles size={19} /></span>
-            <span className="grow">
-              <span className="list-title">Asistente IA</span>
-              <span className="list-sub" style={{ display: 'block' }}>Preguntá o pedí cosas de la app</span>
-            </span>
-            <ChevronRight size={18} className="muted" aria-hidden />
-          </Link>
-        </nav>
+        <Link to="/asistente" className="more-ai">
+          <span className="more-ai-icon" aria-hidden><Sparkles size={24} /></span>
+          <span className="grow">
+            <span className="more-ai-title">Asistente IA</span>
+            <span className="more-ai-sub">Preguntale o pedile cosas a la app</span>
+          </span>
+          <ChevronRight size={20} aria-hidden />
+        </Link>
       )}
 
       {groups.map((g) => (
         <section key={g.title} className="more-section" aria-label={g.title}>
           <h2 className="more-section-title">{g.title}</h2>
-          <nav className="card list">
+          <nav className="more-tiles" aria-label={g.title}>
             {g.keys.map((k) => {
               const Icon = MODULE_ICON[k];
               return (
-                <Link key={k} to={MODULE_PATH[k]} className="list-item more-row">
-                  <span className="stat-icon" aria-hidden><Icon size={19} /></span>
-                  <span className="grow list-title">{navLabel(settings, k)}</span>
-                  <ChevronRight size={18} className="muted" aria-hidden />
+                <Link key={k} to={MODULE_PATH[k]} className="more-tile">
+                  <Icon size={24} aria-hidden />
+                  <span>{navLabel(settings, k)}</span>
                 </Link>
               );
             })}

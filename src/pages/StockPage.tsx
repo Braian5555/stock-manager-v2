@@ -63,9 +63,10 @@ export function StockPage() {
 
   // Alertas: cuántos hay en cada estado (de todo el stock activo, sin filtros) y cuántos no avisan por no tener mínimo.
   const alerts = useMemo(() => {
-    const a = { sin_stock: 0, reponer: 0, noMin: 0 };
+    const a = { sin_stock: 0, reponer: 0, noMin: 0, negativo: 0 };
     for (const p of products) {
       if (!p.active) continue;
+      if (p.stock < 0) a.negativo++;
       const st = statusOf(p, settings);
       if (st === 'sin_stock') a.sin_stock++;
       else if (st === 'bajo' || st === 'critico') a.reponer++;
@@ -83,7 +84,7 @@ export function StockPage() {
         (!f.familia || p.categoryId === f.familia) &&
         (!f.ubicacion || p.locationId === f.ubicacion) &&
         (!f.proveedor || p.supplierId === f.proveedor || p.alternativeSupplierIds.includes(f.proveedor)) &&
-        (!f.estado || (f.estado === 'reponer' ? s !== 'normal' : f.estado === 'bajo' ? s === 'bajo' || s === 'critico' : s === f.estado)),
+        (!f.estado || (f.estado === 'negativo' ? p.stock < 0 : f.estado === 'reponer' ? s !== 'normal' : f.estado === 'bajo' ? s === 'bajo' || s === 'critico' : s === f.estado)),
       );
     const by = (a: string, b: string) => normalize(a).localeCompare(normalize(b), 'es');
     list.sort((a, b) =>
@@ -124,21 +125,22 @@ export function StockPage() {
           {f.familia && <button type="button" className="filter-chip" onClick={() => setF('familia', '')} aria-label={`Quitar filtro familia ${lk.category(f.familia)}`}>Familia: <b>{lk.category(f.familia) || '—'}</b> <X size={14} aria-hidden /></button>}
           {f.ubicacion && <button type="button" className="filter-chip" onClick={() => setF('ubicacion', '')} aria-label={`Quitar filtro ubicación ${lk.location(f.ubicacion)}`}>Ubicación: <b>{lk.location(f.ubicacion) || '—'}</b> <X size={14} aria-hidden /></button>}
           {f.proveedor && <button type="button" className="filter-chip" onClick={() => setF('proveedor', '')} aria-label={`Quitar filtro proveedor ${lk.supplier(f.proveedor)}`}>Proveedor: <b>{lk.supplier(f.proveedor) || '—'}</b> <X size={14} aria-hidden /></button>}
-          {f.estado && <button type="button" className="filter-chip" onClick={() => setF('estado', '')} aria-label="Quitar filtro estado">Estado: <b>{f.estado === 'reponer' ? 'Para reponer (bajo, crítico y sin stock)' : f.estado === 'bajo' ? 'Bajo y crítico' : STATUS_LABEL[f.estado as StockStatus]}</b> <X size={14} aria-hidden /></button>}
+          {f.estado && <button type="button" className="filter-chip" onClick={() => setF('estado', '')} aria-label="Quitar filtro estado">Estado: <b>{f.estado === 'negativo' ? 'En negativo' : f.estado === 'reponer' ? 'Para reponer (bajo, crítico y sin stock)' : f.estado === 'bajo' ? 'Bajo y crítico' : STATUS_LABEL[f.estado as StockStatus]}</b> <X size={14} aria-hidden /></button>}
         </div>
       )}
-      {(alerts.sin_stock > 0 || alerts.reponer > 0) && (
-        <div className="alert-chips" role="group" aria-label="Alertas de stock">
-          {alerts.reponer > 0 && (
-            <button type="button" className={`alert-chip low ${f.estado === 'bajo' ? 'on' : ''}`} aria-pressed={f.estado === 'bajo'} onClick={() => setF('estado', f.estado === 'bajo' ? '' : 'bajo')}>
-              <b className="num">{alerts.reponer}</b> para reponer
+      {/* Recuadros de alerta: tocá uno para ver sólo esos (y otra vez para quitar el filtro). */}
+      {products.length > 0 && (
+        <div className="stock-tiles" role="group" aria-label="Alertas de stock">
+          {([
+            ['negativo', alerts.negativo, 'en negativo', 'is-neg'],
+            ['bajo', alerts.reponer, 'para reponer', ''],
+            ['sin_stock', alerts.sin_stock, 'sin stock', ''],
+          ] as const).map(([key, n, label, cls]) => (
+            <button key={key} type="button" className={`stock-tile ${n > 0 ? cls : ''} ${f.estado === key ? 'on' : ''}`} aria-pressed={f.estado === key}
+              onClick={() => setF('estado', f.estado === key ? '' : key)}>
+              <b className="num">{fmtNumber(n)}</b> {label}
             </button>
-          )}
-          {alerts.sin_stock > 0 && (
-            <button type="button" className={`alert-chip out ${f.estado === 'sin_stock' ? 'on' : ''}`} aria-pressed={f.estado === 'sin_stock'} onClick={() => setF('estado', f.estado === 'sin_stock' ? '' : 'sin_stock')}>
-              <b className="num">{alerts.sin_stock}</b> sin stock
-            </button>
-          )}
+          ))}
         </div>
       )}
       {alerts.noMin > 0 && can('catalog.manage') && (
@@ -165,6 +167,7 @@ export function StockPage() {
         </Select>
         <Select aria-label="Filtrar por estado" value={f.estado} onChange={(e) => setF('estado', e.target.value)}>
           <option value="">Todos los estados</option>
+          <option value="negativo">En negativo</option>
           {(['normal', 'bajo', 'critico', 'sin_stock'] as StockStatus[]).map((s) => <option key={s} value={s}>{s === 'bajo' ? 'Bajo y crítico' : STATUS_LABEL[s]}</option>)}
         </Select>
         <Select aria-label="Ordenar" value={sort} onChange={(e) => setSort(e.target.value as SortKey)}>
@@ -190,21 +193,22 @@ export function StockPage() {
             const pct = p.maxStock > 0 ? Math.min(100, (Math.max(0, p.stock) / p.maxStock) * 100) : undefined;
             const ext = p.externalSystems?.maxirest ? extStock.get(p.externalSystems.maxirest.id) : undefined;
             return (
-              <article key={p.id} className={`card pcard s-${s}`} aria-label={p.name}>
-                <div className="row between" style={{ alignItems: 'flex-start' }}>
+              <article key={p.id} className={`card pcard s-${s}${p.stock < 0 ? ' is-neg' : ''}`} aria-label={p.name}>
+                <div className="pcard-top">
+                  <span className="pcard-dot" aria-hidden />
                   <div className="grow">
                     <h3 className="truncate">{p.name}</h3>
-                    {p.sku && <div className="small muted">{p.sku}</div>}
+                    <div className="pcard-meta">
+                      {p.categoryId && <span className="row" style={{ gap: 4 }}><Tags size={13} aria-hidden />{lk.category(p.categoryId)}</span>}
+                      {p.locationId && <span className="row" style={{ gap: 4 }}><MapPin size={13} aria-hidden />{lk.location(p.locationId)}</span>}
+                      {p.supplierId && <span className="row" style={{ gap: 4 }}><Truck size={13} aria-hidden />{lk.supplier(p.supplierId)}</span>}
+                      {p.sku && <span>{p.sku}</span>}
+                    </div>
                   </div>
-                  <StatusBadge status={s} />
+                  <div className="pcard-qty"><strong>{fmtNumber(p.stock)}</strong><span>{unit}</span></div>
                 </div>
-                <div className="pcard-meta">
-                  {p.categoryId && <span className="row" style={{ gap: 4 }}><Tags size={13} aria-hidden />{lk.category(p.categoryId)}</span>}
-                  {p.locationId && <span className="row" style={{ gap: 4 }}><MapPin size={13} aria-hidden />{lk.location(p.locationId)}</span>}
-                  {p.supplierId && <span className="row" style={{ gap: 4 }}><Truck size={13} aria-hidden />{lk.supplier(p.supplierId)}</span>}
-                </div>
-                <div className="row between">
-                  <div className="pcard-qty"><strong>{fmtNumber(p.stock)}</strong><span className="muted">{unit}</span></div>
+                <div className="row between pcard-status">
+                  {p.stock < 0 ? <span className="badge badge-sin_stock"><span className="dot" aria-hidden />En negativo</span> : <StatusBadge status={s} />}
                   <div className="small muted num">mín {fmtNumber(p.minStock)} · máx {fmtNumber(p.maxStock)}</div>
                 </div>
                 {pct !== undefined && <div className="bar" aria-hidden><i style={{ width: `${pct}%` }} /></div>}

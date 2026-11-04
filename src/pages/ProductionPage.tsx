@@ -11,7 +11,7 @@ import { EmptyState, PageHeader, Segmented } from '../components/ui';
 import { RecipeModal } from '../components/RecipeModal';
 import { PlanView, SummaryView } from '../components/bakery/BakeryViews';
 import { NewProductModal } from '../components/bakery/NewProductModal';
-import { lineFamilyIds, type ProductionLine } from '../services/bakeryService';
+import { lineFamilyIds, planOf, type ProductionLine } from '../services/bakeryService';
 import { menuLabel, updateSettings } from '../services/settingsService';
 import { useSettings } from '../store/settings';
 import { useSession } from '../store/session';
@@ -100,6 +100,18 @@ export function ProductionPage({ line = 'production' }: { line?: ProductionLine 
     () => history.filter((m) => m.createdAt >= since && activeIds.has(m.productId)).sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
     [history, since, activeIds],
   );
+  // Cuánto se anotó hoy de cada producto (sin lo deshecho) y cómo va el plan del día.
+  const madeToday = useMemo(() => {
+    const n = new Map<string, number>();
+    for (const m of today) if (!undoneKeys.has(`undo:${m.id}`)) n.set(m.productId, (n.get(m.productId) ?? 0) + m.delta);
+    return n;
+  }, [today, undoneKeys]);
+  const dayPlan = useMemo(() => {
+    const planned = made.filter((p) => planOf(p, todayYmd) > 0);
+    const done = planned.filter((p) => (madeToday.get(p.id) ?? 0) >= planOf(p, todayYmd)).length;
+    return { planned: planned.length, done, anotados: madeToday.size };
+  }, [made, madeToday, todayYmd]);
+
   // "Lo de siempre": lo que más se produjo (sin contar lo deshecho).
   const frequent = useMemo(() => {
     const n = new Map<string, number>();
@@ -174,6 +186,8 @@ export function ProductionPage({ line = 'production' }: { line?: ProductionLine 
         <SummaryView products={made} lk={lk} movements={lineMoves} />
       ) : (<>
 
+      <DayProgress planned={dayPlan.planned} done={dayPlan.done} anotados={dayPlan.anotados} />
+
       <label className="production-search">
         <Search size={20} aria-hidden />
         <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar qué hiciste" aria-label="Buscar producto" />
@@ -198,10 +212,7 @@ export function ProductionPage({ line = 'production' }: { line?: ProductionLine 
       ) : (
         <div className="production-grid" role="list" aria-label="Productos">
           {list.slice(0, 120).map((p) => (
-            <button key={p.id} type="button" role="listitem" className="production-tile" onClick={() => open(p)}>
-              <span className="production-tile-name">{p.name}</span>
-              <span className="production-tile-unit">{unitOf(p)}</span>
-            </button>
+            <ProductionTile key={p.id} name={p.name} unit={unitOf(p)} made={madeToday.get(p.id) ?? 0} plan={planOf(p, todayYmd)} onClick={() => open(p)} />
           ))}
         </div>
       )}
@@ -368,5 +379,45 @@ function FamiliesModal({ open, onClose, current, line }: { open: boolean; onClos
         </div>
       </div>
     </Modal>
+  );
+}
+
+/** Cómo va el día: anillo con lo terminado del plan (o cuántos productos se anotaron, si no hay plan). */
+function DayProgress({ planned, done, anotados }: { planned: number; done: number; anotados: number }) {
+  const r = 25;
+  const c = 2 * Math.PI * r;
+  const frac = planned ? done / planned : anotados ? 1 : 0;
+  const label = planned ? `${done} de ${planned} del plan` : anotados ? `${anotados} ${anotados === 1 ? 'producto anotado' : 'productos anotados'} hoy` : 'Todavía no se anotó nada hoy';
+  return (
+    <div className="card production-day">
+      <svg width="62" height="62" viewBox="0 0 62 62" role="img" aria-label={planned ? `${done} de ${planned} del plan terminados` : label}>
+        <circle cx="31" cy="31" r={r} fill="none" stroke="var(--surface-3)" strokeWidth="8" />
+        {frac > 0 && <circle cx="31" cy="31" r={r} fill="none" stroke="var(--primary)" strokeWidth="8" strokeLinecap="round" strokeDasharray={`${c * frac} ${c}`} transform="rotate(-90 31 31)" />}
+      </svg>
+      <div className="grow">
+        <div className="production-day-title">{label}</div>
+        <div className="small muted">Tocá un producto para anotar lo que salió del horno</div>
+      </div>
+    </div>
+  );
+}
+
+/** Botón grande de cada producto: lo anotado hoy, el plan y una barra; verde con tilde cuando se cumplió. */
+function ProductionTile({ name, unit, made, plan, onClick }: { name: string; unit: string; made: number; plan: number; onClick: () => void }) {
+  const done = plan > 0 && made >= plan;
+  const pct = plan > 0 ? Math.min(100, (made / plan) * 100) : made > 0 ? 100 : 0;
+  return (
+    <button type="button" role="listitem" className={`production-tile${done ? ' is-done' : ''}`} onClick={onClick}>
+      <span className="production-tile-head">
+        <span className="production-tile-name">{name}</span>
+        <span className="production-tile-icon" aria-hidden>{done ? <Check size={15} strokeWidth={3} /> : <Plus size={15} strokeWidth={2.8} />}</span>
+      </span>
+      <span className="production-tile-foot">
+        <span className="production-tile-unit">
+          {plan > 0 ? <><b className="num">{fmtNumber(made)}</b> de {fmtNumber(plan)} {unit}</> : made > 0 ? <><b className="num">{fmtNumber(made)}</b> {unit} hoy</> : unit}
+        </span>
+        {(plan > 0 || made > 0) && <span className="production-tile-bar" aria-hidden><i style={{ width: `${pct}%` }} /></span>}
+      </span>
+    </button>
   );
 }

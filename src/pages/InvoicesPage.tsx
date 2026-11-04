@@ -11,7 +11,7 @@ import { EmptyState, Input, PageHeader, SearchInput, Select } from '../component
 import { InvoiceEditor } from '../components/invoices/InvoiceEditor';
 import { InvoiceViewer } from '../components/invoices/InvoiceViewer';
 import { InvoiceList } from '../components/invoices/InvoiceList';
-import { fmtMoney, matches } from '../utils/format';
+import { fmtMoney, fmtNumber, localYmd, matches } from '../utils/format';
 import { useCloud } from '../cloud/cloudService';
 import { dismissRecoverable, recoverableInvoices, recoverInvoices } from '../services/recoverService';
 import { useFeedback } from '../store/feedback';
@@ -56,6 +56,11 @@ export function InvoicesPage() {
     [invoices, supplierId, month, pay, q, lk, stockPending],
   );
   const sum = list.reduce((s, i) => s + (i.total ?? 0), 0);
+  const pendingCount = useMemo(() => invoices.filter((i) => !i.stockAppliedAt && !i.stockElsewhere).length, [invoices]);
+  const weekCount = useMemo(() => {
+    const from = localYmd(new Date(Date.now() - 6 * 86_400_000));
+    return invoices.filter((i) => i.date >= from).length;
+  }, [invoices]);
   const filtered = !!(q || supplierId || month || pay || stockPending);
   const toPay = list.filter((i) => i.payment && !i.payment.paid).reduce((s, i) => s + (i.total ?? 0), 0);
 
@@ -63,12 +68,26 @@ export function InvoicesPage() {
     <>
       <PageHeader
         title={menuLabel(settings, 'invoices')}
-        subtitle="Fotos de las facturas de proveedores. Se guardan en la nube y se pueden descargar."
-        actions={<>
-          {aiOn && <button type="button" className="btn btn-primary" onClick={() => openNew(true)}><Sparkles size={18} aria-hidden /> Leer factura con IA</button>}
-          <button type="button" className={`btn ${aiOn ? '' : 'btn-primary'}`} onClick={() => openNew(false)}><Camera size={18} aria-hidden /> Nueva factura</button>
-        </>}
+        subtitle="Fotos de las facturas de proveedores, guardadas en la nube"
       />
+      <div className="inv-start">
+        <button type="button" className="inv-photo" onClick={() => openNew(aiOn)}>
+          <span className="inv-photo-icon" aria-hidden>{aiOn ? <Sparkles size={26} /> : <Camera size={26} />}</span>
+          <span className="inv-photo-text">
+            <span className="inv-photo-title">{aiOn ? 'Leer factura con IA' : 'Nueva factura'}</span>
+            <span className="inv-photo-sub">{aiOn ? 'Sacás la foto y la IA carga los productos y precios' : 'Sacale una foto a la factura del proveedor'}</span>
+          </span>
+        </button>
+        {aiOn && <button type="button" className="btn inv-plain" onClick={() => openNew(false)}><Camera size={18} aria-hidden /> Nueva factura</button>}
+      </div>
+      {invoices.length > 0 && (
+        <div className="stock-tiles inv-tiles" role="group" aria-label="Resumen de facturas">
+          <button type="button" className={`stock-tile ${pendingCount > 0 ? 'is-neg' : ''} ${stockPending ? 'on' : ''}`} aria-pressed={stockPending} onClick={() => setStockPending((v) => !v)}>
+            <b className="num">{fmtNumber(pendingCount)}</b> sin cargar al stock
+          </button>
+          <div className="stock-tile is-info"><b className="num">{fmtNumber(weekCount)}</b> en los últimos 7 días</div>
+        </div>
+      )}
       {cloud.phase !== 'linked' && cloud.phase !== 'loading' && (
         <div className="alert alert-warn" role="note">
           <span><b>Este dispositivo no está conectado a la nube del negocio.</b> Las facturas que cargues acá no las van a ver los demás. <Link to="/nube">Conectalo en Cuenta y nube</Link>.</span>
@@ -101,7 +120,6 @@ export function InvoicesPage() {
           <option value="pagadas">Pagadas</option>
           <option value="sindatos">Sin datos de pago</option>
         </Select>
-        <label className="check small" style={{ alignSelf: 'center' }}><input type="checkbox" checked={stockPending} onChange={(e) => setStockPending(e.target.checked)} /> Sin cargar al stock</label>
       </div>
       {list.length > 0 && (
         <p className="small muted" style={{ margin: '0 0 8px' }}>

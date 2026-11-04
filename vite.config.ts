@@ -38,8 +38,8 @@ export default defineConfig({
         scope: BASE,
         display: 'standalone',
         orientation: 'any',
-        background_color: '#f2f1ee',
-        theme_color: '#22282b',
+        background_color: '#e4cfab',
+        theme_color: '#3a2315',
         categories: ['business', 'productivity'],
         icons: [
           { src: 'icons/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },

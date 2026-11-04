@@ -34,7 +34,7 @@ const IntegrationsPage = lazyPage(() => import('./IntegrationsPage'), 'Integrati
 const ExportPage = lazyPage(() => import('./ExportPage'), 'ExportPage');
 
 const EMOJIS = ['📦', '🏪', '🍽️', '🍔', '🍕', '☕', '🍺', '🥩', '🥬', '🐟', '🧊', '🧴', '🛒', '🏨', '🏭', '🔧'];
-const COLORS = ['#0e6b67', '#145a7a', '#2e7d57', '#56682c', '#9a610a', '#b84e27', '#9c3346', '#5a4a8a', '#22282b', '#4f46e5'];
+const COLORS = ['#b3261e', '#3d6b35', '#1f4e79', '#8a5a00', '#a3461f', '#7a2e4f', '#3a2315', '#145a7a', '#5a4a8a', '#4b5e2a'];
 
 interface Section {
   key: string;
