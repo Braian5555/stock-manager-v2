@@ -20,6 +20,7 @@ import {
   query, setDoc, updateDoc, where, writeBatch, type Firestore,
 } from 'firebase/firestore';
 import { SYNC_TABLES, type SyncTableName } from '../database/db';
+import type { AccessEntry } from '../models';
 import { effectiveAuthDomain, sameOriginAuth, type FirebaseWebConfig } from './config';
 import type { CloudBackend, CloudImage, CloudUser, RemoteChange, RemoteDoc, WatchInfo, Workspace } from './types';
 import { nowIso, uuid } from '../utils/id';
@@ -258,6 +259,17 @@ export class FirebaseBackend implements CloudBackend {
 
   async deleteImage(wsId: string, id: string) {
     await deleteDoc(this.img(wsId, id));
+  }
+
+  async putAccess(wsId: string, e: AccessEntry) {
+    const { pushed: _pushed, ...rest } = e;
+    void _pushed;
+    await setDoc(doc(this.fs, 'workspaces', wsId, 'accessLog', e.id), rest);
+  }
+
+  async listAccess(wsId: string, sinceIso: string): Promise<AccessEntry[]> {
+    const snap = await getDocs(query(collection(this.fs, 'workspaces', wsId, 'accessLog'), where('at', '>=', sinceIso)));
+    return snap.docs.map((d) => ({ ...(d.data() as AccessEntry), id: d.id }));
   }
 
   async callFunction<T>(name: string, data: unknown): Promise<T> {

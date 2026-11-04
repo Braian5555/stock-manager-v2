@@ -1,3 +1,4 @@
+import type { AccessEntry } from '../models';
 /**
  * Backend de nube EN MEMORIA, sólo para pruebas automáticas (provider "fake").
  * Simula Firebase: usuarios, espacios, colecciones y escuchas en tiempo real.
@@ -188,6 +189,16 @@ export class FakeBackend implements CloudBackend {
   }
   async deleteImage(wsId: string, id: string) {
     this.store.coll(`${wsId}/invoiceImages`).delete(id);
+  }
+  async putAccess(wsId: string, e: AccessEntry) {
+    if (!this.store.online) throw new Error('Sin conexión');
+    const { pushed: _pushed, ...rest } = e;
+    void _pushed;
+    this.store.coll(`${wsId}/accessLog`).set(e.id, structuredClone(rest) as unknown as RemoteDoc);
+  }
+  async listAccess(wsId: string, sinceIso: string) {
+    if (!this.store.online) throw new Error('Sin conexión');
+    return [...this.store.coll(`${wsId}/accessLog`).values()].map((d) => structuredClone(d) as unknown as AccessEntry).filter((e) => e.at >= sinceIso);
   }
   async callFunction<T>(name: string, data: unknown): Promise<T> {
     const handler = this.store.functions?.[name];

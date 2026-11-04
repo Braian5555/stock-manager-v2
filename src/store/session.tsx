@@ -19,7 +19,8 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { CLOUD_LINK_KEY, db } from '../database/db';
 import type { AppUser, Permission } from '../models';
 import { effectivePermissions, randomPin, saveUser, setCurrentActor, verifyPin } from '../services/userService';
-import { signOutCloud, useCloud, type CloudState } from '../cloud/cloudService';
+import { signOutCloud, uploadPendingAccess, useCloud, type CloudState } from '../cloud/cloudService';
+import { recordAccess } from '../services/accessService';
 import { useSettings } from './settings';
 
 const SESSION_KEY = 'session';
@@ -165,11 +166,31 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     if (cloudMode && status === 'unlocked' && userId) void db.meta.put({ key: SESSION_KEY, value: { userId, lastActive: Date.now() } satisfies StoredSession });
   }, [cloudMode, status, userId]);
 
+  // Registro de ingresos: "entró" si venía de la pantalla de ingreso; "abrió la app" si ya tenía la sesión abierta.
+  // (Entre la pantalla de ingreso y la app puede haber un "cargando": por eso se recuerda si pasó por el ingreso.)
+  const prevStatus = useRef<SessionStatus>('loading');
+  const cameFromLogin = useRef(false);
+  useEffect(() => {
+    const prev = prevStatus.current;
+    prevStatus.current = status;
+    if (status !== 'unlocked' && status !== 'loading') cameFromLogin.current = true;
+    if (status !== 'unlocked' || !user || prev === 'unlocked') return;
+    const kind = cameFromLogin.current ? 'ingreso' : 'apertura';
+    cameFromLogin.current = false;
+    void recordAccess(user, kind).catch((e: unknown) => console.warn('No se pudo anotar el ingreso', e));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status, userId]);
+
   const lock = useCallback(async () => {
+    if (user) {
+      await recordAccess(user, 'salida').catch(() => null);
+      // Que la salida llegue a la nube antes de cerrar la cuenta (sin trabar si no hay conexión).
+      if (cloudMode) await Promise.race([uploadPendingAccess(), new Promise((r) => setTimeout(r, 2500))]);
+    }
     await db.meta.delete(SESSION_KEY);
     // Con la nube, "salir" es cerrar la sesión de la cuenta (los datos quedan en el dispositivo).
     if (cloudMode) await signOutCloud();
-  }, [cloudMode]);
+  }, [cloudMode, user]);
 
   // Inactividad: se registra la última interacción y se guarda cada tanto.
   useEffect(() => {

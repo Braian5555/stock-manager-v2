@@ -241,3 +241,19 @@ test('accesibilidad: letra más grande y más contraste en este dispositivo; Con
     await expect(nav.getByRole('link', { name: 'Facturas' })).toBeVisible();
   }
 });
+
+test('registro de ingresos: quién entró, cuándo y desde qué dispositivo', async ({ page }) => {
+  await loadDemo(page);
+  // Salir y volver a entrar con el PIN.
+  await go(page, '/mas');
+  await page.getByRole('button', { name: /Bloquear \/ cambiar usuario|Cerrar sesión/ }).first().click();
+  const { login, ADMIN } = await import('./helpers');
+  await login(page, ADMIN.name, ADMIN.pin);
+  await go(page, '/configuracion/ingresos');
+  await expect(page.getByRole('heading', { level: 1, name: 'Registro de ingresos' })).toBeVisible();
+  const today = page.getByRole('region', { name: 'Hoy' });
+  await expect(today.getByText('Entró').first()).toBeVisible();
+  await expect(today.getByText('Salió').first()).toBeVisible();
+  await expect(today).toContainText(ADMIN.name);
+  await expect(page.getByRole('region', { name: 'Última vez de cada persona' })).toContainText(ADMIN.name);
+});

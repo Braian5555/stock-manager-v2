@@ -1,3 +1,4 @@
+import type { AccessEntry } from '../models';
 /**
  * Contrato del backend de nube. La implementación real es Firebase (Google);
  * existe una implementación en memoria para pruebas automáticas.
@@ -79,6 +80,11 @@ export interface CloudBackend {
   /** null si no existe. Lanza error si no hay conexión y no está en la copia local. */
   getImage(wsId: string, id: string): Promise<CloudImage | null>;
   deleteImage(wsId: string, id: string): Promise<void>;
+
+  /** Registro de ingresos: también va aparte de la sincronización general. */
+  putAccess(wsId: string, entry: AccessEntry): Promise<void>;
+  /** Los ingresos desde una fecha (ISO), de todos los dispositivos. */
+  listAccess(wsId: string, sinceIso: string): Promise<AccessEntry[]>;
 
   /** Llama a una función de la nube (p. ej. leer una factura con IA). */
   callFunction<T>(name: string, data: unknown): Promise<T>;

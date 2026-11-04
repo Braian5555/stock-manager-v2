@@ -1,7 +1,9 @@
+import { AccessLogSection } from '../components/AccessLogSection';
 import { lazyPage } from '../utils/lazyPage';
 import {
   ArrowDown, ArrowLeft, ArrowUp, Boxes, Building2, ChevronRight, Cloud, Copy, Download, Eye, EyeOff, ImageUp, LayoutGrid, Package, Palette, Plug,
   RefreshCw, RotateCcw, ShieldCheck, Smartphone, Sparkles, Stethoscope, Type, UserCog, type LucideIcon,
+  LogIn,
 } from 'lucide-react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Suspense, useEffect, useRef, useState, type ReactNode } from 'react';
@@ -61,6 +63,7 @@ const SECTIONS: Section[] = [
   { key: 'stock', group: 'inventario', title: 'Stock', description: 'Alertas y stock crítico; familias, unidades y ubicaciones.', icon: Boxes, render: () => <StockSection /> },
   { key: 'productos', group: 'inventario', title: 'Productos', description: 'Productos e importación desde Excel.', icon: Package, render: () => <ProductsSection /> },
   { key: 'usuarios', group: 'personas', title: 'Usuarios y permisos', description: 'Usuarios, roles, permisos, PIN y bloqueo automático.', icon: UserCog, render: () => <UsersPage /> },
+  { key: 'ingresos', group: 'personas', title: 'Registro de ingresos', description: 'Quién entró a la app, cuándo y desde qué dispositivo.', icon: LogIn, render: () => <AccessLogSection /> },
   { key: 'nube', group: 'personas', title: 'Cuenta y nube', description: 'Sesión, espacios de trabajo, miembros, invitaciones y sincronización.', icon: Cloud, render: () => <CloudPage /> },
   { key: 'integraciones', group: 'sistema', title: 'Integraciones', description: 'Maxirest, Excel Bridge, gateway, cola y estado de conexión.', icon: Plug, render: () => <IntegrationsPage /> },
   { key: 'ia', group: 'sistema', title: 'IA (facturas y asistente)', description: 'Servidor de la IA (Gemini): leer facturas con fotos y el Asistente.', icon: Sparkles, render: () => <AIReaderSection /> },

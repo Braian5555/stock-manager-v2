@@ -448,3 +448,24 @@ export interface Transfer extends BaseEntity {
   maxirestAt?: ISODate;
   maxirestBy?: Actor;
 }
+
+// ───────────────────────── Registro de ingresos ─────────────────────────
+
+export type AccessKind = 'ingreso' | 'apertura' | 'salida';
+
+/** Una vez que alguien entró (o abrió, o cerró) la app en un dispositivo. */
+export interface AccessEntry {
+  id: string;
+  /** Cuándo (ISO). */
+  at: ISODate;
+  kind: AccessKind;
+  userId: string;
+  userName: string;
+  email?: string;
+  /** Descripción legible del dispositivo, p. ej. "Android · Chrome · app instalada". */
+  device: string;
+  /** Identificador del dispositivo (al azar, guardado en el navegador). */
+  deviceId: string;
+  /** Sólo local: 1 cuando ya se subió a la nube. */
+  pushed?: 0 | 1;
+}

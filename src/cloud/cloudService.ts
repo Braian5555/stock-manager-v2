@@ -1,3 +1,4 @@
+import type { AccessEntry } from '../models';
 /**
  * Servicio de nube: inicio de sesión (email y contraseña, o Google), espacios de trabajo compartidos,
  * invitaciones y sincronización. Si no hay configuración, la app sigue 100% local.
@@ -166,6 +167,7 @@ async function startEngine(wsId: string, opts: { pushAll?: boolean } = {}) {
   set({ phase: 'linked' });
   await engine.start(opts);
   void uploadPendingImages();
+  void uploadPendingAccess();
 }
 
 // ───────────── Fotos de facturas ─────────────
@@ -225,7 +227,37 @@ export async function deleteCloudImages(ids: string[]): Promise<void> {
   await Promise.all(ids.map((id) => c.backend.deleteImage(c.wsId, id).catch(() => undefined)));
 }
 
-if (typeof window !== 'undefined') window.addEventListener('online', () => void uploadPendingImages());
+// ───────────── Registro de ingresos ─────────────
+
+let uploadingAccess = false;
+/** Sube los ingresos que quedaron guardados en este dispositivo (sin conexión o sin nube). */
+export async function uploadPendingAccess(): Promise<void> {
+  const c = activeWs();
+  if (!c || uploadingAccess) return;
+  uploadingAccess = true;
+  try {
+    for (const e of await db.accessLog.where('pushed').equals(0).toArray()) {
+      try {
+        await c.backend.putAccess(c.wsId, e);
+        await db.accessLog.update(e.id, { pushed: 1 });
+      } catch {
+        // Sin conexión, o la nube todavía no tiene las reglas nuevas: queda guardado acá y se reintenta.
+        break;
+      }
+    }
+  } finally {
+    uploadingAccess = false;
+  }
+}
+
+/** Ingresos de todos los dispositivos desde una fecha. null si no hay nube vinculada. */
+export async function fetchAccessLog(sinceIso: string): Promise<AccessEntry[] | null> {
+  const c = activeWs();
+  if (!c) return null;
+  return c.backend.listAccess(c.wsId, sinceIso);
+}
+
+if (typeof window !== 'undefined') window.addEventListener('online', () => { void uploadPendingImages(); void uploadPendingAccess(); });
 
 function stopEngine() {
   engine?.stop();

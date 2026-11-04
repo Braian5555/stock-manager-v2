@@ -1450,3 +1450,12 @@ a.hm-row:hover { background: var(--surface-2); }
   .inv-plain { align-self: center; }
   .inv-tiles { grid-template-columns: repeat(2, minmax(0, 220px)); }
 }
+
+/* ───────────────────────── Registro de ingresos ───────────────────────── */
+.access-tools { gap: 10px; margin-bottom: 12px; }
+.access-people, .access-day { margin-bottom: 12px; }
+.access-when { display: flex; flex-direction: column; align-items: flex-end; flex: none; line-height: 1.2; }
+.access-when b { font-size: 0.86rem; }
+.access-when span { font-size: 0.8rem; color: var(--text-3); }
+.access-row { gap: 10px; }
+.access-time { flex: none; width: 3.2em; font-family: var(--font-display); font-weight: 700; font-size: 1.05rem; }

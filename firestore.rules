@@ -92,6 +92,16 @@ service cloud.firestore {
         // Usuarios con PIN y configuración: sólo dueño o administradores del espacio.
         allow write: if isManager(wsId) && table in ['settings', 'users'];
       }
+
+      // Registro de ingresos: cada miembro anota los suyos; sólo el dueño y los administradores lo leen.
+      // No se modifica ni se borra (reintentar la misma entrada, sin cambios, está permitido).
+      match /accessLog/{entryId} {
+        allow create: if isMember(wsId)
+          && request.resource.data.keys().hasAll(['at', 'kind', 'userId', 'deviceId'])
+          && request.resource.data.kind in ['ingreso', 'apertura', 'salida'];
+        allow update: if isMember(wsId) && request.resource.data == resource.data;
+        allow read: if isManager(wsId);
+      }
     }
   }
 }
