@@ -74,9 +74,23 @@ export function useHomePanels() {
       .filter((m) => !m.idempotencyKey?.startsWith('undo:') && !recentUndone.has(m.id))
       .map((m) => ({ m, name: byId.get(m.productId)?.name ?? m.productName ?? '(producto eliminado)', unit: lk.unit(byId.get(m.productId)?.unitId) }));
 
+    // Producción de los últimos 7 días (para la tarjeta de la semana): cantidad anotada por día.
+    const usageUndone = new Set(usageMoves.filter((m) => m.idempotencyKey?.startsWith('undo:')).map((m) => m.idempotencyKey.slice(5)));
+    const weekDays = Array.from({ length: 7 }, (_, i) => ({ ymd: ymdAdd(today, i - 6), qty: 0, entries: 0 }));
+    const dayIndex = new Map(weekDays.map((w, i) => [w.ymd, i]));
+    for (const m of usageMoves) {
+      if (m.type !== 'produccion' || usageUndone.has(m.id) || m.idempotencyKey?.startsWith('undo:')) continue;
+      const i = dayIndex.get(localYmd(new Date(m.createdAt)));
+      if (i === undefined) continue;
+      weekDays[i].qty += m.delta;
+      weekDays[i].entries++;
+    }
+
     return {
       lk,
       today,
+      weekDays,
+      weekProduced: weekDays.reduce((s, w) => s + w.qty, 0),
       activeCount: active.length,
       bakery,
       planned: bakery.filter((b) => b.plan > 0).length,

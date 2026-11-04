@@ -12,19 +12,22 @@ test('inicio: encabezado con resumen, accesos, indicadores y el día del negocio
   await expect(page.getByText('Anotado: 5 kg de Harina 000')).toBeVisible();
   await go(page, '/');
 
-  // Encabezado: saludo con el nombre y resumen de hoy.
+  // Encabezado: iniciales y saludo con el nombre.
   await expect(page.getByRole('heading', { level: 1, name: /^(Buen día|Buenas tardes|Buenas noches), Admin$/ })).toBeVisible();
-  await expect(page.getByRole('list', { name: 'Resumen de hoy' })).toContainText('1 producto anotado en panadería');
+
+  // Bloques: producción de la semana (con lo de hoy), negativos, vitrina y reponer.
+  const week = page.getByRole('link', { name: /^Producción · últimos 7 días/ });
+  await expect(week).toContainText('Hoy 1 anotado');
+  await expect(week).toContainText('5');
+  await expect(page.getByRole('link', { name: /en negativo/ })).toContainText('Todo el stock en positivo');
+  await expect(page.getByRole('link', { name: /en vitrina$/ })).toBeVisible();
+  await expect(page.getByRole('link', { name: /para reponer$/ })).toBeVisible();
 
   // Accesos rápidos según permisos (administrador: todos).
   const actions = page.getByRole('navigation', { name: 'Acciones rápidas' });
   for (const a of ['Anotar producción', 'Vitrina', 'Foto de factura', 'Contar stock', 'Ver stock']) await expect(actions.getByRole('link', { name: new RegExp(`^${a}`) })).toBeVisible();
-  // Buscar: en el celular como acceso; en la computadora ya está en la barra de arriba.
-  if (isMobile) await expect(actions.getByRole('button', { name: /^Buscar producto/ })).toBeVisible();
-  else await expect(actions.getByRole('button', { name: /^Buscar producto/ })).toBeHidden();
 
   // Indicadores y secciones con los datos reales.
-  await expect(page.getByRole('link', { name: /^Panadería hoy/ })).toContainText('1');
   const bakery = page.getByRole('region', { name: 'Panadería de hoy' });
   await expect(bakery).toContainText('Harina 000');
   await expect(bakery).toContainText('Admin Prueba');
@@ -39,7 +42,7 @@ test('inicio: encabezado con resumen, accesos, indicadores y el día del negocio
 
   if (isMobile) {
     await expect(page.getByRole('button', { name: 'Bloquear / cambiar usuario' })).toBeVisible();
-    await actions.getByRole('button', { name: /^Buscar producto/ }).click();
+    await page.getByRole('button', { name: 'Buscar (Ctrl+K)' }).click();
     await expect(page.getByRole('dialog', { name: 'Buscar' })).toBeVisible();
     await page.keyboard.press('Escape');
     await actions.getByRole('link', { name: /^Contar stock/ }).click();

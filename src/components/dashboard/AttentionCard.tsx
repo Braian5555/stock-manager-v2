@@ -17,7 +17,13 @@ import { Modal } from '../ui/Modal';
  * Inicio → "Para resolver": negativos (con el porqué), facturas sin cargar al stock, conteos colgados
  * y el conteo semanal. Cada renglón lleva a resolverlo en un toque.
  */
-export function AttentionCard() {
+export function AttentionCard({ hideNegatives = false, negOpen: negOpenProp, onNegOpen }: {
+  /** El Inicio ya muestra los negativos en su propio recuadro: no repetir el renglón. */
+  hideNegatives?: boolean;
+  /** Abrir la lista de negativos desde afuera (el recuadro del Inicio). */
+  negOpen?: boolean;
+  onNegOpen?: (open: boolean) => void;
+} = {}) {
   const products = useProducts();
   const lk = useLookups();
   const { can } = useSession();
@@ -28,7 +34,9 @@ export function AttentionCard() {
   // Conteos del último mes alcanzan para saber qué familia se contó esta semana.
   const since = useMemo(() => new Date(Date.now() - 35 * 86_400_000).toISOString(), []);
   const countMoves = useLiveQuery(() => db.movements.where('createdAt').aboveOrEqual(since).filter((m) => m.origin === 'conteo').toArray(), [since]) ?? EMPTY;
-  const [negOpen, setNegOpen] = useState(false);
+  const [negOpenOwn, setNegOpenOwn] = useState(false);
+  const negOpen = negOpenProp ?? negOpenOwn;
+  const setNegOpen = onNegOpen ?? setNegOpenOwn;
   const [costOpen, setCostOpen] = useState(false);
   const seeCosts = can('catalog.manage') || can('invoices') || can('admin');
   const pricier = useMemo(() => (seeCosts ? recipesGettingPricier(products, invoices) : []), [products, invoices, seeCosts]);
@@ -45,7 +53,7 @@ export function AttentionCard() {
   // Conteo de la semana: de a 3 familias por vez (las que hace más que no se cuentan), para que sea corto.
   const weekly = due.slice(0, 3);
   const rows = [
-    negatives.length > 0 && (
+    negatives.length > 0 && !hideNegatives && (
       <li key="neg"><button type="button" className="hm-row" onClick={() => setNegOpen(true)}>
         <MinusCircle size={18} aria-hidden className="neg" />
         <div className="grow"><div className="hm-row-title">{negatives.length} {negatives.length === 1 ? 'producto en negativo' : 'productos en negativo'}</div><div className="hm-row-sub">Tocá para ver por qué quedaron así</div></div>
@@ -84,7 +92,11 @@ export function AttentionCard() {
       </button></li>
     ),
   ].filter(Boolean);
-  if (!rows.length) return null;
+  const negModal = (
+    <NegativesModal open={negOpen} products={negatives} onClose={() => setNegOpen(false)} canCount={can('count.do')}
+      onCount={(ids) => { setNegOpen(false); void countThese(ids, 'Conteo de negativos'); }} />
+  );
+  if (!rows.length) return negModal;
 
   return (
     <section className="hm-panel" aria-labelledby="home-resolver">
@@ -104,8 +116,7 @@ export function AttentionCard() {
           ))}
         </ul>
       </Modal>
-      <NegativesModal open={negOpen} products={negatives} onClose={() => setNegOpen(false)} canCount={can('count.do')}
-        onCount={(ids) => { setNegOpen(false); void countThese(ids, 'Conteo de negativos'); }} />
+      {negModal}
     </section>
   );
 }

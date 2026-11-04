@@ -210,7 +210,8 @@ test('inicio: "Para resolver" muestra negativos con el porqué y el conteo seman
   const card = page.getByRole('region', { name: 'Para resolver' });
   await expect(card).toBeVisible();
   await expect(card.getByText(/Conteo semanal:/)).toBeVisible();
-  const neg = card.getByRole('button', { name: /productos? en negativo/ });
+  // Los negativos están en su propio recuadro del Inicio (arriba de "Para resolver").
+  const neg = page.getByRole('button', { name: /en negativo/ });
   if (await neg.count()) {
     await neg.click();
     await expect(page.getByRole('dialog')).toContainText(/Contar estos/);
