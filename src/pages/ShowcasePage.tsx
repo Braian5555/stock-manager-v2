@@ -67,6 +67,13 @@ export function ShowcasePage() {
   const moves = useLiveQuery(() => db.movements.where('createdAt').aboveOrEqual(since).toArray(), [since]) ?? EMPTY;
 
   const famIds = useMemo(() => productionFamilyIds(settings, lk.categories), [settings, lk.categories]);
+  // A la cámara va lo que se elabora. No los insumos (harina, levadura… están en alguna receta y no tienen
+  // receta propia) ni lo que se compra hecho (entró por factura y nunca se produjo, p. ej. pan de hamburguesa).
+  const bought = useLiveQuery(async () => new Set((await db.movements.filter((m) => m.origin === 'factura').toArray()).map((m) => m.productId)), []);
+  const notForChamber = useMemo(() => {
+    const ingredients = new Set(products.flatMap((p) => p.recipe?.items.map((i) => i.productId) ?? []));
+    return new Set(products.filter((p) => !p.recipe?.items.length && (ingredients.has(p.id) || bought?.has(p.id))).map((p) => p.id));
+  }, [products, bought]);
   const unitOf = (p: Product) => lk.unit(p.unitId) || 'u';
 
   const items = useMemo(() => {
@@ -85,10 +92,10 @@ export function ShowcasePage() {
       }
     }
     return products
-      .filter((p) => p.active && (made.has(p.id) || (p.stock > 0 && (!famIds.size || (p.categoryId && famIds.has(p.categoryId))))))
+      .filter((p) => p.active && !notForChamber.has(p.id) && (made.has(p.id) || (p.stock > 0 && (!famIds.size || (p.categoryId && famIds.has(p.categoryId))))))
       .map<ShowcaseItem>((p) => ({ product: p, madeToday: round3(made.get(p.id) ?? 0), outToday: round3(out.get(p.id) ?? 0), last: last.get(p.id) }))
       .sort((a, b) => (b.last?.at ?? '').localeCompare(a.last?.at ?? '') || a.product.name.localeCompare(b.product.name, 'es'));
-  }, [moves, products, famIds]);
+  }, [moves, products, famIds, notForChamber]);
 
   const available = items.filter((i) => i.product.stock > 0);
   const soldOut = items.filter((i) => i.product.stock <= 0);

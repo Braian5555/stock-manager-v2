@@ -34,6 +34,8 @@ export function useHomePanels() {
   const weekFrom = ymdAdd(today, -6);
   const invoices = (useLiveQuery(() => db.invoices.where('date').aboveOrEqual(weekFrom).toArray(), [weekFrom]) ?? EMPTY) as Invoice[];
   const famIds = useMemo(() => productionFamilyIds(settings, lk.categories), [settings, lk.categories]);
+  // Lo comprado hecho (entró por factura): no va a la cámara de congelados.
+  const bought = useLiveQuery(async () => new Set((await db.movements.filter((m) => m.origin === 'factura').toArray()).map((m) => m.productId)), []);
 
   return useMemo(() => {
     const undone = new Set(moves.filter((m) => m.idempotencyKey?.startsWith('undo:')).map((m) => m.idempotencyKey.slice(5)));
@@ -55,8 +57,10 @@ export function useHomePanels() {
       .map((p) => ({ p, plan: planOf(p, today), made: made.get(p.id)?.qty ?? 0, last: made.get(p.id) }))
       .sort((a, b) => Number(a.plan > 0 && a.made >= a.plan) - Number(b.plan > 0 && b.made >= b.plan) || (b.last?.last ?? '').localeCompare(a.last?.last ?? '') || a.p.name.localeCompare(b.p.name, 'es'));
 
-    // Vitrina: lo producido que todavía queda.
-    const showcase = active.filter((p) => made.has(p.id) || (p.stock > 0 && inFamily(p)));
+    // Cámara de congelados: lo elaborado que todavía queda (sin insumos ni lo que se compra hecho).
+    const ingredients = new Set(products.flatMap((p) => p.recipe?.items.map((i) => i.productId) ?? []));
+    const notForChamber = (p: Product) => !p.recipe?.items.length && (ingredients.has(p.id) || !!bought?.has(p.id));
+    const showcase = active.filter((p) => !notForChamber(p) && (made.has(p.id) || (p.stock > 0 && inFamily(p))));
     const available = showcase.filter((p) => p.stock > 0).sort((a, b) => (made.get(b.id)?.last ?? '').localeCompare(made.get(a.id)?.last ?? '') || a.name.localeCompare(b.name, 'es'));
     const soldOut = showcase.filter((p) => p.stock <= 0);
 
@@ -106,7 +110,7 @@ export function useHomePanels() {
       weekTotal: week.reduce((s, i) => s + (i.total ?? 0), 0),
       activity,
     };
-  }, [moves, recentMoves, usageMoves, products, invoices, famIds, today, lk, settings]);
+  }, [moves, recentMoves, usageMoves, products, invoices, famIds, today, lk, settings, bought]);
 }
 
 export type HomePanels = ReturnType<typeof useHomePanels>;
