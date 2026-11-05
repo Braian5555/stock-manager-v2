@@ -179,7 +179,7 @@ test('22-23 · navegación adaptada al dispositivo', async ({ page, isMobile }) 
     const bottom = page.getByRole('navigation', { name: 'Navegación inferior' });
     await expect(bottom).toBeVisible();
     await expect(page.getByRole('navigation', { name: 'Navegación principal' })).toBeHidden();
-    for (const l of ['Inicio', 'Stock', 'Producción', 'Facturas', 'Más']) await expect(bottom.getByRole('link', { name: l })).toBeVisible();
+    for (const l of ['Inicio', 'Stock', 'Panadería', 'Facturas', 'Más']) await expect(bottom.getByRole('link', { name: l })).toBeVisible();
     for (const l of ['Pedidos', 'Remitos']) await expect(bottom.getByRole('link', { name: l })).toHaveCount(0);
     await bottom.getByRole('link', { name: 'Más' }).click();
     await expect(page.getByRole('heading', { name: 'Operación diaria' })).toBeVisible();
@@ -194,7 +194,7 @@ test('22-23 · navegación adaptada al dispositivo', async ({ page, isMobile }) 
     await expect(page.getByRole('navigation', { name: 'Navegación inferior' })).toBeHidden();
     // Barra lateral con las secciones; cada sección muestra sus módulos como pestañas.
     // Sólo stock, panadería (producción) y facturas; compras, remitos y reportes se retiraron.
-    for (const l of ['Inicio', 'Stock', 'Producción', 'Productos', 'Facturas', 'Configuración', 'Ayuda']) await expect(top.getByRole('link', { name: l })).toBeVisible();
+    for (const l of ['Inicio', 'Stock', 'Panadería', 'Productos', 'Facturas', 'Configuración', 'Ayuda']) await expect(top.getByRole('link', { name: l })).toBeVisible();
     for (const l of ['Compras', 'Pedidos', 'Proveedores', 'Remitos', 'Reportes']) await expect(top.getByRole('link', { name: l })).toHaveCount(0);
     await expect(top.getByRole('link', { name: 'Stock' })).toHaveClass(/active/);
     await top.getByRole('link', { name: 'Productos' }).click();

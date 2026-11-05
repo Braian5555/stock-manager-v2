@@ -23,10 +23,10 @@ test('producción: usuario panadero ve sólo Producción, anota con dos toques y
   await login(page, 'Panadero', '2468');
 
   // Entra directo a Producción; la navegación sólo ofrece Producción (Pastelería es de la pastelera).
-  await expect(page.getByRole('heading', { name: 'Producción', level: 1 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Panadería', level: 1 })).toBeVisible();
   await expect(page).toHaveURL(/#\/produccion$/);
   const nav = page.getByRole('navigation', { name: isMobile ? 'Navegación inferior' : 'Navegación principal' });
-  await expect(nav.getByRole('link', { name: 'Producción' })).toBeVisible();
+  await expect(nav.getByRole('link', { name: 'Panadería' })).toBeVisible();
   await expect(nav.getByRole('link', { name: 'Pastelería' })).toHaveCount(0);
   await expect(nav.getByRole('link', { name: 'Stock' })).toHaveCount(0);
 
@@ -180,9 +180,9 @@ test('producción muestra sólo las familias elegidas (sin bebidas ni el resto)'
   // Sin familias de panadería en los datos de ejemplo se ve todo; el administrador elige cuáles.
   await page.getByRole('button', { name: 'Familias' }).click();
   const d = page.getByRole('dialog');
-  await d.getByRole('checkbox', { name: 'Mostrar Almacén en Producción' }).check();
+  await d.getByRole('checkbox', { name: 'Mostrar Almacén en Panadería' }).check();
   await d.getByRole('button', { name: 'Guardar' }).click();
-  await expect(page.getByText('Familias de producción guardadas')).toBeVisible();
+  await expect(page.getByText('Familias de panadería guardadas')).toBeVisible();
   const grid = page.getByRole('list', { name: 'Productos' });
   await expect(grid.getByRole('listitem').filter({ hasText: 'Harina 000' })).toBeVisible();
   await page.getByLabel('Buscar producto').fill('Gaseosa');
@@ -207,7 +207,7 @@ test('pastelería: sección propia con sus familias, separada de producción', a
 
   // Producción no cambia: sigue sin familias propias elegidas.
   await go(page, '/produccion');
-  await expect(page.getByRole('heading', { name: 'Producción', level: 1 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Panadería', level: 1 })).toBeVisible();
   await expect(page.getByText('Todavía no hay familias de pastelería')).toHaveCount(0);
 });
 
@@ -234,7 +234,7 @@ test('pastelera: entra directo a Pastelería y no ve Producción', async ({ page
   await expect(page.getByRole('heading', { name: 'Pastelería', level: 1 })).toBeVisible();
   await expect(page).toHaveURL(/#\/pasteleria$/);
   const nav = page.getByRole('navigation', { name: isMobile ? 'Navegación inferior' : 'Navegación principal' });
-  await expect(nav.getByRole('link', { name: 'Producción' })).toHaveCount(0);
+  await expect(nav.getByRole('link', { name: 'Panadería' })).toHaveCount(0);
   // Un enlace a Producción la devuelve a Pastelería.
   await page.evaluate(() => { location.hash = '#/produccion'; });
   await expect(page).toHaveURL(/#\/pasteleria$/);

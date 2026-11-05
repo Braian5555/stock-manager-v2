@@ -86,7 +86,7 @@ test('día de trabajo completo: receta, panadero, Inicio, vitrina, sin conexión
   // No puede entrar a la vitrina ni a configuración.
   for (const hash of ['/vitrina', '/configuracion']) {
     await page.goto(`./#${hash}`);
-    await expect(page.getByText('No tenés permiso para esta sección').or(page.getByRole('heading', { name: 'Producción', level: 1 }))).toBeVisible();
+    await expect(page.getByText('No tenés permiso para esta sección').or(page.getByRole('heading', { name: 'Panadería', level: 1 }))).toBeVisible();
   }
   await expect.poll(() => stockOf(page, 'Harina 000')).toBe(harina0 - 2);
   await expect.poll(() => stockOf(page, 'Sal fina')).toBe(sal0 + 4);
@@ -237,7 +237,7 @@ test('accesibilidad: letra más grande y más contraste en este dispositivo; Con
   await expect(page).toHaveURL(/#\/configuracion$/);
   if (isMobile) {
     const nav = page.getByRole('navigation', { name: 'Navegación inferior' });
-    await expect(nav.getByRole('link', { name: 'Producción' })).toBeVisible();
+    await expect(nav.getByRole('link', { name: 'Panadería' })).toBeVisible();
     await expect(nav.getByRole('link', { name: 'Facturas' })).toBeVisible();
   }
 });
