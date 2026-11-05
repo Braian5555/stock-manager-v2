@@ -4,6 +4,7 @@ import {
   ArrowDown, ArrowLeft, ArrowUp, Boxes, Building2, ChevronRight, Cloud, Copy, Download, Eye, EyeOff, ImageUp, LayoutGrid, Package, Palette, Plug,
   RefreshCw, RotateCcw, ShieldCheck, Smartphone, Sparkles, Stethoscope, Type, UserCog, type LucideIcon,
   LogIn,
+  Receipt,
 } from 'lucide-react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Suspense, useEffect, useRef, useState, type ReactNode } from 'react';
@@ -22,6 +23,7 @@ import { readableInk } from '../utils/color';
 import { WipeDataSection } from '../components/WipeDataSection';
 import { StockResetSection } from '../components/StockResetSection';
 import { AccessibilitySection } from '../components/AccessibilitySection';
+import { FiscalSettingsSection } from '../components/FiscalSettingsSection';
 import { AIReaderSection } from '../components/AIReaderSection';
 import { MODULE_ICON, MODULE_PATH, moduleEnabled, navLabel } from '../layouts/modules';
 import { useCloud } from '../cloud/cloudService';
@@ -65,6 +67,7 @@ const SECTIONS: Section[] = [
   { key: 'usuarios', group: 'personas', title: 'Usuarios y permisos', description: 'Usuarios, roles, permisos, PIN y bloqueo automático.', icon: UserCog, render: () => <UsersPage /> },
   { key: 'ingresos', group: 'personas', title: 'Registro de ingresos', description: 'Quién entró a la app, cuándo y desde qué dispositivo.', icon: LogIn, render: () => <AccessLogSection /> },
   { key: 'nube', group: 'personas', title: 'Cuenta y nube', description: 'Sesión, espacios de trabajo, miembros, invitaciones y sincronización.', icon: Cloud, render: () => <CloudPage /> },
+  { key: 'fiscal', group: 'negocio', title: 'Configuración fiscal', description: 'Factura electrónica ARCA: emisor, punto de venta, ambiente y conexión.', icon: Receipt, render: () => <FiscalSettingsSection /> },
   { key: 'integraciones', group: 'sistema', title: 'Integraciones', description: 'Maxirest, Excel Bridge, gateway, cola y estado de conexión.', icon: Plug, render: () => <IntegrationsPage /> },
   { key: 'ia', group: 'sistema', title: 'IA (facturas y asistente)', description: 'Servidor de la IA (Gemini): leer facturas con fotos y el Asistente.', icon: Sparkles, render: () => <AIReaderSection /> },
   { key: 'datos', group: 'sistema', title: 'Importar y exportar', description: 'Excel, CSV, PDF, Word, JSON, backup completo y restauración.', icon: Download, render: () => <ExportPage /> },

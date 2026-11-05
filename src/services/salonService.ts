@@ -7,7 +7,7 @@
  * stock al vender (para no contar dos veces lo que ya se anota en producción).
  */
 import { db } from '../database/db';
-import type { DiningTable, MenuItem, TableTicket, TicketLine } from '../models';
+import type { DiningTable, IvaRate, MenuItem, TableTicket, TicketLine } from '../models';
 import { nowIso, uuid } from '../utils/id';
 import { saveEntity, type Draft } from './entityService';
 import { getCurrentActor } from './userService';
@@ -59,7 +59,7 @@ export async function retireTable(id: string): Promise<void> {
 
 // ───────────── Carta ─────────────
 
-export async function saveMenuItem(d: { id?: string; name: string; section: string; price: number; maxirestCode?: string; kitchen: boolean; active?: boolean }): Promise<MenuItem> {
+export async function saveMenuItem(d: { id?: string; name: string; section: string; price: number; maxirestCode?: string; kitchen: boolean; active?: boolean; iva?: IvaRate }): Promise<MenuItem> {
   const name = d.name.trim();
   if (!name) throw new Error('Poné el nombre del plato o la bebida.');
   if (!Number.isFinite(d.price) || d.price < 0) throw new Error('El precio no es válido.');
@@ -74,6 +74,7 @@ export async function saveMenuItem(d: { id?: string; name: string; section: stri
     price: round2(d.price),
     ...(code ? { maxirestCode: code } : { maxirestCode: undefined }),
     kitchen: d.kitchen,
+    iva: d.iva,
     active: d.active ?? true,
   } as Draft<MenuItem>);
 }
@@ -220,15 +221,19 @@ export async function requestBill(ticketId: string): Promise<TableTicket> {
   });
 }
 
-/** Cierra la mesa: queda libre y el pedido pasa a la cola para Maxirest. */
-export async function closeTicket(ticketId: string): Promise<TableTicket> {
+/**
+ * Cierra la mesa: queda libre. Si se cobra en Maxirest, el pedido pasa a la cola para Maxirest;
+ * si se facturó en Stock Manager (`maxirest: false`), no (si no, se facturaría dos veces).
+ */
+export async function closeTicket(ticketId: string, opts: { maxirest?: boolean } = {}): Promise<TableTicket> {
   return mutate(ticketId, (t) => {
     mustBeOpen(t);
     if (t.lines.some((l) => l.status === 'nuevo')) throw new Error('Hay platos sin mandar: mandalos o sacalos antes de cerrar.');
     if (!t.lines.some((l) => l.qty > 0)) throw new Error('El pedido está vacío: si no se pidió nada, anulalo.');
     t.status = 'cerrada';
     t.closedAt = nowIso();
-    t.maxirest = { status: 'pendiente' };
+    if (opts.maxirest !== false) t.maxirest = { status: 'pendiente' };
+    else delete t.maxirest;
   });
 }
 

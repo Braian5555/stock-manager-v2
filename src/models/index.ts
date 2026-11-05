@@ -200,7 +200,7 @@ export type LogoKind = 'default' | 'emoji' | 'image';
 export type ModuleKey =
   | 'dashboard' | 'stock' | 'count' | 'orders' | 'products' | 'suppliers' | 'locations' | 'categories'
   | 'units' | 'movements' | 'reconciliation' | 'export' | 'settings' | 'integrations' | 'cloud' | 'users' | 'invoices' | 'transfers'
-  | 'reports' | 'production' | 'pastry' | 'showcase' | 'diagnostics' | 'salon' | 'kitchen';
+  | 'reports' | 'production' | 'pastry' | 'showcase' | 'diagnostics' | 'salon' | 'kitchen' | 'fiscal';
 
 export interface MenuItemSetting {
   key: ModuleKey;
@@ -236,6 +236,8 @@ export interface Settings extends BaseEntity {
   pastryCategoryIds?: ID[];
   /** Dirección del servidor que lee facturas con IA (Cloudflare Worker). */
   aiReaderUrl?: string;
+  /** Facturación electrónica ARCA (los certificados NO están acá: están en el servidor). */
+  fiscal?: FiscalSettings;
 }
 
 export type IntegrationMode = 'disabled' | 'mock' | 'gateway' | 'excel';
@@ -300,7 +302,7 @@ export type StockStatus = 'normal' | 'bajo' | 'critico' | 'sin_stock';
 
 export const PERMISSIONS = [
   'stock.view', 'stock.move', 'count.do', 'count.apply', 'orders.manage', 'orders.receive', 'catalog.manage',
-  'movements.view', 'export', 'admin', 'invoices', 'transfers', 'production', 'recipes', 'pastry', 'salon',
+  'movements.view', 'export', 'admin', 'invoices', 'transfers', 'production', 'recipes', 'pastry', 'salon', 'billing',
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];
 
@@ -492,6 +494,8 @@ export interface MenuItem extends BaseEntity {
   maxirestCode?: string;
   /** Va a la pantalla de cocina (las bebidas suelen salir directo). */
   kitchen: boolean;
+  /** Alícuota de IVA incluida en el precio (si falta, la de la configuración fiscal). */
+  iva?: IvaRate;
   active: boolean;
 }
 
@@ -527,4 +531,137 @@ export interface TableTicket extends BaseEntity {
   total: number;
   /** Envío a Maxirest (por la API, cuando esté habilitada). */
   maxirest?: { status: 'pendiente' | 'enviado' | 'error'; at?: ISODate; error?: string };
+  /** Cobro de la mesa. */
+  payments?: Payment[];
+  paidAt?: ISODate;
+  /** Comprobante fiscal de la mesa (si se facturó en Stock Manager). */
+  fiscalDocId?: string;
+  /** Se cerró sin factura todavía (p. ej. ARCA caída): queda para facturar después. */
+  fiscalPending?: boolean;
+}
+
+// ───────────────────────── Facturación electrónica (ARCA) ─────────────────────────
+
+export type IvaRate = 0 | 2.5 | 5 | 10.5 | 21 | 27;
+export type FiscalAmbiente = 'homologacion' | 'produccion';
+/** Condición del EMISOR frente al IVA. */
+export type EmisorCondicion = 'RI' | 'MONO' | 'EXENTO';
+
+export interface FiscalSettings {
+  enabled: boolean;
+  /** Dirección del servicio de ARCA (Cloudflare Worker). */
+  serviceUrl: string;
+  ambiente: FiscalAmbiente;
+  cuit: string;
+  razonSocial: string;
+  nombreFantasia?: string;
+  domicilio: string;
+  condicionIva: EmisorCondicion;
+  /** Punto de venta "Web Services" dado de alta en ARCA sólo para Stock Manager. */
+  ptoVta: number;
+  iibb?: string;
+  /** Inicio de actividades, AAAA-MM-DD. */
+  inicioActividades?: string;
+  /** 1 productos, 2 servicios, 3 ambos. */
+  concepto: 1 | 2 | 3;
+  ivaDefault: IvaRate;
+  /** Responsables inscriptos nuevos pueden tener que emitir "M" en lugar de "A". */
+  letraA: 'A' | 'M';
+  /** Pie del ticket (opcional). */
+  pie?: string;
+}
+
+export type SalePaymentMethod = 'efectivo' | 'debito' | 'credito' | 'transferencia' | 'qr' | 'otro';
+export interface Payment {
+  method: SalePaymentMethod;
+  amount: number;
+  /** Efectivo entregado (para calcular el vuelto). */
+  received?: number;
+}
+
+export type FiscalKind = 'factura' | 'nc' | 'nd';
+export type FiscalLetter = 'A' | 'B' | 'C' | 'M';
+/** borrador → enviando → autorizada | rechazada | incierta (se reintenta consultando) | error */
+export type FiscalStatus = 'borrador' | 'enviando' | 'autorizada' | 'rechazada' | 'incierta' | 'error';
+export type DocTipo = 80 | 86 | 96 | 99;
+
+export interface FiscalReceptor {
+  docTipo: DocTipo;
+  docNro: string;
+  nombre?: string;
+  domicilio?: string;
+  /** Id de condición frente al IVA de ARCA (5 = Consumidor Final). */
+  condicionIva: number;
+}
+
+export interface FiscalLine {
+  name: string;
+  qty: number;
+  /** Precio unitario final (IVA incluido). */
+  unitPrice: number;
+  iva: IvaRate;
+  /** qty × unitPrice, redondeado. */
+  total: number;
+}
+
+export interface FiscalEmisor {
+  cuit: string;
+  razonSocial: string;
+  nombreFantasia?: string;
+  domicilio: string;
+  condicionIva: EmisorCondicion;
+  iibb?: string;
+  inicioActividades?: string;
+}
+
+/** Comprobante fiscal electrónico. Una vez autorizado no se modifica (las reglas de la nube lo impiden). */
+export interface FiscalDoc extends BaseEntity {
+  kind: FiscalKind;
+  letra: FiscalLetter;
+  cbteTipo: number;
+  ptoVta: number;
+  ambiente: FiscalAmbiente;
+  concepto: 1 | 2 | 3;
+  emisor: FiscalEmisor;
+  receptor: FiscalReceptor;
+  lines: FiscalLine[];
+  impTotal: number;
+  impNeto: number;
+  impIva: number;
+  impTotConc: number;
+  impOpEx: number;
+  impTrib: number;
+  iva: { id: number; rate: IvaRate; baseImp: number; importe: number }[];
+  status: FiscalStatus;
+  /** Número que se va a pedir, anotado ANTES de enviar (para no duplicar si se corta). */
+  attempt?: { nro: number; fecha: string; at: ISODate };
+  /** Número y fecha (AAAAMMDD) autorizados. */
+  nro?: number;
+  fecha?: string;
+  cae?: string;
+  /** Vencimiento del CAE, AAAAMMDD. */
+  caeVto?: string;
+  authorizedAt?: ISODate;
+  obs?: { code?: number; msg?: string }[];
+  errors?: { code?: number; msg?: string }[];
+  message?: string;
+  ticketId?: string;
+  tableName?: string;
+  payments?: Payment[];
+  asociado?: { docId?: string; cbteTipo: number; ptoVta: number; nro: number; fecha?: string };
+  createdBy?: { id: string; name: string };
+}
+
+/** Registro de cada pedido y respuesta de ARCA (auditoría). Sólo se agrega, nunca se modifica. */
+export interface FiscalLogEntry extends BaseEntity {
+  docId?: string;
+  at: ISODate;
+  op: string;
+  ms?: number;
+  status?: number;
+  request?: string;
+  response?: string;
+  error?: string;
+  result?: string;
+  by?: string;
 }

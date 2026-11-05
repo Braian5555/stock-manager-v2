@@ -1,6 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
-  ArrowRightLeft, Ban, BellRing, Check, ChefHat, CircleDollarSign, Minus, Pencil, Plus, Receipt, Search, Send, Trash2, UtensilsCrossed, Users,
+  ArrowRightLeft, Ban, BellRing, Printer, Check, ChefHat, CircleDollarSign, Minus, Pencil, Plus, Receipt, Search, Send, Trash2, UtensilsCrossed, Users,
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router';
@@ -9,14 +9,18 @@ import { EMPTY } from '../hooks/useData';
 import { DESKTOP_QUERY, useMediaQuery } from '../hooks/useMediaQuery';
 import { sinceLabel, useNow } from '../hooks/useNow';
 import { useToday, startOfDayIso } from '../hooks/useToday';
-import type { DiningTable, MenuItem, TableTicket, TicketLine } from '../models';
+import type { DiningTable, FiscalDoc, IvaRate, MenuItem, TableTicket, TicketLine } from '../models';
+import { CBTE_NAME, IVA_RATES, PAYMENT_LABEL, docNumber, fiscalOf } from '../services/fiscalService';
 import {
-  addLine, addNumberedTables, cancelTicket, openTicket, closeTicket, isOpen, markDelivered, moveTicket, requestBill, retireTable, saveMenuItem, saveTable, sendToKitchen, updateLine, voidLine,
+  addLine, addNumberedTables, cancelTicket, openTicket, isOpen, markDelivered, moveTicket, requestBill, retireTable, saveMenuItem, saveTable, sendToKitchen, updateLine, voidLine,
 } from '../services/salonService';
 import { useFeedback } from '../store/feedback';
-import { Badge, EmptyState, Field, Input, NumberInput, PageHeader, Segmented } from '../components/ui';
+import { Badge, EmptyState, Field, Input, NumberInput, PageHeader, Segmented, Select } from '../components/ui';
 import { Modal } from '../components/ui/Modal';
 import { CloudRulesNote } from '../components/salon/CloudRulesNote';
+import { ChargeModal } from '../components/salon/ChargeModal';
+import { comandaHtml, precuentaHtml, printHtml } from '../services/printService';
+import { useSettings } from '../store/settings';
 import { fmtMoney, fmtTime, matches } from '../utils/format';
 
 type Tab = 'mesas' | 'carta' | 'hoy';
@@ -60,6 +64,7 @@ function TablesBoard({ tables, open, onGoMenu }: { tables: DiningTable[]; open: 
   const [zone, setZone] = useState('');
   const [sheet, setSheet] = useState<string | null>(null);
   const [manage, setManage] = useState(false);
+  const [charging, setCharging] = useState<TableTicket | null>(null);
   const zones = useMemo(() => [...new Set(tables.map((t) => t.zone))], [tables]);
   const byTable = useMemo(() => new Map(open.map((t) => [t.tableId, t])), [open]);
   const shown = zone && zones.includes(zone) ? tables.filter((t) => t.zone === zone) : tables;
@@ -123,7 +128,8 @@ function TablesBoard({ tables, open, onGoMenu }: { tables: DiningTable[]; open: 
         })}
       </ul>
 
-      {sheet && <TicketSheet ticketId={sheet} onClose={() => setSheet(null)} tables={tables} busy={new Set(byTable.keys())} />}
+      {sheet && <TicketSheet ticketId={sheet} onClose={() => setSheet(null)} onCharge={(t) => { setSheet(null); setCharging(t); }} tables={tables} busy={new Set(byTable.keys())} />}
+      {charging && <ChargeModal ticket={charging} onClose={(closed) => { const t = charging; setCharging(null); if (!closed) setSheet(t.id); }} />}
       {manage && <TablesModal onClose={() => setManage(false)} tables={tables} busy={new Set(byTable.keys())} />}
     </>
   );
@@ -206,7 +212,8 @@ function TablesModal({ onClose, tables, busy }: { onClose: () => void; tables: D
 const LINE_LABEL: Record<TicketLine['status'], string> = { nuevo: 'Sin mandar', cocina: 'En cocina', listo: 'Listo para llevar', entregado: 'En la mesa' };
 const LINE_ORDER: TicketLine['status'][] = ['nuevo', 'listo', 'cocina', 'entregado'];
 
-function TicketSheet({ ticketId, onClose, tables, busy }: { ticketId: string; onClose: () => void; tables: DiningTable[]; busy: Set<string> }) {
+function TicketSheet({ ticketId, onClose, onCharge, tables, busy }: { ticketId: string; onClose: () => void; onCharge: (t: TableTicket) => void; tables: DiningTable[]; busy: Set<string> }) {
+  const settings = useSettings();
   const { run, confirm, notify } = useFeedback();
   const desktop = useMediaQuery(DESKTOP_QUERY);
   const now = useNow();
@@ -231,9 +238,13 @@ function TicketSheet({ ticketId, onClose, tables, busy }: { ticketId: string; on
     notify(sent ? `Comanda mandada (${sent} ${sent === 1 ? 'plato' : 'platos'})` : 'No había nada para mandar');
   });
   const close = async () => {
-    if (await confirm({ title: `¿Cerrar la mesa ${ticket.tableName}?`, message: `Total ${fmtMoney(ticket.total)}. La mesa queda libre y el pedido pasa a la lista para Maxirest. El cobro se hace en Maxirest.`, confirmLabel: 'Cerrar mesa' }))
-      if (await run(() => closeTicket(ticket.id), `Mesa ${ticket.tableName} cerrada`)) onClose();
+    if (unsent.length) return notify('Hay platos sin mandar: mandalos a cocina o sacalos antes de cobrar.', { tone: 'error' });
+    if (!lines.some((l) => l.qty > 0)) return notify('El pedido está vacío: si no se pidió nada, anulalo.', { tone: 'error' });
+    onCharge(ticket);
   };
+  const printPre = () => void run(() => printHtml(precuentaHtml(ticket, settings.businessName)));
+  const kitchenLines = lines.filter((l) => l.status === 'cocina');
+  const printComanda = () => void run(() => printHtml(comandaHtml(ticket, kitchenLines.length ? kitchenLines : lines.filter((l) => l.kitchen && l.status !== 'nuevo'))));
   const cancel = async () => {
     if (await confirm({ title: `¿Anular el pedido de la mesa ${ticket.tableName}?`, message: 'Se libera la mesa y el pedido queda como anulado (no pasa a Maxirest).', confirmLabel: 'Anular pedido', danger: true }))
       if (await run(() => cancelTicket(ticket.id), 'Pedido anulado')) onClose();
@@ -288,7 +299,7 @@ function TicketSheet({ ticketId, onClose, tables, busy }: { ticketId: string; on
         <button type="button" className="btn btn-primary" disabled={!unsent.length} onClick={send}><Send size={18} aria-hidden /> Mandar a cocina{unsent.length ? ` (${unsent.reduce((s, l) => s + l.qty, 0)})` : ''}</button>
         {ticket.status === 'abierta'
           ? <button type="button" className="btn" disabled={!lines.some((l) => l.qty > 0)} onClick={() => void run(() => requestBill(ticket.id), 'Cuenta pedida')}><Receipt size={18} aria-hidden /> Pidió la cuenta</button>
-          : <button type="button" className="btn" onClick={() => void close()}><CircleDollarSign size={18} aria-hidden /> Cerrar mesa</button>}
+          : <button type="button" className="btn" onClick={() => void close()}><CircleDollarSign size={18} aria-hidden /> Cobrar y cerrar</button>}
       </div>
     </div>
   );
@@ -310,7 +321,9 @@ function TicketSheet({ ticketId, onClose, tables, busy }: { ticketId: string; on
       </div>
       <div className="row wrap salon-sheet-more">
         <button type="button" className="btn btn-sm btn-ghost" onClick={() => setMoving(true)}><ArrowRightLeft size={16} aria-hidden /> Cambiar de mesa</button>
-        {ticket.status === 'abierta' && lines.some((l) => l.qty > 0) && <button type="button" className="btn btn-sm btn-ghost" onClick={() => void close()}><CircleDollarSign size={16} aria-hidden /> Cerrar mesa</button>}
+        {ticket.status === 'abierta' && lines.some((l) => l.qty > 0) && <button type="button" className="btn btn-sm btn-ghost" onClick={() => void close()}><CircleDollarSign size={16} aria-hidden /> Cobrar y cerrar</button>}
+        {lines.some((l) => l.qty > 0) && <button type="button" className="btn btn-sm btn-ghost" onClick={printPre}><Printer size={16} aria-hidden /> Pre-cuenta</button>}
+        {lines.some((l) => l.kitchen && l.status !== 'nuevo') && <button type="button" className="btn btn-sm btn-ghost" onClick={printComanda}><Printer size={16} aria-hidden /> Comanda</button>}
         <button type="button" className="btn btn-sm btn-ghost danger-text" onClick={() => void cancel()}><Ban size={16} aria-hidden /> Anular pedido</button>
       </div>
 
@@ -392,7 +405,7 @@ function MenuPicker({ onPick }: { onPick: (m: MenuItem) => void }) {
 
 // ───────────────────────── Carta ─────────────────────────
 
-type ItemDraft = { id?: string; name: string; section: string; price?: number; maxirestCode: string; kitchen: boolean; active: boolean };
+type ItemDraft = { id?: string; name: string; section: string; price?: number; maxirestCode: string; kitchen: boolean; active: boolean; iva?: IvaRate };
 
 function MenuTab() {
   const menu = useMenu();
@@ -431,7 +444,7 @@ function MenuTab() {
                   </div>
                   <b className="num">{fmtMoney(m.price)}</b>
                   <button type="button" className="btn btn-ghost icon-btn" aria-label={`Editar ${m.name}`}
-                    onClick={() => setEdit({ id: m.id, name: m.name, section: m.section, price: m.price, maxirestCode: m.maxirestCode ?? '', kitchen: m.kitchen, active: m.active })}><Pencil size={18} /></button>
+                    onClick={() => setEdit({ id: m.id, name: m.name, section: m.section, price: m.price, maxirestCode: m.maxirestCode ?? '', kitchen: m.kitchen, active: m.active, iva: m.iva })}><Pencil size={18} /></button>
                 </li>
               ))}
             </ul>
@@ -445,6 +458,7 @@ function MenuTab() {
 
 function MenuItemModal({ draft, sections, onClose }: { draft: ItemDraft; sections: string[]; onClose: () => void }) {
   const { run } = useFeedback();
+  const fiscal = fiscalOf(useSettings());
   const [d, setD] = useState(draft);
   const save = (again: boolean) => void run(async () => {
     await saveMenuItem({ ...d, price: d.price ?? NaN });
@@ -464,6 +478,14 @@ function MenuItemModal({ draft, sections, onClose }: { draft: ItemDraft; section
           <Field label="Sección"><Input list="salon-sections" value={d.section} onChange={(e) => setD({ ...d, section: e.target.value })} /></Field>
           <Field label="Precio"><NumberInput value={d.price} onChange={(v) => setD({ ...d, price: v })} min={0} placeholder="0" /></Field>
           <Field label="Código en Maxirest" hint="El número del artículo en Maxirest, para pasarle el pedido."><Input value={d.maxirestCode} onChange={(e) => setD({ ...d, maxirestCode: e.target.value })} inputMode="numeric" /></Field>
+          {fiscal.enabled && fiscal.condicionIva === 'RI' && (
+            <Field label="IVA incluido en el precio">
+              <Select value={d.iva ?? ''} onChange={(e) => setD({ ...d, iva: e.target.value === '' ? undefined : (Number(e.target.value) as IvaRate) })}>
+                <option value="">El de la configuración ({String(fiscal.ivaDefault).replace('.', ',')}%)</option>
+                {IVA_RATES.map((r) => <option key={r} value={r}>{String(r).replace('.', ',')}%</option>)}
+              </Select>
+            </Field>
+          )}
         </div>
         <label className="check"><input type="checkbox" checked={d.kitchen} onChange={(e) => setD({ ...d, kitchen: e.target.checked })} /> Va a la pantalla de cocina</label>
         {d.id && <label className="check"><input type="checkbox" checked={!d.active} onChange={(e) => setD({ ...d, active: !e.target.checked })} /> Pausado (no se puede pedir)</label>}
@@ -493,6 +515,11 @@ function TodayTab() {
     return [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
   }, [closed]);
 
+  const fiscal = (useLiveQuery(() => db.fiscalDocs.where('ticketId').anyOf(tickets.map((t) => t.id)).toArray(), [tickets]) ?? EMPTY) as FiscalDoc[];
+  const docOf = new Map(fiscal.map((d) => [d.id, d]));
+  const byMethod = new Map<string, number>();
+  for (const t of closed) for (const p of t.payments ?? []) byMethod.set(p.method, (byMethod.get(p.method) ?? 0) + p.amount);
+
   return (
     <>
       <div className="salon-stats">
@@ -501,6 +528,9 @@ function TodayTab() {
         <div className="salon-stat"><span className="num">{closed.length ? fmtMoney(sold / closed.length) : '—'}</span><span>promedio por mesa</span></div>
         <div className="salon-stat"><span className="num">{guests || '—'}</span><span>comensales</span></div>
       </div>
+      {byMethod.size > 0 && (
+        <p className="small salon-caja"><b>Caja:</b> {[...byMethod.entries()].map(([m, v]) => `${PAYMENT_LABEL[m as keyof typeof PAYMENT_LABEL]} ${fmtMoney(v)}`).join(' · ')}</p>
+      )}
       {waiting > 0 && <p className="small muted">{waiting} {waiting === 1 ? 'pedido espera' : 'pedidos esperan'} para pasar a Maxirest: se mandan cuando esté habilitada la API. Mientras tanto, se cobran en Maxirest como siempre.</p>}
 
       {tickets.length === 0 ? (
@@ -518,7 +548,9 @@ function TodayTab() {
                   </button>
                   <span className="salon-today-right">
                     <b className="num">{fmtMoney(t.total)}</b>
-                    {t.status === 'cerrada' && t.maxirest ? <Badge tone={MAXIREST_TONE[t.maxirest.status]}>{MAXIREST_LABEL[t.maxirest.status]}</Badge>
+                    {t.status === 'cerrada' && t.fiscalDocId && docOf.get(t.fiscalDocId) ? <FiscalBadge d={docOf.get(t.fiscalDocId)!} />
+                      : t.status === 'cerrada' && t.fiscalPending ? <Badge tone="warn">Sin facturar</Badge>
+                      : t.status === 'cerrada' && t.maxirest ? <Badge tone={MAXIREST_TONE[t.maxirest.status]}>{MAXIREST_LABEL[t.maxirest.status]}</Badge>
                       : <Badge tone={t.status === 'anulada' ? '' : 'info'}>{t.status === 'anulada' ? 'Anulado' : 'Abierta'}</Badge>}
                   </span>
                 </li>
@@ -536,6 +568,11 @@ function TodayTab() {
       {detail && <TicketDetail ticket={detail} onClose={() => setDetail(null)} />}
     </>
   );
+}
+
+function FiscalBadge({ d }: { d: FiscalDoc }) {
+  if (d.status === 'autorizada') return <Badge tone="ok">{CBTE_NAME[d.cbteTipo]} {docNumber(d)}</Badge>;
+  return <Badge tone={d.status === 'rechazada' || d.status === 'error' ? 'danger' : 'warn'}>{d.status === 'rechazada' ? 'Factura rechazada' : d.status === 'error' ? 'Factura con error' : 'Factura sin confirmar'}</Badge>;
 }
 
 function TicketDetail({ ticket, onClose }: { ticket: TableTicket; onClose: () => void }) {

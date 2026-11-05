@@ -1,0 +1,30 @@
+// Tipos mínimos para las pruebas.
+/* eslint-disable @typescript-eslint/no-explicit-any */
+type Fetch = (input: string, init?: RequestInit) => Promise<Response>;
+type Env = Record<string, any>;
+export const ENDPOINTS: Record<'homologacion' | 'produccion', { wsaa: string; wsfe: string }>;
+export const CBTE: Record<string, number>;
+export const IVA_ID: Record<string, number>;
+export const COND_IVA: Record<number, string>;
+export const CF_ID_THRESHOLD: number;
+export function tag(xml: string, name: string): string | undefined;
+export function tags(xml: string, name: string): string[];
+export function todayAR(now?: number): string;
+export function validCuit(c: string): boolean;
+export function derRead(buf: Uint8Array, off?: number): { tag: number; start: number; end: number; raw: Uint8Array };
+export function derChildren(buf: Uint8Array, el: { start: number; end: number }): { tag: number; start: number; end: number; raw: Uint8Array }[];
+export function certInfo(pem: string): { der: Uint8Array; issuer: Uint8Array; serial: Uint8Array; cn?: string; cuit?: string; notBefore: string; notAfter: string };
+export function buildTRA(service: string, now?: number): string;
+export function signCMS(tra: string, certPem: string, keyPem: string, now?: number): Promise<string>;
+export function getTA(env: Env, ambiente: string, fetchImpl: Fetch, log: any[], now?: number): Promise<{ token: string; sign: string; expires: string }>;
+export function validateDoc(d: any, now?: number): string[];
+export function buildCAERequest(d: any, cuit: string): string;
+export function sameDoc(found: any, d: any): boolean;
+export function emit(env: Env, ambiente: string, d: any, fetchImpl: Fetch, log: any[], now?: number): Promise<any>;
+export function consult(env: Env, ambiente: string, ptoVta: number, cbteTipo: number, nro: number, fetchImpl: Fetch, log: any[]): Promise<any>;
+export function lastAuthorized(env: Env, ambiente: string, ptoVta: number, cbteTipo: number, fetchImpl: Fetch, log: any[]): Promise<number>;
+export function verifyIdToken(token: string, fetchImpl?: Fetch, now?: number): Promise<{ uid: string; email: string }>;
+export function canBill(wsId: string, token: string, user: { uid: string; email: string }, fetchImpl?: Fetch): Promise<{ ok: boolean; reason?: string; name?: string }>;
+export function handle(request: Request, env: Env, fetchImpl?: Fetch, now?: number): Promise<Response>;
+declare const worker: { fetch(request: Request, env: Env): Promise<Response> };
+export default worker;

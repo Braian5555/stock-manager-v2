@@ -1,6 +1,6 @@
 import Dexie, { type Table } from 'dexie';
 import type {
-  AccessEntry, DiningTable, MenuItem, TableTicket,
+  AccessEntry, DiningTable, FiscalDoc, FiscalLogEntry, MenuItem, TableTicket,
   Business, Category, ExternalReference, InventoryCount, InventoryCountItem, Integration, Location, Order,
   OrderItem, Product, Settings, StockMovement, Supplier, SyncJob, Unit, AppUser, Invoice, InvoiceImage, Outlet, Transfer,
 } from '../models';
@@ -93,15 +93,22 @@ export const SCHEMA_V9 = {
   tickets: 'id, tableId, status, openedAt, updatedAt',
 };
 
-export const CURRENT_DB_VERSION = 9;
+/** v10: facturación electrónica (comprobantes y registro de ARCA). */
+export const SCHEMA_V10 = {
+  ...SCHEMA_V9,
+  fiscalDocs: 'id, status, ticketId, createdAt, [cbteTipo+ptoVta+nro]',
+  fiscalLog: 'id, docId, at',
+};
+
+export const CURRENT_DB_VERSION = 10;
 
 /** Tablas de negocio que se sincronizan con la nube. */
 export const SYNC_TABLES = [
   'settings', 'categories', 'units', 'locations', 'suppliers', 'products', 'orders', 'orderItems', 'movements', 'counts', 'countItems', 'users', 'invoices', 'outlets', 'transfers',
-  'diningTables', 'menuItems', 'tickets',
+  'diningTables', 'menuItems', 'tickets', 'fiscalDocs', 'fiscalLog',
 ] as const;
 /** Tablas nuevas: si la nube todavía no tiene las reglas que las permiten, se siguen usando en el dispositivo sin marcar error. */
-export const OPTIONAL_SYNC_TABLES: ReadonlySet<string> = new Set(['diningTables', 'menuItems', 'tickets']);
+export const OPTIONAL_SYNC_TABLES: ReadonlySet<string> = new Set(['diningTables', 'menuItems', 'tickets', 'fiscalDocs', 'fiscalLog']);
 export type SyncTableName = (typeof SYNC_TABLES)[number];
 const SYNC_SET = new Set<string>(SYNC_TABLES);
 
@@ -161,6 +168,8 @@ export class StockDatabase extends Dexie {
   diningTables!: Table<DiningTable, string>;
   menuItems!: Table<MenuItem, string>;
   tickets!: Table<TableTicket, string>;
+  fiscalDocs!: Table<FiscalDoc, string>;
+  fiscalLog!: Table<FiscalLogEntry, string>;
 
   constructor(name = DB_NAME) {
     super(name);
@@ -190,6 +199,8 @@ export class StockDatabase extends Dexie {
     this.version(8).stores(SCHEMA_V8);
     // v9: salón.
     this.version(9).stores(SCHEMA_V9);
+    // v10: facturación electrónica.
+    this.version(10).stores(SCHEMA_V10);
 
     // Middleware: informa qué registros cambiaron en las tablas sincronizadas.
     this.use({
@@ -234,6 +245,6 @@ export const db = new StockDatabase();
 export const DATA_TABLES = [
   'businesses', 'settings', 'categories', 'units', 'locations', 'suppliers', 'products', 'orders', 'orderItems',
   'movements', 'counts', 'countItems', 'integrations', 'syncJobs', 'externalReferences', 'users', 'invoices', 'outlets', 'transfers',
-  'diningTables', 'menuItems', 'tickets',
+  'diningTables', 'menuItems', 'tickets', 'fiscalDocs', 'fiscalLog',
 ] as const;
 export type DataTableName = (typeof DATA_TABLES)[number];

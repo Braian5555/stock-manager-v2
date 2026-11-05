@@ -1,0 +1,19 @@
+# Ejemplo para publicar el servicio de ARCA con Wrangler (opcional: también se puede pegar
+# worker.js en el editor de Cloudflare). SIN credenciales: los secretos se cargan con
+#   npx wrangler secret put ARCA_CUIT
+#   npx wrangler secret put ARCA_WORKSPACE
+#   npx wrangler secret put ARCA_HOMO_CERT   < stockmanager-homo.crt
+#   npx wrangler secret put ARCA_HOMO_KEY    < stockmanager-homo.key
+#   (producción, después de homologar)
+#   npx wrangler secret put ARCA_PROD_CERT   < stockmanager-prod.crt
+#   npx wrangler secret put ARCA_PROD_KEY    < stockmanager-prod.key
+#   npx wrangler secret put ARCA_PROD_ENABLED   (valor: si)
+
+name = "stock-manager-arca"
+main = "worker.js"
+compatibility_date = "2025-06-01"
+
+# Token de ARCA (dura 12 h): crear el namespace con  npx wrangler kv namespace create arca-ta
+[[kv_namespaces]]
+binding = "ARCA_TA"
+id = "<id del namespace arca-ta>"

@@ -56,12 +56,15 @@ test('salón: armar mesas y carta, tomar un pedido, cocina lo marca listo y se c
   await expect(page.getByText('Para llevar: mesa 4')).toBeVisible();
   await page.getByRole('button', { name: 'Mesa 4: Listo para llevar' }).click();
   m = dialog(page);
+  await m.getByRole('button', { name: 'Todo llevado' }).or(m.getByRole('group', { name: 'Ver' })).first().waitFor();
   if (!(await m.getByRole('button', { name: 'Todo llevado' }).isVisible())) await m.getByRole('group', { name: 'Ver' }).getByRole('button', { name: /^Pedido/ }).click();
   await m.getByRole('button', { name: 'Todo llevado' }).click();
   await m.getByRole('button', { name: 'Pidió la cuenta' }).click();
-  await m.getByRole('button', { name: 'Cerrar mesa' }).first().click();
-  await page.getByRole('dialog', { name: '¿Cerrar la mesa 4?' }).getByRole('button', { name: 'Cerrar mesa' }).click();
-  await expect(page.getByText('Mesa 4 cerrada')).toBeVisible();
+  await m.getByRole('button', { name: 'Cobrar y cerrar' }).first().click();
+  const pay = page.getByRole('dialog', { name: 'Cobrar mesa 4' });
+  await expect(pay.getByText('La factura se hace en Maxirest')).toBeVisible();
+  await pay.getByRole('button', { name: /^Cobrar .* y cerrar$/ }).click();
+  await expect(page.getByText('Mesa 4 cobrada y cerrada')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Mesa 4: Libre' })).toBeVisible();
 
   await page.getByRole('group', { name: 'Sección del salón' }).getByRole('button', { name: 'Hoy' }).click();

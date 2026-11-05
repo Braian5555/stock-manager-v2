@@ -1,5 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Check, CheckCheck, CookingPot } from 'lucide-react';
+import { Check, CheckCheck, CookingPot, Printer } from 'lucide-react';
+import { comandaHtml, printHtml } from '../services/printService';
 import { useMemo } from 'react';
 import { db } from '../database/db';
 import { EMPTY } from '../hooks/useData';
@@ -44,6 +45,7 @@ export function KitchenPage() {
                 <header className="kitchen-head">
                   <span className="kitchen-table">Mesa {t.tableName}</span>
                   <span className="kitchen-time num">{sinceLabel(since, now)}</span>
+                  <button type="button" className="kitchen-print" aria-label={`Imprimir comanda de la mesa ${t.tableName}`} onClick={() => void run(() => printHtml(comandaHtml(t, lines)))}><Printer size={18} aria-hidden /></button>
                 </header>
                 <p className="kitchen-meta">#{t.number}{t.guests ? ` · ${t.guests} comensales` : ''}{t.openedBy ? ` · ${t.openedBy.name}` : ''}</p>
                 <ul className="kitchen-lines">

@@ -95,6 +95,24 @@ service cloud.firestore {
         allow write: if isManager(wsId) && table in ['settings', 'users'];
       }
 
+      // Comprobantes fiscales (factura electrónica ARCA). Un comprobante AUTORIZADO no se modifica
+      // ni se borra: para anularlo se emite una nota de crédito. Reenviarlo sin cambios está permitido.
+      match /fiscalDocs/{docId} {
+        allow read: if isMember(wsId);
+        allow create: if isMember(wsId)
+          && request.resource.data.keys().hasAll(['cbteTipo', 'ptoVta', 'status', 'impTotal', 'emisor', 'receptor'])
+          && request.resource.data.status in ['borrador', 'enviando', 'autorizada', 'rechazada', 'incierta', 'error'];
+        allow update: if isMember(wsId)
+          && (resource.data.status != 'autorizada' || request.resource.data == resource.data)
+          && request.resource.data.status in ['borrador', 'enviando', 'autorizada', 'rechazada', 'incierta', 'error'];
+      }
+      // Registro de pedidos y respuestas de ARCA (auditoría): sólo se agrega.
+      match /fiscalLog/{entryId} {
+        allow read: if isMember(wsId);
+        allow create: if isMember(wsId) && request.resource.data.keys().hasAll(['at', 'op']);
+        allow update: if isMember(wsId) && request.resource.data == resource.data;
+      }
+
       // Registro de ingresos: cada miembro anota los suyos; sólo el dueño y los administradores lo leen.
       // No se modifica ni se borra (reintentar la misma entrada, sin cambios, está permitido).
       match /accessLog/{entryId} {

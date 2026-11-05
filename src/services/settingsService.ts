@@ -15,6 +15,7 @@ export const MODULES: { key: ModuleKey; label: string; primary?: boolean; locked
   { key: 'showcase', label: 'Cámara' },
   { key: 'salon', label: 'Salón' },
   { key: 'kitchen', label: 'Cocina' },
+  { key: 'fiscal', label: 'Comprobantes' },
   { key: 'orders', label: 'Pedidos', primary: true },
   { key: 'movements', label: 'Movimientos' },
   { key: 'transfers', label: 'Remitos internos' },
