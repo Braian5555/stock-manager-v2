@@ -137,18 +137,21 @@ describe('servidor de Cloudflare: Gemini (gratis)', () => {
   });
 
   it('si un modelo no existe o no está en el plan gratis, prueba el siguiente', async () => {
-    const net = geminiNet({ 'gemini-3.8-flash': 404, 'gemini-3.5-flash-lite': 429 });
+    const net = geminiNet({ 'gemini-3.8-flash': 404, 'gemini-3.6-flash': 429 });
     const r = await handle(await greq(), genv, net.f);
     expect(r.status).toBe(200);
-    expect(net.calls.map((c) => /models\/([^:]+):/.exec(c.url)![1])).toEqual(['gemini-3.8-flash', 'gemini-3.5-flash-lite', 'gemini-2.5-flash']);
-    // Con GEMINI_MODEL fijo, sólo ese.
+    expect(net.calls.map((c) => /models\/([^:]+):/.exec(c.url)![1])).toEqual(['gemini-3.8-flash', 'gemini-3.6-flash', 'gemini-3.5-flash-lite']);
+    // Si fallan todos, se devuelve el error que explica (límite del día) y no el "no existe" del último.
+    const none = geminiNet({ 'gemini-3.8-flash': 429, 'gemini-3.6-flash': 429, 'gemini-3.5-flash-lite': 429, 'gemini-3.1-flash-lite': 404 });
+    expect((await handle(await greq(), genv, none.f)).status).toBe(429);
     // Un modelo saturado (503) también pasa al siguiente.
     const busy = geminiNet({ 'gemini-3.8-flash': 503 });
     expect((await handle(await greq(), genv, busy.f)).status).toBe(200);
-    expect(busy.calls.map((c) => /models\/([^:]+):/.exec(c.url)![1])).toEqual(['gemini-3.8-flash', 'gemini-3.5-flash-lite']);
-    const net2 = geminiNet({});
-    await handle(await greq(), { ...genv, GEMINI_MODEL: 'gemini-x' }, net2.f);
-    expect(net2.calls.map((c) => /models\/([^:]+):/.exec(c.url)![1])).toEqual(['gemini-x']);
+    expect(busy.calls.map((c) => /models\/([^:]+):/.exec(c.url)![1])).toEqual(['gemini-3.8-flash', 'gemini-3.6-flash']);
+    // Con GEMINI_MODEL, ése va primero; si no existe, se sigue con los de siempre.
+    const net2 = geminiNet({ 'gemini-x': 404 });
+    expect((await handle(await greq(), { ...genv, GEMINI_MODEL: 'gemini-x' }, net2.f)).status).toBe(200);
+    expect(net2.calls.map((c) => /models\/([^:]+):/.exec(c.url)![1])).toEqual(['gemini-x', 'gemini-3.8-flash']);
   });
 
   it('rechaza pedidos que no son de lectura, sesiones falsas y servidor sin clave', async () => {

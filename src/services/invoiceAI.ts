@@ -105,7 +105,7 @@ function geminiError(status: number, body: unknown): Error {
   if (/API key not valid|API_KEY_INVALID/i.test(msg)) return new Error('La clave de Google no es válida. Revisala en Cloudflare (secreto GEMINI_API_KEY).');
   if (status === 429 || /RESOURCE_EXHAUSTED/.test(msg)) return new Error('Se alcanzó el límite gratis de Gemini por ahora. Probá de nuevo en un rato.');
   if (status === 403 || /PERMISSION_DENIED/.test(msg)) return new Error('La clave de Google no tiene permiso para usar Gemini.');
-  if (status === 404) return new Error('El modelo de Gemini no está disponible. Revisá el secreto GEMINI_MODEL en Cloudflare.');
+  if (status === 404) return new Error('Ningún modelo de Gemini respondió: Google puede haber cambiado los nombres. Actualizá el servidor de Cloudflare con el worker.js nuevo (o avisale a Claude).');
   if (status === 413) return new Error('Las fotos son demasiado grandes. Probá con menos hojas.');
   if (status === 400) return new Error('La IA no pudo procesar estas fotos.');
   const detail = typeof b?.error === 'object' && b.error?.message ? b.error.message.replace(/\s+/g, ' ').slice(0, 160) : '';

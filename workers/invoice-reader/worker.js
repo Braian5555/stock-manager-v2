@@ -26,8 +26,14 @@ const ALLOWED_ORIGINS = [
 ];
 /** Único modelo de Claude permitido (así nadie puede usar la clave para otra cosa más cara). */
 const MODEL = 'claude-sonnet-5-5';
-/** Modelos de Gemini en orden de preferencia: si uno no existe o no está en el plan gratis, se prueba el siguiente. */
-const GEMINI_MODELS = ['gemini-3.8-flash', 'gemini-3.5-flash-lite', 'gemini-2.5-flash'];
+/**
+ * Modelos de Gemini en orden de preferencia: si uno no existe, no está en el plan gratis, llegó a su
+ * límite del día o está saturado, se prueba el siguiente (cada modelo tiene su propio cupo gratis).
+ * Los 2.5 se sacaron: Google los dejó sólo para cuentas que ya los usaban (a las demás les da 404).
+ */
+const GEMINI_MODELS = ['gemini-3.8-flash', 'gemini-3.6-flash', 'gemini-3.5-flash-lite', 'gemini-3.1-flash-lite'];
+/** Con ?lite=1 se arranca por los livianos (contestan más rápido). */
+const GEMINI_LITE = ['gemini-3.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-3.6-flash'];
 /** Tamaño máximo del pedido: 6 fotos comprimidas + catálogo. */
 const MAX_BODY = 9_000_000;
 const JWKS_URL = 'https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com';
@@ -155,18 +161,23 @@ async function handle(request, env, fetchImpl = fetch) {
     if (!body.startsWith('{"systemInstruction":')) return reply(400, { error: 'Pedido no permitido.' }, h);
     // ?lite=1: la app reintenta porque el modelo principal no contestó a tiempo → se arranca por el liviano.
     const lite = new URL(request.url).searchParams.get('lite') === '1';
-    const models = env.GEMINI_MODEL ? [env.GEMINI_MODEL] : lite ? GEMINI_MODELS.slice(1) : GEMINI_MODELS;
+    // GEMINI_MODEL (opcional) va primero, pero si falla se sigue con los de siempre.
+    const base = lite ? GEMINI_LITE : GEMINI_MODELS;
+    const models = env.GEMINI_MODEL ? [env.GEMINI_MODEL, ...base.filter((m) => m !== env.GEMINI_MODEL)] : base;
     let last;
+    let telling; // el error que mejor explica qué pasó (un límite o saturación dice más que "no existe")
     for (const model of models) {
       last = await fetchImpl(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-goog-api-key': env.GEMINI_API_KEY },
         body,
       });
-      // Modelo inexistente, sin permiso, fuera del plan gratis o saturado: se prueba el siguiente.
+      // Modelo inexistente, sin permiso, fuera del plan gratis, sin cupo o saturado: se prueba el siguiente.
       if (![403, 404, 429, 500, 503].includes(last.status)) break;
+      if (!telling && last.status !== 404) telling = last;
     }
-    return new Response(last.body, { status: last.status, headers: json });
+    const out = [403, 404, 429, 500, 503].includes(last.status) && telling ? telling : last;
+    return new Response(out.body, { status: out.status, headers: json });
   }
 
   if (!body.startsWith(`{"model":"${MODEL}"`)) return reply(400, { error: 'Pedido no permitido.' }, h);
