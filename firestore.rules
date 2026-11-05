@@ -81,13 +81,15 @@ service cloud.firestore {
         allow read: if isMember(wsId) && table in [
           'settings', 'categories', 'units', 'locations', 'suppliers', 'products',
           'orders', 'orderItems', 'movements', 'counts', 'countItems', 'users',
-          'invoices', 'invoiceImages', 'outlets', 'transfers'
+          'invoices', 'invoiceImages', 'outlets', 'transfers',
+          'diningTables', 'menuItems', 'tickets'
         ];
         // Operación diaria: cualquier miembro.
         allow write: if isMember(wsId) && table in [
           'categories', 'units', 'locations', 'suppliers', 'products',
           'orders', 'orderItems', 'movements', 'counts', 'countItems',
-          'invoices', 'invoiceImages', 'outlets', 'transfers'
+          'invoices', 'invoiceImages', 'outlets', 'transfers',
+          'diningTables', 'menuItems', 'tickets'
         ];
         // Usuarios con PIN y configuración: sólo dueño o administradores del espacio.
         allow write: if isManager(wsId) && table in ['settings', 'users'];

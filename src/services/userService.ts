@@ -26,6 +26,7 @@ export const PERMISSION_LABEL: Record<Permission, string> = {
   production: 'Producción: anotar lo que se produce (panadería, cocina)',
   pastry: 'Pastelería: anotar lo que se produce en pastelería',
   recipes: 'Ver y editar recetas de producción',
+  salon: 'Salón: mesas, pedidos y pantalla de cocina',
 };
 
 export const ROLE_LABEL: Record<UserRole, string> = {
@@ -34,17 +35,20 @@ export const ROLE_LABEL: Record<UserRole, string> = {
   staff: 'Empleado',
   production: 'Panadería (producción)',
   pastry: 'Pastelería',
+  waiter: 'Mozo / salón',
   custom: 'Personalizado',
 };
 
 export const ROLE_PERMISSIONS: Record<Exclude<UserRole, 'custom'>, Permission[]> = {
   admin: [...PERMISSIONS],
-  manager: ['stock.view', 'stock.move', 'count.do', 'count.apply', 'orders.manage', 'orders.receive', 'catalog.manage', 'movements.view', 'export', 'invoices', 'transfers', 'production', 'recipes', 'pastry'],
+  manager: ['stock.view', 'stock.move', 'count.do', 'count.apply', 'orders.manage', 'orders.receive', 'catalog.manage', 'movements.view', 'export', 'invoices', 'transfers', 'production', 'recipes', 'pastry', 'salon'],
   staff: ['stock.view', 'count.do', 'orders.receive', 'invoices'],
   /** Sólo anota lo que produce (p. ej. el panadero): ve una sola pantalla. */
   production: ['production', 'recipes'],
   /** Sólo Pastelería (p. ej. la pastelera): anota, ve el plan y las recetas de pastelería. */
   pastry: ['pastry', 'recipes'],
+  /** Mozos: sólo el salón (mesas y pedidos) y la pantalla de cocina. */
+  waiter: ['salon'],
 };
 
 /**

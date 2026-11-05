@@ -11,7 +11,7 @@
  *   (recomputeStock), por lo que dos dispositivos pueden mover stock a la vez sin perder datos.
  */
 import Dexie from 'dexie';
-import { db, remoteTransactions, setMutationListener, SYNC_TABLES, type SyncTableName } from '../database/db';
+import { db, OPTIONAL_SYNC_TABLES, remoteTransactions, setMutationListener, SYNC_TABLES, type SyncTableName } from '../database/db';
 import { recomputeStock } from '../services/stockService';
 import { fixDuplicateNumbers } from '../services/numberingService';
 import { nowIso } from '../utils/id';
@@ -23,6 +23,17 @@ export interface SyncStatus {
   pending: number;
   lastSyncAt?: string;
   error?: string;
+  /** Tablas nuevas que la nube todavía no deja usar (faltan publicar las reglas de Firebase). */
+  missingRules?: string[];
+}
+
+const denied = (e: unknown) => (e as { code?: string })?.code === 'permission-denied';
+const MISSING_KEY = 'sm.sync.missingRules';
+function readMissing(): string[] {
+  try { return JSON.parse(localStorage.getItem(MISSING_KEY) ?? '[]') as string[]; } catch { return []; }
+}
+function saveMissing(list: string[]) {
+  try { if (list.length) localStorage.setItem(MISSING_KEY, JSON.stringify(list)); else localStorage.removeItem(MISSING_KEY); } catch { /* sin almacenamiento */ }
 }
 
 type Listener = (s: SyncStatus) => void;
@@ -69,6 +80,9 @@ export class SyncEngine {
     if (opts.pushAll) for (const t of SYNC_TABLES) for (const r of await db.table(t).toArray()) this.send(t, r as RemoteDoc);
     // Eliminaciones hechas sin conexión o con la nube apagada.
     for (const tb of await db.tombstones.where('pushed').equals(0).toArray()) this.send(tb.table, { id: tb.id, _deleted: true, updatedAt: tb.updatedAt });
+    // Tablas nuevas que la vez pasada la nube no dejó subir: se reintenta todo lo que se cargó mientras tanto.
+    if (!opts.pushAll) for (const t of readMissing()) if ((SYNC_TABLES as readonly string[]).includes(t)) for (const r of await db.table(t).toArray()) this.send(t as SyncTableName, r as RemoteDoc);
+    saveMissing([]);
 
     this.initialLeft = SYNC_TABLES.length;
     for (const t of SYNC_TABLES) {
@@ -80,7 +94,10 @@ export class SyncEngine {
             void this.applyRemote(t, changes, info).catch((e) =>
               this.setStatus({ state: 'error', error: `No se pudieron aplicar cambios de la nube (${t}): ${e instanceof Error ? e.message : String(e)}` }),
             ),
-          (e) => this.setStatus({ state: 'error', error: e instanceof Error ? e.message : String(e) }),
+          (e) => {
+            if (OPTIONAL_SYNC_TABLES.has(t) && denied(e)) return this.missing(t, true);
+            this.setStatus({ state: 'error', error: e instanceof Error ? e.message : String(e) });
+          },
         ),
       );
     }
@@ -133,11 +150,24 @@ export class SyncEngine {
         if (d._deleted) void db.tombstones.update(`${table}:${d.id}`, { pushed: 1 }).catch(() => undefined);
         this.setStatus({ state: this.status.state === 'connecting' ? 'connecting' : 'synced', error: undefined, lastSyncAt: nowIso() });
       })
-      .catch((e) => this.setStatus({ state: 'error', error: e instanceof Error ? e.message : String(e) }))
+      .catch((e) => (OPTIONAL_SYNC_TABLES.has(table) && denied(e) ? this.missing(table, false) : this.setStatus({ state: 'error', error: e instanceof Error ? e.message : String(e) })))
       .finally(() => {
         this.inFlight--;
         this.setStatus({});
       });
+  }
+
+  /** La nube no deja usar una tabla nueva: se sigue en el dispositivo y se avisa (sin marcar error). */
+  private missing(table: SyncTableName, fromWatch: boolean) {
+    const list = new Set(this.status.missingRules ?? []);
+    const first = !list.has(table);
+    list.add(table);
+    saveMissing([...list]);
+    if (fromWatch && first && this.initialLeft > 0 && --this.initialLeft === 0) {
+      this.setStatus({ state: 'synced', lastSyncAt: nowIso(), missingRules: [...list] });
+      return;
+    }
+    this.setStatus({ missingRules: [...list] });
   }
 
   // ───────────── bajada ─────────────

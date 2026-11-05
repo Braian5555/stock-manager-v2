@@ -1,4 +1,4 @@
-import { Snowflake,
+import { Snowflake, UtensilsCrossed, CookingPot,
   ArrowLeftRight, BarChart3, Boxes, ClipboardCheck, Cloud, Download, Forklift, Home, MapPin, Package, Plug, Receipt, Ruler, Scale, Settings as SettingsIcon,
   ShoppingCart, Stethoscope, Tags, Truck, UserCog, ChefHat, CakeSlice,
   type LucideIcon,
@@ -24,6 +24,8 @@ export const MODULE_PATH: Record<ModuleKey, string> = {
   production: '/produccion',
   pastry: '/pasteleria',
   showcase: '/camara',
+  salon: '/salon',
+  kitchen: '/cocina',
   diagnostics: '/diagnostico',
   export: '/exportar',
   integrations: '/integraciones',
@@ -50,6 +52,8 @@ export const MODULE_ICON: Record<ModuleKey, LucideIcon> = {
   production: ChefHat,
   pastry: CakeSlice,
   showcase: Snowflake,
+  salon: UtensilsCrossed,
+  kitchen: CookingPot,
   diagnostics: Stethoscope,
   export: Download,
   integrations: Plug,
@@ -79,7 +83,7 @@ export const RETIRED_PERMISSIONS: ReadonlySet<Permission> = new Set<Permission>(
 
 /** Grupos para "Más" (celular y computadora). */
 export const MODULE_GROUPS: { title: string; keys: ModuleKey[] }[] = [
-  { title: 'Operación diaria', keys: ['dashboard', 'stock', 'count', 'production', 'pastry', 'showcase', 'movements', 'invoices'] },
+  { title: 'Operación diaria', keys: ['dashboard', 'stock', 'count', 'production', 'pastry', 'showcase', 'salon', 'kitchen', 'movements', 'invoices'] },
   { title: 'Catálogo', keys: ['products', 'categories', 'units', 'locations'] },
   { title: 'Administración', keys: ['cloud', 'users', 'export', 'integrations', 'diagnostics', 'settings'] },
 ];
@@ -103,6 +107,8 @@ export const MODULE_PERMISSIONS: Record<ModuleKey, Permission[]> = {
   production: ['production'],
   pastry: ['pastry'],
   showcase: ['stock.move'],
+  salon: ['salon'],
+  kitchen: ['salon'],
   diagnostics: ['admin'],
   export: ['export'],
   integrations: ['admin'],
@@ -135,6 +141,8 @@ const PRODUCTION_LINES: ModuleKey[] = ['production', 'pastry'];
 export function soleModule(visible: ModuleKey[]): ModuleKey | undefined {
   const list = visible.filter((k) => k !== 'settings');
   if (list.length === 1) return list[0];
+  // Mozos: Salón y Cocina.
+  if (list.length > 1 && list.every((k) => k === 'salon' || k === 'kitchen')) return list.includes('salon') ? 'salon' : list[0];
   return list.length > 1 && list.every((k) => PRODUCTION_LINES.includes(k)) ? list[0] : undefined;
 }
 
@@ -181,6 +189,7 @@ export const SECTIONS: Section[] = [
   { key: 'produccion', icon: ChefHat, modules: ['production'] },
   { key: 'pasteleria', icon: CakeSlice, modules: ['pastry'] },
   { key: 'camara', icon: Snowflake, modules: ['showcase'] },
+  { key: 'salon', icon: UtensilsCrossed, modules: ['salon', 'kitchen'] },
   { key: 'productos', icon: Package, modules: ['products', 'categories', 'units', 'locations'] },
   { key: 'facturas', icon: Receipt, modules: ['invoices'] },
   { key: 'config', icon: SettingsIcon, modules: ['settings', 'users', 'cloud', 'export', 'integrations', 'diagnostics'], bottom: true },

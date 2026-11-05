@@ -5,6 +5,7 @@ import { installErrorLog } from './services/diagnosticsService';
 import { applyA11y } from './services/a11yService';
 import './styles/fonts.css';
 import './styles/global.css';
+import './styles/salon.css';
 
 installErrorLog();
 applyA11y();

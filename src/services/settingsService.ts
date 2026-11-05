@@ -13,6 +13,8 @@ export const MODULES: { key: ModuleKey; label: string; primary?: boolean; locked
   { key: 'production', label: 'Panadería' },
   { key: 'pastry', label: 'Pastelería' },
   { key: 'showcase', label: 'Cámara' },
+  { key: 'salon', label: 'Salón' },
+  { key: 'kitchen', label: 'Cocina' },
   { key: 'orders', label: 'Pedidos', primary: true },
   { key: 'movements', label: 'Movimientos' },
   { key: 'transfers', label: 'Remitos internos' },

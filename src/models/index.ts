@@ -200,7 +200,7 @@ export type LogoKind = 'default' | 'emoji' | 'image';
 export type ModuleKey =
   | 'dashboard' | 'stock' | 'count' | 'orders' | 'products' | 'suppliers' | 'locations' | 'categories'
   | 'units' | 'movements' | 'reconciliation' | 'export' | 'settings' | 'integrations' | 'cloud' | 'users' | 'invoices' | 'transfers'
-  | 'reports' | 'production' | 'pastry' | 'showcase' | 'diagnostics';
+  | 'reports' | 'production' | 'pastry' | 'showcase' | 'diagnostics' | 'salon' | 'kitchen';
 
 export interface MenuItemSetting {
   key: ModuleKey;
@@ -300,11 +300,11 @@ export type StockStatus = 'normal' | 'bajo' | 'critico' | 'sin_stock';
 
 export const PERMISSIONS = [
   'stock.view', 'stock.move', 'count.do', 'count.apply', 'orders.manage', 'orders.receive', 'catalog.manage',
-  'movements.view', 'export', 'admin', 'invoices', 'transfers', 'production', 'recipes', 'pastry',
+  'movements.view', 'export', 'admin', 'invoices', 'transfers', 'production', 'recipes', 'pastry', 'salon',
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];
 
-export type UserRole = 'admin' | 'manager' | 'staff' | 'production' | 'pastry' | 'custom';
+export type UserRole = 'admin' | 'manager' | 'staff' | 'production' | 'pastry' | 'waiter' | 'custom';
 
 /**
  * Usuario interno de la app (nombre + PIN), creado por un administrador.
@@ -468,4 +468,63 @@ export interface AccessEntry {
   deviceId: string;
   /** Sólo local: 1 cuando ya se subió a la nube. */
   pushed?: 0 | 1;
+}
+
+// ───────────────────────── Salón: mesas, carta y pedidos ─────────────────────────
+
+export interface DiningTable extends BaseEntity {
+  name: string;
+  /** Sector: "Salón", "Terraza", "Barra"… */
+  zone: string;
+  seats?: number;
+  /** Orden en el plano. */
+  order: number;
+  active: boolean;
+}
+
+/** Plato o bebida de la carta (lo que se vende; no es un producto de stock). */
+export interface MenuItem extends BaseEntity {
+  name: string;
+  /** Sección de la carta: "Desayunos", "Bebidas", "Principales"… */
+  section: string;
+  price: number;
+  /** Código del artículo en Maxirest, para mandarle el pedido cuando esté la API. */
+  maxirestCode?: string;
+  /** Va a la pantalla de cocina (las bebidas suelen salir directo). */
+  kitchen: boolean;
+  active: boolean;
+}
+
+export type TicketStatus = 'abierta' | 'cuenta' | 'cerrada' | 'anulada';
+/** nuevo → (enviar) cocina → listo → entregado. Lo que no va a cocina pasa directo a entregado. */
+export type TicketLineStatus = 'nuevo' | 'cocina' | 'listo' | 'entregado';
+
+export interface TicketLine {
+  id: string;
+  menuItemId: string;
+  name: string;
+  price: number;
+  qty: number;
+  notes?: string;
+  kitchen: boolean;
+  status: TicketLineStatus;
+  sentAt?: ISODate;
+  readyAt?: ISODate;
+  by?: { id: string; name: string };
+}
+
+/** El pedido de una mesa, desde que se abre hasta que se cierra. */
+export interface TableTicket extends BaseEntity {
+  tableId: string;
+  tableName: string;
+  number: number;
+  openedAt: ISODate;
+  openedBy?: { id: string; name: string };
+  guests?: number;
+  status: TicketStatus;
+  lines: TicketLine[];
+  closedAt?: ISODate;
+  total: number;
+  /** Envío a Maxirest (por la API, cuando esté habilitada). */
+  maxirest?: { status: 'pendiente' | 'enviado' | 'error'; at?: ISODate; error?: string };
 }

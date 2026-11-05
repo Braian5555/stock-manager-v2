@@ -1,6 +1,6 @@
 import Dexie, { type Table } from 'dexie';
 import type {
-  AccessEntry,
+  AccessEntry, DiningTable, MenuItem, TableTicket,
   Business, Category, ExternalReference, InventoryCount, InventoryCountItem, Integration, Location, Order,
   OrderItem, Product, Settings, StockMovement, Supplier, SyncJob, Unit, AppUser, Invoice, InvoiceImage, Outlet, Transfer,
 } from '../models';
@@ -85,12 +85,23 @@ export const SCHEMA_V8 = {
   accessLog: 'id, at, pushed',
 };
 
-export const CURRENT_DB_VERSION = 8;
+/** v9: salón (mesas, carta y pedidos de las mesas). */
+export const SCHEMA_V9 = {
+  ...SCHEMA_V8,
+  diningTables: 'id, zone, order',
+  menuItems: 'id, section, name',
+  tickets: 'id, tableId, status, openedAt, updatedAt',
+};
+
+export const CURRENT_DB_VERSION = 9;
 
 /** Tablas de negocio que se sincronizan con la nube. */
 export const SYNC_TABLES = [
   'settings', 'categories', 'units', 'locations', 'suppliers', 'products', 'orders', 'orderItems', 'movements', 'counts', 'countItems', 'users', 'invoices', 'outlets', 'transfers',
+  'diningTables', 'menuItems', 'tickets',
 ] as const;
+/** Tablas nuevas: si la nube todavía no tiene las reglas que las permiten, se siguen usando en el dispositivo sin marcar error. */
+export const OPTIONAL_SYNC_TABLES: ReadonlySet<string> = new Set(['diningTables', 'menuItems', 'tickets']);
 export type SyncTableName = (typeof SYNC_TABLES)[number];
 const SYNC_SET = new Set<string>(SYNC_TABLES);
 
@@ -147,6 +158,9 @@ export class StockDatabase extends Dexie {
   transfers!: Table<Transfer, string>;
   tombstones!: Table<Tombstone, string>;
   accessLog!: Table<AccessEntry, string>;
+  diningTables!: Table<DiningTable, string>;
+  menuItems!: Table<MenuItem, string>;
+  tickets!: Table<TableTicket, string>;
 
   constructor(name = DB_NAME) {
     super(name);
@@ -174,6 +188,8 @@ export class StockDatabase extends Dexie {
     this.version(7).stores(SCHEMA_V7);
     // v8: registro de ingresos.
     this.version(8).stores(SCHEMA_V8);
+    // v9: salón.
+    this.version(9).stores(SCHEMA_V9);
 
     // Middleware: informa qué registros cambiaron en las tablas sincronizadas.
     this.use({
@@ -218,5 +234,6 @@ export const db = new StockDatabase();
 export const DATA_TABLES = [
   'businesses', 'settings', 'categories', 'units', 'locations', 'suppliers', 'products', 'orders', 'orderItems',
   'movements', 'counts', 'countItems', 'integrations', 'syncJobs', 'externalReferences', 'users', 'invoices', 'outlets', 'transfers',
+  'diningTables', 'menuItems', 'tickets',
 ] as const;
 export type DataTableName = (typeof DATA_TABLES)[number];

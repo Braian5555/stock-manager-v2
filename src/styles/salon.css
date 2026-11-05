@@ -1,0 +1,134 @@
+/* ───────────── Salón (mesas y pedidos) ───────────── */
+.link-btn { border: 0; background: none; padding: 0; color: var(--primary); font: inherit; font-weight: 650; text-decoration: underline; cursor: pointer; }
+.list-btn { display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 2px; border: 0; background: none; padding: 0; font: inherit; color: inherit; text-align: left; cursor: pointer; min-width: 0; min-height: 44px; }
+.danger-text { color: var(--out); }
+.list-item.is-off { opacity: 0.55; }
+
+.salon { display: flex; flex-direction: column; gap: 14px; }
+.salon .page-header { margin-bottom: 0; }
+.salon-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.salon-search { flex: 1 1 260px; max-width: 420px; }
+.salon-sub { font-size: 0.95rem; margin: 18px 0 8px; }
+.salon-first { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; align-items: end; padding: 0 16px 16px; }
+.modal .salon-first { padding: 0; }
+.salon-ready { display: flex; gap: 10px; align-items: center; padding: 10px 14px; border-radius: var(--radius-sm); background: var(--ok-bg); color: var(--ok); font-weight: 650; }
+.salon-ready span { color: var(--text); }
+
+/* El plano: cada mesa es un posavasos de cartón. Libre = punteada; ocupada = llena. */
+.salon-floor { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 12px; }
+.salon-table {
+  width: 100%; min-height: 128px; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 12px 14px;
+  border-radius: var(--radius-lg); border: 2px dashed var(--border-strong); background: transparent; color: var(--text); font: inherit; text-align: left; cursor: pointer;
+}
+.salon-table:hover { background: var(--surface-2); }
+.salon-table:focus-visible { outline: 3px solid var(--primary-line); outline-offset: 2px; }
+.salon-table-name { font-family: var(--font-display); font-weight: 700; font-size: 2rem; line-height: 1; }
+.salon-table-state { font-size: 0.8rem; font-weight: 650; color: var(--text-3); }
+.salon-table-meta { margin-top: auto; display: flex; flex-direction: column; font-size: 0.82rem; color: var(--text-2); }
+.salon-table-meta .num { font-weight: 700; font-size: 1rem; color: var(--text); }
+.salon-table.is-ocupada { border-style: solid; border-color: var(--text); background: var(--surface); box-shadow: 0 2px 0 rgb(58 35 21 / 0.1); }
+.salon-table.is-ocupada .salon-table-state { color: var(--primary); }
+.salon-table.is-listo { border-style: solid; border-color: var(--ok); background: var(--ok-bg); }
+.salon-table.is-listo .salon-table-state { color: var(--ok); }
+.salon-table.is-cuenta { border-style: solid; border-color: var(--low); background: var(--low-bg); }
+.salon-table.is-cuenta .salon-table-state { color: var(--low); }
+@media (min-width: 1024px) { .salon-floor { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); } }
+
+/* La hoja del pedido. */
+.salon-sheet-meta { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; font-size: 0.85rem; color: var(--text-2); margin-bottom: 10px; }
+.salon-guests { display: inline-flex; align-items: center; gap: 2px; border: var(--dash); border-radius: 999px; padding: 0 4px 0 10px; }
+.salon-guests .icon-btn { width: 32px; min-height: 32px; }
+.salon-guests .num { min-width: 1.4em; text-align: center; font-weight: 700; color: var(--text); }
+.salon-sheet { display: grid; gap: 16px; margin-top: 10px; }
+@media (min-width: 1024px) {
+  .modal.wide:has(.salon-sheet) { width: min(1080px, calc(100vw - 48px)); max-width: none; }
+  .salon-sheet { grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); align-items: start; }
+  .salon-order { position: sticky; top: 0; }
+}
+.salon-picker { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.salon-items { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
+.salon-item {
+  position: relative; min-height: 72px; display: flex; flex-direction: column; justify-content: space-between; gap: 6px; padding: 10px 12px;
+  border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); color: var(--text); font: inherit; text-align: left; cursor: pointer;
+}
+.salon-item:hover { border-color: var(--text-3); }
+.salon-item:active { transform: translateY(1px); background: var(--surface-2); }
+.salon-item-name { font-weight: 650; line-height: 1.2; padding-right: 16px; }
+.salon-item-price { font-size: 0.85rem; color: var(--text-2); }
+.salon-item-k { position: absolute; top: 9px; right: 9px; color: var(--text-3); }
+
+.salon-order { border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); min-width: 0; }
+.salon-order-empty { margin: 0; padding: 18px 16px; }
+.salon-group + .salon-group { border-top: var(--dash); }
+.salon-group-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 12px 2px 14px; min-height: 40px; }
+.salon-group-head h3 { font-size: 0.82rem; font-family: var(--font); font-weight: 700; color: var(--text-3); }
+.salon-group.is-nuevo .salon-group-head h3 { color: var(--primary); }
+.salon-group.is-listo .salon-group-head h3 { color: var(--ok); }
+.salon-lines { list-style: none; margin: 0; padding: 0 0 6px; }
+.salon-line { display: flex; align-items: center; gap: 8px; padding: 6px 8px 6px 14px; min-height: 44px; }
+.salon-line-text { display: flex; flex-direction: column; min-width: 0; }
+.salon-line-name { font-weight: 600; }
+.salon-line-note { font-size: 0.82rem; font-style: italic; color: var(--text-2); }
+.salon-line-price { font-size: 0.9rem; white-space: nowrap; }
+.salon-line.is-void .salon-line-name { text-decoration: line-through; color: var(--text-3); }
+.salon-qty { display: inline-flex; align-items: center; border: 1px solid var(--border); border-radius: 999px; }
+.salon-qty .icon-btn { width: 34px; min-height: 34px; }
+.salon-qty b { min-width: 1.4em; text-align: center; }
+.salon-qty-fixed { min-width: 2.2em; color: var(--text-2); }
+.salon-sheet-more { margin-top: 12px; gap: 4px; }
+.salon-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; flex-wrap: wrap; }
+.salon-foot-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.salon-total { display: flex; align-items: baseline; gap: 10px; }
+.salon-total span { color: var(--text-2); font-size: 0.9rem; }
+.salon-total b { font-family: var(--font-display); font-size: 1.6rem; }
+.modal-body .salon-total { justify-content: flex-end; margin-top: 10px; }
+.salon-move { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 8px; }
+@media (max-width: 1023px) {
+  .salon-foot-actions { flex: 1 1 100%; }
+  .salon-foot-actions .btn { flex: 1; }
+}
+
+/* Hoy. */
+.salon-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+@media (min-width: 768px) { .salon-stats { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.salon-stat { display: flex; flex-direction: column; padding: 12px 14px; border: var(--dash); border-radius: var(--radius); }
+.salon-stat .num { font-family: var(--font-display); font-weight: 700; font-size: 1.5rem; line-height: 1.1; }
+.salon-stat span:last-child { font-size: 0.82rem; color: var(--text-2); }
+.salon-today { display: grid; gap: 14px; }
+@media (min-width: 1024px) { .salon-today { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); align-items: start; } }
+.salon-today-right { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+.salon-top { margin: 0; padding: 8px 16px 12px 34px; }
+.salon-top li { display: flex; gap: 10px; padding: 6px 0; border-bottom: var(--dash); }
+.salon-top li:last-child { border-bottom: 0; }
+
+/* ───────────── Cocina: comandas en papel ───────────── */
+.kitchen { display: flex; flex-direction: column; gap: 14px; }
+.kitchen .page-header { margin-bottom: 0; }
+.kitchen-board { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 14px; align-items: start; }
+.kitchen-ticket {
+  display: flex; flex-direction: column; background: #fffaf0; color: #2a1a0f; border-radius: 4px; padding: 0 0 12px;
+  box-shadow: 0 2px 0 rgb(58 35 21 / 0.12), 0 8px 18px rgb(58 35 21 / 0.12); border-top: 6px solid #3a2315;
+}
+.kitchen-ticket.is-warn { border-top-color: #c98a12; }
+.kitchen-ticket.is-late { border-top-color: #b3261e; }
+.kitchen-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 10px 14px 0; }
+.kitchen-table { font-family: var(--font-display); font-weight: 700; font-size: 1.5rem; }
+.kitchen-time { font-weight: 700; font-size: 1rem; }
+.kitchen-ticket.is-warn .kitchen-time { color: #8a5a00; }
+.kitchen-ticket.is-late .kitchen-time { color: #b3261e; }
+.kitchen-meta { margin: 0; padding: 0 14px 8px; font-size: 0.8rem; color: #6b4c35; border-bottom: 1.5px dashed #c9ab7d; }
+.kitchen-lines { list-style: none; margin: 0; padding: 4px 0; }
+.kitchen-line {
+  width: 100%; display: flex; align-items: flex-start; gap: 10px; padding: 9px 14px; min-height: 48px;
+  border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer;
+}
+.kitchen-line:hover { background: rgb(58 35 21 / 0.05); }
+.kitchen-line:focus-visible { outline: 3px solid #b3261e55; outline-offset: -3px; }
+.kitchen-qty { min-width: 1.6em; font-size: 1.25rem; line-height: 1.2; }
+.kitchen-name { flex: 1; display: flex; flex-direction: column; font-weight: 650; font-size: 1.05rem; line-height: 1.25; }
+.kitchen-note { font-weight: 500; font-style: italic; font-size: 0.9rem; color: #573a26; }
+.kitchen-check { color: #b08f5f; flex: none; margin-top: 2px; }
+.kitchen-line.is-void .kitchen-name { text-decoration: line-through; color: #8a6a50; }
+.kitchen-line.is-void em { font-style: normal; display: inline; color: #b3261e; font-weight: 700; }
+.kitchen-done { margin: 4px 14px 0; width: auto; background: #3a2315; color: #f7ecda; border-color: #3a2315; }
+.kitchen-done:hover { background: #2a1a0f; }

@@ -15,6 +15,8 @@ import { StockPage } from './pages/StockPage';
 const CountsPage = lazyPage(() => import('./pages/CountsPage'), 'CountsPage');
 const ProductionPage = lazyPage(() => import('./pages/ProductionPage'), 'ProductionPage');
 const ShowcasePage = lazyPage(() => import('./pages/ShowcasePage'), 'ShowcasePage');
+const SalonPage = lazyPage(() => import('./pages/SalonPage'), 'SalonPage');
+const KitchenPage = lazyPage(() => import('./pages/KitchenPage'), 'KitchenPage');
 const DiagnosticsPage = lazyPage(() => import('./pages/DiagnosticsPage'), 'DiagnosticsPage');
 const OrdersPage = lazyPage(() => import('./pages/OrdersPage'), 'OrdersPage');
 const InvoicesPage = lazyPage(() => import('./pages/InvoicesPage'), 'InvoicesPage');
@@ -87,6 +89,8 @@ export function App() {
                 <Route path="unidades" element={<Guard module="units"><CatalogPage key="unit" kind="unit" /></Guard>} />
                 <Route path="ubicaciones" element={<Guard module="locations"><CatalogPage key="location" kind="location" /></Guard>} />
                 <Route path="proveedores" element={<Guard module="suppliers"><CatalogPage key="supplier" kind="supplier" /></Guard>} />
+                <Route path="salon" element={<Guard module="salon"><SalonPage /></Guard>} />
+                <Route path="cocina" element={<Guard module="kitchen"><KitchenPage /></Guard>} />
                 <Route path="conteo" element={<Guard module="count"><CountsPage /></Guard>} />
                 <Route path="conteo/:id" element={<Guard module="count"><CountDetailPage /></Guard>} />
                 <Route path="produccion" element={<Guard module="production"><ProductionPage /></Guard>} />

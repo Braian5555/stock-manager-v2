@@ -18,6 +18,7 @@ const ROLE_HELP: Record<UserRole, string> = {
   admin: 'Todo, incluidos usuarios, configuración, nube e integraciones.',
   manager: 'Todo el trabajo diario (stock, conteos, producción, pastelería y recetas, productos, facturas, exportar). Sin administración.',
   staff: 'Ver stock y hacer conteos.',
+  waiter: 'Mozo: sólo el Salón (abrir mesas, tomar pedidos, mandarlos a cocina) y la pantalla de Cocina.',
   custom: 'Elegí permiso por permiso.',
 };
 

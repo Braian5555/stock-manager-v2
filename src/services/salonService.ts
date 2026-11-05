@@ -1,0 +1,282 @@
+/**
+ * Salón: mesas, carta y pedidos (estilo Fudo).
+ *
+ * Los pedidos se toman acá y se mandan a la pantalla de Cocina. Al cerrar la mesa el pedido queda
+ * "pendiente para Maxirest": cuando Maxirest habilite su API se le pasa desde un servicio aparte
+ * (con el código de cada artículo). El cobro y la factura siguen en Maxirest, y no se descuenta
+ * stock al vender (para no contar dos veces lo que ya se anota en producción).
+ */
+import { db } from '../database/db';
+import type { DiningTable, MenuItem, TableTicket, TicketLine } from '../models';
+import { nowIso, uuid } from '../utils/id';
+import { saveEntity, type Draft } from './entityService';
+import { getCurrentActor } from './userService';
+
+const round2 = (n: number) => Math.round(n * 100) / 100;
+export const ticketTotal = (lines: TicketLine[]) => round2(lines.reduce((s, l) => s + l.price * l.qty, 0));
+export const isOpen = (t: Pick<TableTicket, 'status'>) => t.status === 'abierta' || t.status === 'cuenta';
+
+// ───────────── Mesas ─────────────
+
+export async function saveTable(d: { id?: string; name: string; zone: string; seats?: number; active?: boolean; order?: number }): Promise<DiningTable> {
+  const name = d.name.trim();
+  if (!name) throw new Error('Poné el nombre o número de la mesa.');
+  const zone = d.zone.trim() || 'Salón';
+  const all = await db.diningTables.toArray();
+  if (all.some((t) => t.id !== d.id && t.active && t.name.toLocaleLowerCase('es') === name.toLocaleLowerCase('es')))
+    throw new Error(`Ya hay una mesa "${name}".`);
+  const prev = d.id ? all.find((t) => t.id === d.id) : undefined;
+  return saveEntity(db.diningTables, {
+    id: d.id,
+    name,
+    zone,
+    ...(d.seats ? { seats: d.seats } : {}),
+    order: d.order ?? prev?.order ?? (all.length ? Math.max(...all.map((t) => t.order)) + 1 : 1),
+    active: d.active ?? prev?.active ?? true,
+  } as Draft<DiningTable>);
+}
+
+/** Crea varias mesas numeradas de una vez ("1" a "12" en "Salón"). Saltea las que ya existen. */
+export async function addNumberedTables(from: number, to: number, zone: string): Promise<number> {
+  if (!Number.isInteger(from) || !Number.isInteger(to) || from < 1 || to < from) throw new Error('Revisá los números de mesa.');
+  if (to - from > 99) throw new Error('Son demasiadas mesas de una vez (hasta 100).');
+  const names = new Set((await db.diningTables.toArray()).filter((t) => t.active).map((t) => t.name.toLocaleLowerCase('es')));
+  let added = 0;
+  for (let n = from; n <= to; n++) {
+    if (names.has(String(n))) continue;
+    await saveTable({ name: String(n), zone });
+    added++;
+  }
+  return added;
+}
+
+/** Las mesas no se borran (quedan en el historial de pedidos): se dan de baja. */
+export async function retireTable(id: string): Promise<void> {
+  const open = await db.tickets.where('tableId').equals(id).filter(isOpen).count();
+  if (open) throw new Error('La mesa tiene un pedido abierto: cerralo o anulalo primero.');
+  await saveEntity(db.diningTables, { ...(await db.diningTables.get(id))!, active: false });
+}
+
+// ───────────── Carta ─────────────
+
+export async function saveMenuItem(d: { id?: string; name: string; section: string; price: number; maxirestCode?: string; kitchen: boolean; active?: boolean }): Promise<MenuItem> {
+  const name = d.name.trim();
+  if (!name) throw new Error('Poné el nombre del plato o la bebida.');
+  if (!Number.isFinite(d.price) || d.price < 0) throw new Error('El precio no es válido.');
+  const all = await db.menuItems.toArray();
+  if (all.some((m) => m.id !== d.id && m.active && m.name.toLocaleLowerCase('es') === name.toLocaleLowerCase('es')))
+    throw new Error(`"${name}" ya está en la carta.`);
+  const code = d.maxirestCode?.trim();
+  return saveEntity(db.menuItems, {
+    id: d.id,
+    name,
+    section: d.section.trim() || 'General',
+    price: round2(d.price),
+    ...(code ? { maxirestCode: code } : { maxirestCode: undefined }),
+    kitchen: d.kitchen,
+    active: d.active ?? true,
+  } as Draft<MenuItem>);
+}
+
+// ───────────── Pedidos ─────────────
+
+const actor = () => {
+  const a = getCurrentActor();
+  return a ? { id: a.id, name: a.name } : undefined;
+};
+
+async function mutate(ticketId: string, fn: (t: TableTicket) => void): Promise<TableTicket> {
+  return db.transaction('rw', db.tickets, async () => {
+    const t = await db.tickets.get(ticketId);
+    if (!t) throw new Error('El pedido ya no existe.');
+    const next: TableTicket = { ...t, lines: t.lines.map((l) => ({ ...l })) };
+    fn(next);
+    next.total = ticketTotal(next.lines.filter((l) => l.qty > 0));
+    next.updatedAt = nowIso();
+    await db.tickets.put(next);
+    return next;
+  });
+}
+
+const mustBeOpen = (t: TableTicket) => {
+  if (!isOpen(t)) throw new Error('Ese pedido ya está cerrado.');
+};
+
+export async function openTicket(tableId: string, guests?: number): Promise<TableTicket> {
+  const table = await db.diningTables.get(tableId);
+  if (!table || !table.active) throw new Error('La mesa no existe.');
+  return db.transaction('rw', db.tickets, async () => {
+    const open = await db.tickets.where('tableId').equals(tableId).filter(isOpen).first();
+    if (open) return open;
+    // Número correlativo del día.
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+    const today = await db.tickets.where('openedAt').aboveOrEqual(start.toISOString()).toArray();
+    const t = nowIso();
+    const by = actor();
+    const ticket: TableTicket = {
+      id: uuid(),
+      createdAt: t,
+      updatedAt: t,
+      tableId,
+      tableName: table.name,
+      number: today.reduce((m, x) => Math.max(m, x.number), 0) + 1,
+      openedAt: t,
+      ...(by ? { openedBy: by } : {}),
+      ...(guests ? { guests } : {}),
+      status: 'abierta',
+      lines: [],
+      total: 0,
+    };
+    await db.tickets.add(ticket);
+    return ticket;
+  });
+}
+
+/** Suma un plato al pedido. Si ya hay uno igual sin mandar (y sin nota), suma cantidad. */
+export async function addLine(ticketId: string, item: MenuItem, qty = 1, notes?: string): Promise<TableTicket> {
+  const note = notes?.trim() || undefined;
+  return mutate(ticketId, (t) => {
+    mustBeOpen(t);
+    const same = t.lines.find((l) => l.status === 'nuevo' && l.menuItemId === item.id && !l.notes && !note);
+    if (same) same.qty += qty;
+    else {
+      const by = actor();
+      t.lines.push({ id: uuid(), menuItemId: item.id, name: item.name, price: item.price, qty, kitchen: item.kitchen, status: 'nuevo', ...(note ? { notes: note } : {}), ...(by ? { by } : {}) });
+    }
+    if (t.status === 'cuenta') t.status = 'abierta';
+  });
+}
+
+/** Cambia cantidad o nota de un plato que todavía no se mandó. Con cantidad 0 lo saca. */
+export async function updateLine(ticketId: string, lineId: string, patch: { qty?: number; notes?: string }): Promise<TableTicket> {
+  return mutate(ticketId, (t) => {
+    mustBeOpen(t);
+    const l = t.lines.find((x) => x.id === lineId);
+    if (!l) return;
+    if (l.status !== 'nuevo') throw new Error('Ese plato ya se mandó a cocina: para sacarlo, anulalo.');
+    if (patch.notes !== undefined) l.notes = patch.notes.trim() || undefined;
+    if (patch.qty !== undefined) {
+      if (patch.qty <= 0) t.lines = t.lines.filter((x) => x.id !== lineId);
+      else l.qty = patch.qty;
+    }
+  });
+}
+
+/** Anula un plato ya mandado (p. ej. se equivocaron): queda en 0 para que cocina lo vea tachado. */
+export async function voidLine(ticketId: string, lineId: string): Promise<TableTicket> {
+  return mutate(ticketId, (t) => {
+    mustBeOpen(t);
+    const l = t.lines.find((x) => x.id === lineId);
+    if (!l) return;
+    if (l.status === 'nuevo') t.lines = t.lines.filter((x) => x.id !== lineId);
+    else l.qty = 0;
+  });
+}
+
+/** Manda la comanda: lo de cocina va a la pantalla de Cocina; lo demás (bebidas) sale directo. */
+export async function sendToKitchen(ticketId: string): Promise<{ ticket: TableTicket; sent: number }> {
+  let sent = 0;
+  const ticket = await mutate(ticketId, (t) => {
+    mustBeOpen(t);
+    const at = nowIso();
+    for (const l of t.lines) {
+      if (l.status !== 'nuevo') continue;
+      sent += l.qty;
+      l.sentAt = at;
+      l.status = l.kitchen ? 'cocina' : 'entregado';
+    }
+  });
+  return { ticket, sent };
+}
+
+export async function markLineReady(ticketId: string, lineId: string): Promise<TableTicket> {
+  return mutate(ticketId, (t) => {
+    const l = t.lines.find((x) => x.id === lineId);
+    if (l && l.status === 'cocina') { l.status = 'listo'; l.readyAt = nowIso(); }
+  });
+}
+
+/** Cocina: todo lo de esa mesa listo. */
+export async function markTicketReady(ticketId: string): Promise<TableTicket> {
+  return mutate(ticketId, (t) => {
+    const at = nowIso();
+    for (const l of t.lines) if (l.status === 'cocina') { l.status = 'listo'; l.readyAt = at; }
+  });
+}
+
+/** El mozo lo llevó a la mesa. */
+export async function markDelivered(ticketId: string, lineId?: string): Promise<TableTicket> {
+  return mutate(ticketId, (t) => {
+    for (const l of t.lines) if (l.status === 'listo' && (!lineId || l.id === lineId)) l.status = 'entregado';
+  });
+}
+
+export async function requestBill(ticketId: string): Promise<TableTicket> {
+  return mutate(ticketId, (t) => {
+    mustBeOpen(t);
+    if (!t.lines.some((l) => l.qty > 0)) throw new Error('El pedido está vacío.');
+    t.status = 'cuenta';
+  });
+}
+
+/** Cierra la mesa: queda libre y el pedido pasa a la cola para Maxirest. */
+export async function closeTicket(ticketId: string): Promise<TableTicket> {
+  return mutate(ticketId, (t) => {
+    mustBeOpen(t);
+    if (t.lines.some((l) => l.status === 'nuevo')) throw new Error('Hay platos sin mandar: mandalos o sacalos antes de cerrar.');
+    if (!t.lines.some((l) => l.qty > 0)) throw new Error('El pedido está vacío: si no se pidió nada, anulalo.');
+    t.status = 'cerrada';
+    t.closedAt = nowIso();
+    t.maxirest = { status: 'pendiente' };
+  });
+}
+
+export async function cancelTicket(ticketId: string): Promise<TableTicket> {
+  return mutate(ticketId, (t) => {
+    mustBeOpen(t);
+    t.status = 'anulada';
+    t.closedAt = nowIso();
+  });
+}
+
+/** Pasa el pedido a otra mesa libre. */
+export async function moveTicket(ticketId: string, tableId: string): Promise<TableTicket> {
+  const table = await db.diningTables.get(tableId);
+  if (!table || !table.active) throw new Error('La mesa no existe.');
+  const busy = await db.tickets.where('tableId').equals(tableId).filter(isOpen).count();
+  if (busy) throw new Error(`La mesa ${table.name} está ocupada.`);
+  return mutate(ticketId, (t) => {
+    mustBeOpen(t);
+    t.tableId = table.id;
+    t.tableName = table.name;
+  });
+}
+
+// ───────────── Maxirest (la API va aparte) ─────────────
+
+/**
+ * Lo que se le mandaría a Maxirest por cada pedido cerrado. El envío lo hace un servicio aparte
+ * cuando Maxirest habilite la API; los artículos sin código quedan marcados para revisarlos.
+ */
+export function maxirestPayload(t: TableTicket, items: Map<string, MenuItem>) {
+  const lines = t.lines.filter((l) => l.qty > 0);
+  return {
+    externalId: t.id,
+    mesa: t.tableName,
+    numero: t.number,
+    abierto: t.openedAt,
+    cerrado: t.closedAt,
+    comensales: t.guests,
+    mozo: t.openedBy?.name,
+    total: t.total,
+    items: lines.map((l) => ({ codigo: items.get(l.menuItemId)?.maxirestCode ?? null, nombre: l.name, cantidad: l.qty, precio: l.price, nota: l.notes })),
+    sinCodigo: lines.filter((l) => !items.get(l.menuItemId)?.maxirestCode).map((l) => l.name),
+  };
+}
+
+export async function markMaxirest(ticketId: string, status: 'pendiente' | 'enviado' | 'error', error?: string): Promise<void> {
+  const t = await db.tickets.get(ticketId);
+  if (!t) return;
+  await db.tickets.put({ ...t, maxirest: { status, at: nowIso(), ...(error ? { error } : {}) }, updatedAt: nowIso() });
+}
