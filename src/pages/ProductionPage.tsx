@@ -199,7 +199,7 @@ export function ProductionPage({ line = 'production' }: { line?: ProductionLine 
             <button type="button" className="group-chip" aria-pressed={current === FREQUENT} onClick={() => setChip(FREQUENT)}>Lo de siempre</button>
           )}
           {families.map((c) => (
-            <button key={c.id} type="button" className="group-chip" aria-pressed={current === c.id} onClick={() => setChip(c.id)}>{c.name}</button>
+            <button key={c.id} type="button" className="group-chip" aria-pressed={current === c.id} onClick={() => setChip(c.id)}>{families.length === 1 ? 'Todo' : c.name}</button>
           ))}
         </div>
       )}
