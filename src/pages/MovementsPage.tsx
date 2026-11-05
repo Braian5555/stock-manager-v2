@@ -1,6 +1,6 @@
 import { useSession } from '../store/session';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { ArrowLeftRight, Undo2, X } from 'lucide-react';
+import { ArrowLeftRight, SlidersHorizontal, Undo2, X } from 'lucide-react';
 import { useSearchParams } from 'react-router';
 import { useMemo, useState } from 'react';
 import { db } from '../database/db';
@@ -26,6 +26,7 @@ export function MovementsPage() {
   const { run, confirm } = useFeedback();
   const { can } = useSession();
   const [q, setQ] = useState('');
+  const [showFilters, setShowFilters] = useState(false);
   // Filtros en la dirección: así Reportes puede abrir, por ejemplo, "Pérdidas de los últimos 7 días".
   const [params, setParams] = useSearchParams();
   const type = params.get('tipo') ?? ''; // un tipo, o "grupo:ingresos" / "grupo:salidas" / …
@@ -72,8 +73,13 @@ export function MovementsPage() {
   return (
     <>
       <PageHeader title={menuLabel(settings, 'movements')} subtitle={`${list.length} movimientos`} actions={<ScanButton label="Escanear y registrar" />} />
-      <div className="toolbar"><SearchInput value={q} onChange={setQ} placeholder="Buscar por producto o motivo" /></div>
-      <div className="filters">
+      <div className="toolbar">
+        <SearchInput value={q} onChange={setQ} placeholder="Buscar por producto o motivo" />
+        <button type="button" className="btn filters-toggle" aria-expanded={showFilters} aria-controls="mov-filters" onClick={() => setShowFilters((v) => !v)}>
+          <SlidersHorizontal size={18} aria-hidden /> Filtros{[type, from, to, place].filter(Boolean).length ? ` (${[type, from, to, place].filter(Boolean).length})` : ''}
+        </button>
+      </div>
+      <div id="mov-filters" className={`filters ${showFilters ? '' : 'collapsed'}`}>
         <Select aria-label="Tipo" value={type} onChange={(e) => setType(e.target.value)}>
           <option value="">Todos los tipos</option>
           <optgroup label="Grupos">
@@ -111,8 +117,8 @@ export function MovementsPage() {
               <div key={m.id} className="list-item">
                 <div className="grow">
                   <div className="list-title truncate">{name.get(m.productId) ?? (m.productName ? `${m.productName} (eliminado)` : '(producto eliminado)')}</div>
-                  <div className="list-sub">{MOVEMENT_LABEL[m.type]}{outlets.length > 0 && ` · ${placeOf(m)}`} · {fmtDate(m.createdAt)} {fmtTime(m.createdAt)} · {ORIGIN_LABEL[m.origin]}{m.sourceSystem === 'maxirest' ? ' · Maxirest' : ''}</div>
-                  <div className="list-sub num">{fmtNumber(m.quantityBefore)} → {fmtNumber(m.quantityAfter)}{m.reason ? ` · ${m.reason}` : ''}{m.performedBy ? ` · ${m.performedBy.name}` : ''}</div>
+                  <div className="list-sub truncate">{MOVEMENT_LABEL[m.type]}{outlets.length > 0 && ` · ${placeOf(m)}`} · {fmtDate(m.createdAt).slice(0, 5)} {fmtTime(m.createdAt)}{m.performedBy ? ` · ${m.performedBy.name}` : ''}{m.sourceSystem === 'maxirest' ? ' · Maxirest' : ''}</div>
+                  <div className="list-sub num truncate">{fmtNumber(m.quantityBefore)} → {fmtNumber(m.quantityAfter)}{m.reason ? ` · ${m.reason}` : ` · ${ORIGIN_LABEL[m.origin]}`}</div>
                 </div>
                 <strong className={`num ${m.delta >= 0 ? 'pos' : 'neg'}`}>{fmtSigned(m.delta)}</strong>
                 {can('stock.move') && m.origin !== 'deshacer' && m.origin !== 'remito' && m.origin !== 'factura' && name.has(m.productId) && !reverted.has(m.id) && (

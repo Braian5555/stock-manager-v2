@@ -93,7 +93,7 @@ export function ProductsPage() {
           </EmptyState>
         ) : (
           <div className="table-wrap">
-            <table className="table responsive">
+            <table className="table responsive prod-rows">
               <thead>
                 <tr>{selecting && <th className="col-check"><input type="checkbox" checked={allShown} onChange={(e) => toggleAll(e.target.checked)} aria-label={`Elegir los ${g.shown.length} productos de la lista`} /></th>}<th>Producto</th><th>Código</th>{g.mode !== 'familia' && <th>Familia</th>}{g.mode !== 'ubicacion' && <th>Ubicación</th>}<th>Proveedor</th><th className="num">Stock</th><th>Estado</th><th><span className="sr-only">Acciones</span></th></tr>
               </thead>

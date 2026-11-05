@@ -1,6 +1,6 @@
 import { useSession } from '../store/session';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Boxes, MapPin, Plus, SlidersHorizontal, Tags, Truck, X } from 'lucide-react';
+import { ArrowLeftRight, Boxes, MapPin, Pencil, Plus, SlidersHorizontal, Tags, Truck, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { db } from '../database/db';
@@ -201,8 +201,8 @@ export function StockPage() {
                     <div className="pcard-meta">
                       {p.categoryId && <span className="row" style={{ gap: 4 }}><Tags size={13} aria-hidden />{lk.category(p.categoryId)}</span>}
                       {p.locationId && <span className="row" style={{ gap: 4 }}><MapPin size={13} aria-hidden />{lk.location(p.locationId)}</span>}
-                      {p.supplierId && <span className="row" style={{ gap: 4 }}><Truck size={13} aria-hidden />{lk.supplier(p.supplierId)}</span>}
-                      {p.sku && <span>{p.sku}</span>}
+                      {p.supplierId && <span className="row pcard-extra" style={{ gap: 4 }}><Truck size={13} aria-hidden />{lk.supplier(p.supplierId)}</span>}
+                      {p.sku && <span className="pcard-extra">{p.sku}</span>}
                     </div>
                   </div>
                   <div className="pcard-qty"><strong>{fmtNumber(p.stock)}</strong><span>{unit}</span></div>
@@ -215,9 +215,9 @@ export function StockPage() {
                 {ext !== undefined && (
                   <div className="small muted">Stock Maxirest: <strong className="num">{fmtNumber(ext)}</strong> · diferencia <strong className="num">{fmtNumber(p.stock - ext)}</strong></div>
                 )}
-                <div className="row">
-                  {can('stock.move') && <button type="button" className="btn btn-sm grow" onClick={() => setMoving(p)}>Registrar movimiento</button>}
-                  {can('catalog.manage') && <Link className="btn btn-sm btn-ghost" to={`/productos?editar=${p.id}`}>Editar</Link>}
+                <div className="row pcard-actions">
+                  {can('stock.move') && <button type="button" className="btn btn-sm grow" onClick={() => setMoving(p)}><ArrowLeftRight size={16} aria-hidden /><span className="btn-label">Registrar movimiento</span></button>}
+                  {can('catalog.manage') && <Link className="btn btn-sm btn-ghost" to={`/productos?editar=${p.id}`} aria-label={`Editar ${p.name}`}><Pencil size={16} aria-hidden /><span className="btn-label">Editar</span></Link>}
                 </div>
               </article>
             );

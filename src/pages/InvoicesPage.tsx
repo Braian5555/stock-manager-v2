@@ -1,5 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Camera, Receipt, Sparkles } from 'lucide-react';
+import { Camera, Receipt, SlidersHorizontal, Sparkles } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { db } from '../database/db';
@@ -26,6 +26,7 @@ export function InvoicesPage() {
   // Facturas que había en este dispositivo antes de entrar a la nube del negocio.
   const recoverable = useLiveQuery(() => recoverableInvoices(), [invoices.length]) ?? EMPTY;
   const [q, setQ] = useState('');
+  const [showFilters, setShowFilters] = useState(false);
   const [supplierId, setSupplierId] = useState('');
   const [month, setMonth] = useState('');
   const [pay, setPay] = useState<'' | 'apagar' | 'pagadas' | 'sindatos'>('');
@@ -109,6 +110,11 @@ export function InvoicesPage() {
       )}
       <div className="toolbar">
         <SearchInput value={q} onChange={setQ} placeholder="Buscar por número, proveedor o nota…" label="Buscar facturas" />
+        <button type="button" className="btn filters-toggle" aria-expanded={showFilters} aria-controls="inv-filters" onClick={() => setShowFilters((v) => !v)}>
+          <SlidersHorizontal size={18} aria-hidden /> Filtros{[supplierId, month, pay].filter(Boolean).length ? ` (${[supplierId, month, pay].filter(Boolean).length})` : ''}
+        </button>
+      </div>
+      <div id="inv-filters" className={`toolbar inv-filters ${showFilters ? '' : 'collapsed'}`}>
         <Select aria-label="Filtrar por proveedor" value={supplierId} onChange={(e) => setSupplierId(e.target.value)} style={{ maxWidth: 240 }}>
           <option value="">Todos los proveedores</option>
           {lk.suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}

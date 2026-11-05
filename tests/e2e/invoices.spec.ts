@@ -137,7 +137,7 @@ test('facturas: se adjuntan desde un pedido', async ({ page }) => {
   await expect(page.locator('.invoice-item')).toHaveCount(1);
 });
 
-test('facturas: anotar cómo se paga (eCheq a N días, efectivo) y si ya se pagó', async ({ page }) => {
+test('facturas: anotar cómo se paga (eCheq a N días, efectivo) y si ya se pagó', async ({ page, isMobile }) => {
   await loadDemo(page);
   await go(page, '/facturas');
   await expect(page.getByText('Este dispositivo no está conectado a la nube del negocio.')).toBeVisible();
@@ -162,6 +162,8 @@ test('facturas: anotar cómo se paga (eCheq a N días, efectivo) y si ya se pag�
   const row = page.locator('.invoice-item', { hasText: '0001-00117581' });
   await expect(row).toContainText('A pagar · eCheq 60 días');
   await expect(page.getByText(/A pagar: \$\s?817\.850,00/)).toBeVisible();
+  // En el celular los filtros están plegados.
+  if (isMobile) await page.getByRole('button', { name: /^Filtros/ }).click();
   await page.getByLabel('Filtrar por pago').selectOption('pagadas');
   await expect(row).toHaveCount(0);
   await page.getByLabel('Filtrar por pago').selectOption('apagar');

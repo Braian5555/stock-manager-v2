@@ -1459,3 +1459,58 @@ a.hm-row:hover { background: var(--surface-2); }
 .access-when span { font-size: 0.8rem; color: var(--text-3); }
 .access-row { gap: 10px; }
 .access-time { flex: none; width: 3.2em; font-family: var(--font-display); font-weight: 700; font-size: 1.05rem; }
+
+/* ═════════════════════════ Celular: más contenido, menos encabezado ═════════════════════════ */
+@media (max-width: 719px) {
+  .main { padding-top: 12px; }
+  /* Encabezado de cada pantalla: título más compacto y botones chicos en una fila. */
+  .page-head { gap: 8px 10px; margin-bottom: 12px; align-items: center; }
+  .page-head h1 { font-size: 1.55rem; }
+  .page-head p { font-size: 0.82rem; margin-top: 2px; }
+  .page-actions { gap: 6px; flex-wrap: nowrap; overflow-x: auto; max-width: 100%; scrollbar-width: none; padding-bottom: 2px; }
+  .page-actions::-webkit-scrollbar { display: none; }
+  .page-actions > * { flex: none; }
+  .page-actions .btn-primary { order: -1; }
+  /* Panadería, Pastelería y Cámara: las pestañas (Anotar, Plan…) van en su propia fila, completas. */
+  .production .page-actions { flex-wrap: wrap; overflow: visible; width: 100%; }
+  .production .page-actions .segmented { order: 2; width: 100%; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); }
+  .page-actions .btn { min-height: 38px; padding: 0 11px; font-size: 0.84rem; }
+  .page-actions .segmented button { min-height: 32px; padding: 4px 10px; font-size: 0.84rem; }
+  .toolbar { gap: 6px; margin-bottom: 10px; }
+  .inv-filters.collapsed { display: none; }
+  .inv-filters { flex-direction: column; align-items: stretch; }
+  .inv-filters > * { max-width: none !important; }
+
+  /* Estado de la nube en la barra de arriba: sólo el ícono (el texto queda para lectores de pantalla). */
+  .topbar .sync-pill { padding: 0 9px; }
+  .topbar .sync-pill .sync-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+  /* Stock: tarjeta compacta — nombre y cantidad arriba; familia y ubicación; estado y acciones en una línea. */
+  .product-cards { gap: 8px; }
+  .pcard { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: 'top top' 'status actions'; gap: 8px 10px; padding: 12px; }
+  .pcard-top { grid-area: top; }
+  .pcard-status { grid-area: status; justify-content: flex-start; min-width: 0; }
+  .pcard-status .small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pcard-actions { grid-area: actions; gap: 4px; }
+  .pcard-actions .btn { min-height: 36px; min-width: 40px; padding: 0 10px; flex: none; }
+  .pcard-actions .btn-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .pcard .bar, .pcard-extra { display: none; }
+  .pcard-meta { flex-wrap: nowrap; overflow: hidden; white-space: nowrap; }
+  .pcard-meta > span { overflow: hidden; text-overflow: ellipsis; }
+
+  /* Productos: filas compactas en vez de tarjetas con etiquetas. */
+  .table.responsive.prod-rows tr:not(.group-row) { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 2px 12px; padding: 10px 14px; }
+  .table.responsive.prod-rows tr:not(.group-row):has(td.col-check) { grid-template-columns: auto minmax(0, 1fr) auto; }
+  .table.responsive.prod-rows td { padding: 0; }
+  .table.responsive.prod-rows td::before { content: none; }
+  .table.responsive.prod-rows td.col-check { float: none; grid-row: 1 / span 2; padding: 0; }
+  .table.responsive.prod-rows td.cell-title { grid-row: 1 / span 2; font-size: 0.98rem; }
+  .table.responsive.prod-rows td.cell-title .cell-sub { display: block; font-weight: 400; font-size: 0.78rem; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .table.responsive.prod-rows td[data-label="Stock"] { justify-content: flex-end; font-family: var(--font-display); font-weight: 700; font-size: 1.05rem; }
+  .table.responsive.prod-rows td[data-label="Estado"] { justify-content: flex-end; }
+  .table.responsive.prod-rows td[data-label="Acciones"] { grid-column: 1 / -1; justify-content: flex-end; margin-top: -2px; }
+  .table.responsive.prod-rows td[data-label="Acciones"] .btn { min-height: 34px; }
+
+  /* Movimientos: renglones un poco más apretados. */
+  .list.show-mobile .list-item { padding-top: 9px; padding-bottom: 9px; }
+}
