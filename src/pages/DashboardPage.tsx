@@ -1,4 +1,4 @@
-import { AlertTriangle, Boxes, Camera, ChefHat, CheckCircle2, ClipboardCheck, Lock, LogOut, MinusCircle, Package, Sparkles, Store, type LucideIcon } from 'lucide-react';
+import { AlertTriangle, Boxes, Camera, ChefHat, CheckCircle2, ClipboardCheck, Lock, LogOut, MinusCircle, Package, Snowflake, Sparkles, type LucideIcon } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import { useProducts } from '../hooks/useData';
@@ -132,9 +132,9 @@ function Bento({ d, allowed, onNegatives }: { d: HomePanels; allowed: (m: Module
   const todayBadge = d.planned ? `Hoy ${d.done} de ${d.planned}` : `Hoy ${d.madeProducts} ${d.madeProducts === 1 ? 'anotado' : 'anotados'}`;
   const pair = [
     vitrina && (
-      <Link key="v" to="/vitrina" className="hm-mini">
-        <span className="hm-mini-text"><span className="hm-mini-value num">{fmtNumber(d.available.length)}</span><span className="hm-mini-label">en vitrina</span></span>
-        <Store size={22} aria-hidden />
+      <Link key="v" to="/camara" className="hm-mini">
+        <span className="hm-mini-text"><span className="hm-mini-value num">{fmtNumber(d.available.length)}</span><span className="hm-mini-label">en la cámara</span></span>
+        <Snowflake size={22} aria-hidden />
       </Link>
     ),
     stock && (
@@ -191,7 +191,7 @@ interface Action { label: string; hint: string; to: string; icon: LucideIcon; to
 
 const ACTIONS: Action[] = [
   { label: 'Anotar producción', hint: 'Lo que salió del horno', to: '/produccion', icon: ChefHat, tone: 'emerald', perms: ['production'], module: 'production' },
-  { label: 'Vitrina', hint: 'Lo que queda y lo vendido', to: '/vitrina', icon: Store, tone: 'blue', perms: MODULE_PERMISSIONS.showcase, module: 'showcase' },
+  { label: 'Cámara', hint: 'Lo congelado y lo que se saca', to: '/camara', icon: Snowflake, tone: 'blue', perms: MODULE_PERMISSIONS.showcase, module: 'showcase' },
   { label: 'Foto de factura', hint: 'Para el administrativo', to: '/facturas?nueva=1', icon: Camera, tone: 'amber', perms: ['invoices'], module: 'invoices' },
   { label: 'Contar stock', hint: 'Conteo o control', to: '/conteo', icon: ClipboardCheck, tone: 'petrol', perms: ['count.do'], module: 'count' },
   { label: 'Ver stock', hint: 'Existencias y alertas', to: '/stock', icon: Boxes, tone: 'slate', perms: ['stock.view'], module: 'stock' },

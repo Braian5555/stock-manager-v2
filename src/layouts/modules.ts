@@ -1,6 +1,6 @@
-import {
+import { Snowflake,
   ArrowLeftRight, BarChart3, Boxes, ClipboardCheck, Cloud, Download, Forklift, Home, MapPin, Package, Plug, Receipt, Ruler, Scale, Settings as SettingsIcon,
-  ShoppingCart, Stethoscope, Store, Tags, Truck, UserCog, ChefHat, CakeSlice,
+  ShoppingCart, Stethoscope, Tags, Truck, UserCog, ChefHat, CakeSlice,
   type LucideIcon,
 } from 'lucide-react';
 import type { ModuleKey, Permission, Settings } from '../models';
@@ -23,7 +23,7 @@ export const MODULE_PATH: Record<ModuleKey, string> = {
   reports: '/reportes',
   production: '/produccion',
   pastry: '/pasteleria',
-  showcase: '/vitrina',
+  showcase: '/camara',
   diagnostics: '/diagnostico',
   export: '/exportar',
   integrations: '/integraciones',
@@ -49,7 +49,7 @@ export const MODULE_ICON: Record<ModuleKey, LucideIcon> = {
   reports: BarChart3,
   production: ChefHat,
   pastry: CakeSlice,
-  showcase: Store,
+  showcase: Snowflake,
   diagnostics: Stethoscope,
   export: Download,
   integrations: Plug,
@@ -180,7 +180,7 @@ export const SECTIONS: Section[] = [
   { key: 'stock', icon: Boxes, modules: ['stock', 'movements', 'count', 'reconciliation'] },
   { key: 'produccion', icon: ChefHat, modules: ['production'] },
   { key: 'pasteleria', icon: CakeSlice, modules: ['pastry'] },
-  { key: 'vitrina', icon: Store, modules: ['showcase'] },
+  { key: 'camara', icon: Snowflake, modules: ['showcase'] },
   { key: 'productos', icon: Package, modules: ['products', 'categories', 'units', 'locations'] },
   { key: 'facturas', icon: Receipt, modules: ['invoices'] },
   { key: 'config', icon: SettingsIcon, modules: ['settings', 'users', 'cloud', 'export', 'integrations', 'diagnostics'], bottom: true },

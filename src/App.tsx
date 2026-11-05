@@ -1,6 +1,6 @@
 import { lazyPage } from './utils/lazyPage';
 import { useEffect, useState } from 'react';
-import { HashRouter, Route, Routes } from 'react-router';
+import { HashRouter, Navigate, Route, Routes } from 'react-router';
 import { ensureBaseData } from './services/seedService';
 import { initCloud } from './cloud/cloudService';
 import { FeedbackProvider } from './store/feedback';
@@ -91,7 +91,8 @@ export function App() {
                 <Route path="conteo/:id" element={<Guard module="count"><CountDetailPage /></Guard>} />
                 <Route path="produccion" element={<Guard module="production"><ProductionPage /></Guard>} />
                 <Route path="pasteleria" element={<Guard module="pastry"><ProductionPage line="pastry" key="pastry" /></Guard>} />
-                <Route path="vitrina" element={<Guard module="showcase"><ShowcasePage /></Guard>} />
+                <Route path="camara" element={<Guard module="showcase"><ShowcasePage /></Guard>} />
+                <Route path="vitrina" element={<Navigate to="/camara" replace />} />
                 <Route path="diagnostico" element={<Guard module="diagnostics"><DiagnosticsPage /></Guard>} />
                 <Route path="pedidos" element={<Guard module="orders"><OrdersPage /></Guard>} />
                 <Route path="pedidos/:id" element={<Guard module="orders"><OrderEditorPage /></Guard>} />

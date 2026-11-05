@@ -1,6 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
-  AlertTriangle, ArrowDownToLine, ArrowUpFromLine, ChefHat, ChevronRight, ClipboardCheck, History, Receipt, RotateCcw, Scale, Store, TrendingUp,
+  AlertTriangle, ArrowDownToLine, ArrowUpFromLine, ChefHat, ChevronRight, ClipboardCheck, History, Receipt, RotateCcw, Scale, Snowflake, TrendingUp,
   type LucideIcon,
 } from 'lucide-react';
 import { useMemo, type ReactNode } from 'react';
@@ -179,16 +179,16 @@ export function BakeryTodayCard({ d, limit = 7 }: { d: HomePanels; limit?: numbe
 export function ShowcaseCard({ d, limit = 6 }: { d: HomePanels; limit?: number }) {
   return (
     <Panel
-      id="home-vitrina" icon={Store} tone="blue" title="Vitrina"
-      action={<span className="row">{d.soldOut.length > 0 && <span className="hm-tag tone-rose">{d.soldOut.length} {d.soldOut.length === 1 ? 'agotado' : 'agotados'}</span>}<PanelLink to="/vitrina">Abrir</PanelLink></span>}
+      id="home-vitrina" icon={Snowflake} tone="blue" title="Cámara de congelados"
+      action={<span className="row">{d.soldOut.length > 0 && <span className="hm-tag tone-rose">{d.soldOut.length} sin stock</span>}<PanelLink to="/camara">Abrir</PanelLink></span>}
     >
       {d.available.length === 0 ? (
-        <Empty>{d.soldOut.length ? 'Se agotó todo lo de hoy.' : 'No queda nada en la vitrina.'}</Empty>
+        <Empty>{d.soldOut.length ? 'Se sacó todo lo de la cámara.' : 'La cámara está vacía.'}</Empty>
       ) : (
         <ul className="hm-tiles">
           {d.available.slice(0, limit).map((p) => (
             <li key={p.id}>
-              <Link to="/vitrina" className="hm-tile">
+              <Link to="/camara" className="hm-tile">
                 <span className="hm-tile-name">{p.name}</span>
                 <span className="hm-tile-qty"><strong className="num">{fmtNumber(p.stock)}</strong> {d.lk.unit(p.unitId) || 'u'}</span>
               </Link>
@@ -196,7 +196,7 @@ export function ShowcaseCard({ d, limit = 6 }: { d: HomePanels; limit?: number }
           ))}
         </ul>
       )}
-      {d.available.length > limit && <More to="/vitrina">Ver los {d.available.length} productos</More>}
+      {d.available.length > limit && <More to="/camara">Ver los {d.available.length} productos</More>}
     </Panel>
   );
 }

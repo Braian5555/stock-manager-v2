@@ -20,12 +20,12 @@ test('inicio: encabezado con resumen, accesos, indicadores y el día del negocio
   await expect(week).toContainText('Hoy 1 anotado');
   await expect(week).toContainText('5');
   await expect(page.getByRole('link', { name: /en negativo/ })).toContainText('Todo el stock en positivo');
-  await expect(page.getByRole('link', { name: /en vitrina$/ })).toBeVisible();
+  await expect(page.getByRole('link', { name: /en la cámara$/ })).toBeVisible();
   await expect(page.getByRole('link', { name: /para reponer$/ })).toBeVisible();
 
   // Accesos rápidos según permisos (administrador: todos).
   const actions = page.getByRole('navigation', { name: 'Acciones rápidas' });
-  for (const a of ['Anotar producción', 'Vitrina', 'Foto de factura', 'Contar stock', 'Ver stock']) await expect(actions.getByRole('link', { name: new RegExp(`^${a}`) })).toBeVisible();
+  for (const a of ['Anotar producción', 'Cámara', 'Foto de factura', 'Contar stock', 'Ver stock']) await expect(actions.getByRole('link', { name: new RegExp(`^${a}`) })).toBeVisible();
 
   // Indicadores y secciones con los datos reales.
   const bakery = page.getByRole('region', { name: 'Panadería de hoy' });
@@ -36,7 +36,7 @@ test('inicio: encabezado con resumen, accesos, indicadores y el día del negocio
   await expect(activity).toContainText('+5 kg');
   const restock = page.getByRole('region', { name: 'Para reponer' });
   await expect(restock).toContainText('Papa');
-  await expect(page.getByRole('region', { name: 'Vitrina' })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Cámara de congelados' })).toBeVisible();
   await expect(page.getByRole('region', { name: 'Facturas de la semana' })).toContainText('No se cargaron facturas');
   for (const h of ['Pedidos abiertos', 'Remitos sin cargar en Maxirest']) await expect(page.getByRole('heading', { name: h })).toHaveCount(0);
 
@@ -74,7 +74,7 @@ test('inicio: el encargado sin facturas ni producción ve sólo lo que puede usa
   await go(page, '/');
   const actions = page.getByRole('navigation', { name: 'Acciones rápidas' });
   await expect(actions.getByRole('link', { name: /^Contar stock/ })).toBeVisible();
-  for (const a of ['Anotar producción', 'Vitrina']) await expect(actions.getByRole('link', { name: new RegExp(`^${a}`) })).toHaveCount(0);
+  for (const a of ['Anotar producción', 'Cámara']) await expect(actions.getByRole('link', { name: new RegExp(`^${a}`) })).toHaveCount(0);
   await expect(page.getByRole('region', { name: 'Panadería de hoy' })).toHaveCount(0);
-  await expect(page.getByRole('region', { name: 'Vitrina' })).toHaveCount(0);
+  await expect(page.getByRole('region', { name: 'Cámara de congelados' })).toHaveCount(0);
 });

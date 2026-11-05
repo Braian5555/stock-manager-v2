@@ -12,7 +12,7 @@ export const MODULES: { key: ModuleKey; label: string; primary?: boolean; locked
   { key: 'count', label: 'Conteo', primary: true },
   { key: 'production', label: 'Producción' },
   { key: 'pastry', label: 'Pastelería' },
-  { key: 'showcase', label: 'Vitrina' },
+  { key: 'showcase', label: 'Cámara' },
   { key: 'orders', label: 'Pedidos', primary: true },
   { key: 'movements', label: 'Movimientos' },
   { key: 'transfers', label: 'Remitos internos' },
@@ -95,6 +95,8 @@ export function normalizeSettings(s: Partial<Settings> | undefined): Settings {
   });
   if (LEGACY_PRIMARY.includes(String(merged.primaryColor).toLowerCase())) merged.primaryColor = DEFAULT_PRIMARY;
   if (LEGACY_SECONDARY.includes(String(merged.secondaryColor).toLowerCase())) merged.secondaryColor = base.secondaryColor;
+  // La "Vitrina" pasó a ser la cámara de congelados (no hay vitrina: se congela, se hornea y va a desayunos).
+  ordered = ordered.map((m) => (m.key === 'showcase' && m.label === 'Vitrina' ? { ...m, label: 'Cámara' } : m));
   merged.menu = ordered.map((m) => (MODULES.find((x) => x.key === m.key)?.locked ? { ...m, visible: true } : m));
   merged.navTop = (Array.isArray(s?.navTop) ? s.navTop : DEFAULT_NAV_TOP).filter((k) => known.has(k));
   const savedBottom = Array.isArray(s?.navBottom) && !LEGACY_NAV_BOTTOM.some((o) => o.join(',') === s.navBottom!.join(',')) ? s.navBottom : DEFAULT_NAV_BOTTOM;

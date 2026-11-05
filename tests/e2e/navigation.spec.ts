@@ -3,7 +3,7 @@ import { go, loadDemo } from './helpers';
 
 const ROUTES: [string, RegExp][] = [
   ['/', /^(Inicio|Hola|Buen día|Buenas tardes|Buenas noches)/], ['/stock', /Stock/], ['/productos', /Productos/], ['/conteo', /Conteo/], ['/produccion', /Producción/],
-  ['/facturas', /Facturas/], ['/vitrina', /Vitrina/], ['/diagnostico', /Diagnóstico/], ['/ubicaciones', /Ubicaciones/],
+  ['/facturas', /Facturas/], ['/camara', /Cámara de congelados/], ['/diagnostico', /Diagnóstico/], ['/ubicaciones', /Ubicaciones/],
   ['/familias', /Familias/], ['/unidades', /Unidades/], ['/movimientos', /Movimientos/],
   ['/exportar', /Exportar/], ['/integraciones', /Integraciones/], ['/nube', /Cuenta y nube/], ['/usuarios', /Usuarios/],
   ['/configuracion', /Configuración/], ['/ayuda', /Ayuda/], ['/acerca', /Información/], ['/mas', /Más/],

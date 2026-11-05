@@ -109,14 +109,14 @@ test('día de trabajo completo: receta, panadero, Inicio, vitrina, sin conexión
   await expect(activity).toContainText('Producción');
   await expect(activity).toContainText('Consumo');
 
-  // 5. Vitrina: se venden 3.
-  await go(page, '/vitrina');
+  // 5. Cámara de congelados: se sacan 3 para hornear.
+  await go(page, '/camara');
   const tile = page.getByRole('listitem').filter({ hasText: 'Sal fina' });
-  await expect(tile).toContainText('Hoy +4');
+  await expect(tile).toContainText('Hoy entró 4');
   await tile.click();
   for (let i = 0; i < 3; i++) await dialog(page).getByRole('button', { name: '+1', exact: true }).click();
-  await dialog(page).getByRole('button', { name: /^Descontar 3/ }).click();
-  await expect(page.getByText(/^Vendido: 3 .* de Sal fina/)).toBeVisible();
+  await dialog(page).getByRole('button', { name: /^Sacar 3/ }).click();
+  await expect(page.getByText(/^Al horno: 3 .* de Sal fina/)).toBeVisible();
   await expect.poll(() => stockOf(page, 'Sal fina')).toBe(sal0 + 1);
 
   // 6. Sin conexión con la nube: se sigue trabajando y al volver se envía todo.
@@ -148,7 +148,7 @@ test('día de trabajo completo: receta, panadero, Inicio, vitrina, sin conexión
 });
 
 const ALL_ROUTES = [
-  '/', '/stock', '/movimientos', '/conteo', '/produccion', '/pasteleria', '/asistente', '/vitrina', '/productos', '/familias', '/unidades', '/ubicaciones',
+  '/', '/stock', '/movimientos', '/conteo', '/produccion', '/pasteleria', '/asistente', '/camara', '/productos', '/familias', '/unidades', '/ubicaciones',
   '/facturas', '/configuracion', '/usuarios', '/nube', '/exportar', '/integraciones', '/diagnostico', '/ayuda', '/acerca', '/mas',
 ];
 
@@ -183,7 +183,7 @@ test('cada rol en cada pantalla: sin errores, con permisos y sin desbordes en el
       await go(page, '/');
       const actions = page.getByRole('navigation', { name: 'Acciones rápidas' });
       await expect(actions).toBeVisible();
-      await expect(actions.getByRole('link', { name: /^Vitrina/ })).toHaveCount(name === 'Cajero' ? 0 : 1);
+      await expect(actions.getByRole('link', { name: /^Cámara/ })).toHaveCount(name === 'Cajero' ? 0 : 1);
       await expect(page.getByRole('region', { name: 'Facturas de la semana' })).toHaveCount(1);
     }
   }
