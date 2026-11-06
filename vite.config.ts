@@ -25,7 +25,7 @@ export default defineConfig({
       injectRegister: false,
       // En desarrollo no hay service worker: evita cachés que rompan las pruebas.
       devOptions: { enabled: false },
-      includeAssets: ['favicon.svg', 'favicon.png', 'brand/orillas-mark.png', 'brand/orillas-logo.png', 'icons/apple-touch-icon.png'],
+      includeAssets: ['favicon.svg', 'favicon.png', 'brand/orillas-logo.png', 'icons/apple-touch-icon.png'],
       manifestFilename: 'manifest.webmanifest',
       manifest: {
         id: BASE,

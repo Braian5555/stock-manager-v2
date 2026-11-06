@@ -95,7 +95,7 @@ export function AppLayout() {
       <a href="#contenido" className="skip-link" onClick={(e) => { e.preventDefault(); document.getElementById('contenido')?.focus(); }}>Saltar al contenido</a>
       <header className="topbar">
         <Link to={home} className="brand" aria-label={`${settings.businessName} — ${area === 'salon' ? 'Salón' : 'Inicio'}`}>
-          <Logo size={34} />
+          <Logo size={42} />
           <span className="brand-text">
             <span className="brand-name truncate">{settings.businessName}</span>
             {settings.subtitle && <span className="brand-sub truncate">{settings.subtitle}</span>}
@@ -247,7 +247,7 @@ function Sidebar({ sections, salon, area, areas, onArea, home, active, collapsed
     <aside className="sidebar">
       <div className="side-head">
         <Link to={home} className="side-brand" aria-label={`${settings.businessName} — ${area === 'salon' ? 'Salón' : 'Inicio'}`}>
-          <Logo size={32} />
+          <Logo size={44} />
           <span className="side-label side-brand-name truncate">{settings.businessName}</span>
         </Link>
         <button type="button" className="side-toggle" onClick={onToggle} aria-label={collapsed ? 'Agrandar menú' : 'Achicar menú'} aria-expanded={!collapsed}>

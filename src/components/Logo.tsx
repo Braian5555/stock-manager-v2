@@ -1,9 +1,9 @@
 import { useSettings } from '../store/settings';
 
 const BASE = import.meta.env.BASE_URL;
-/** Marca de Orillas: la "O" del logo (chica, para barras) y el logo completo del Parador. */
-export const BRAND_MARK = `${BASE}brand/orillas-mark.png`;
+/** Logo de Orillas Parador (el círculo completo): se usa en todos lados, también en chico. */
 export const BRAND_LOGO = `${BASE}brand/orillas-logo.png`;
+export const BRAND_MARK = BRAND_LOGO;
 
 export function Logo({ size = 36 }: { size?: number }) {
   const { logo } = useSettings();
