@@ -301,4 +301,4 @@
 .side-area { border: 0; background: none; color: inherit; cursor: pointer; width: 100%; }
 .hm-section.is-area { background: var(--primary); border-color: var(--primary); color: #fff; }
 .hm-section.is-area svg { color: #fff; }
-@media (max-width: 480px) { .topbar:has(.area-switch-top) .brand-text { display: none; } }
+@media (max-width: 480px) { .topbar .area-switch-btn[aria-pressed="true"] span { display: none; } .topbar .area-switch-btn { padding: 4px 9px; min-height: 32px; } }
