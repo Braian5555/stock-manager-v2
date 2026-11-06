@@ -4,7 +4,7 @@ import { dialog, go, loadDemo } from './helpers';
 test('salón: armar mesas y carta, tomar un pedido, cocina lo marca listo y se cierra la mesa', async ({ page }) => {
   await loadDemo(page);
   await go(page, '/salon');
-  await expect(page.getByRole('heading', { name: 'Salón', level: 1 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Mesas', level: 1 })).toBeVisible();
 
   // Mesas
   await page.getByLabel('Cantidad de mesas').fill('6');
@@ -12,7 +12,7 @@ test('salón: armar mesas y carta, tomar un pedido, cocina lo marca listo y se c
   await expect(page.getByRole('group', { name: 'Plano del salón' }).getByRole('button')).toHaveCount(6);
 
   // Carta
-  await page.getByRole('group', { name: 'Sección del salón' }).getByRole('button', { name: 'Carta' }).click();
+  await go(page, '/salon?vista=carta');
   await page.getByRole('button', { name: 'Agregar el primero' }).click();
   let m = dialog(page);
   await m.getByLabel('Nombre').fill('Desayuno americano');
@@ -29,7 +29,7 @@ test('salón: armar mesas y carta, tomar un pedido, cocina lo marca listo y se c
   await expect(page.getByText('1 plato no tiene código de Maxirest')).toBeVisible();
 
   // Pedido de la mesa 4
-  await page.getByRole('group', { name: 'Sección del salón' }).getByRole('button', { name: 'Mesas' }).click();
+  await go(page, '/salon');
   await page.getByRole('button', { name: 'Mesa 4: Libre' }).click();
   m = dialog(page);
   await expect(m.getByRole('heading', { name: 'Mesa 4' })).toBeVisible();
@@ -67,7 +67,7 @@ test('salón: armar mesas y carta, tomar un pedido, cocina lo marca listo y se c
   await expect(page.getByText('Mesa 4: cobrado y cerrado')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Mesa 4: Libre' })).toBeVisible();
 
-  await page.getByRole('group', { name: 'Sección del salón' }).getByRole('button', { name: 'Hoy' }).click();
+  await go(page, '/salon?vista=hoy');
   await expect(page.getByText('Esperando Maxirest')).toBeVisible();
   await expect(page.getByText('1 pedido espera para pasar a Maxirest')).toBeVisible();
 });

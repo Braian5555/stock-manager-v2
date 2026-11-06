@@ -1,4 +1,4 @@
-import { Snowflake, UtensilsCrossed, CookingPot, ReceiptText,
+import { Snowflake, UtensilsCrossed, CookingPot, ReceiptText, Store, Wallet, BookOpen, Armchair,
   ArrowLeftRight, BarChart3, Boxes, ClipboardCheck, Cloud, Download, Forklift, Home, MapPin, Package, Plug, Receipt, Ruler, Scale, Settings as SettingsIcon,
   ShoppingCart, Stethoscope, Tags, Truck, UserCog, ChefHat, CakeSlice,
   type LucideIcon,
@@ -27,6 +27,7 @@ export const MODULE_PATH: Record<ModuleKey, string> = {
   salon: '/salon',
   kitchen: '/cocina',
   fiscal: '/comprobantes',
+  salonConfig: '/salon/configuracion',
   diagnostics: '/diagnostico',
   export: '/exportar',
   integrations: '/integraciones',
@@ -56,6 +57,7 @@ export const MODULE_ICON: Record<ModuleKey, LucideIcon> = {
   salon: UtensilsCrossed,
   kitchen: CookingPot,
   fiscal: ReceiptText,
+  salonConfig: SettingsIcon,
   diagnostics: Stethoscope,
   export: Download,
   integrations: Plug,
@@ -85,7 +87,7 @@ export const RETIRED_PERMISSIONS: ReadonlySet<Permission> = new Set<Permission>(
 
 /** Grupos para "Más" (celular y computadora). */
 export const MODULE_GROUPS: { title: string; keys: ModuleKey[] }[] = [
-  { title: 'Operación diaria', keys: ['dashboard', 'stock', 'count', 'production', 'pastry', 'showcase', 'salon', 'kitchen', 'fiscal', 'movements', 'invoices'] },
+  { title: 'Operación diaria', keys: ['dashboard', 'stock', 'count', 'production', 'pastry', 'showcase', 'movements', 'invoices'] },
   { title: 'Catálogo', keys: ['products', 'categories', 'units', 'locations'] },
   { title: 'Administración', keys: ['cloud', 'users', 'export', 'integrations', 'diagnostics', 'settings'] },
 ];
@@ -112,6 +114,7 @@ export const MODULE_PERMISSIONS: Record<ModuleKey, Permission[]> = {
   salon: ['salon'],
   kitchen: ['salon'],
   fiscal: ['billing'],
+  salonConfig: ['admin'],
   diagnostics: ['admin'],
   export: ['export'],
   integrations: ['admin'],
@@ -145,7 +148,7 @@ export function soleModule(visible: ModuleKey[]): ModuleKey | undefined {
   const list = visible.filter((k) => k !== 'settings');
   if (list.length === 1) return list[0];
   // Mozos: Salón y Cocina.
-  if (list.length > 1 && list.every((k) => k === 'salon' || k === 'kitchen' || k === 'fiscal')) return list.includes('salon') ? 'salon' : list[0];
+  if (list.length > 1 && list.every((k) => SALON_MODULES.has(k))) return list.includes('salon') ? 'salon' : list[0];
   return list.length > 1 && list.every((k) => PRODUCTION_LINES.includes(k)) ? list[0] : undefined;
 }
 
@@ -192,7 +195,6 @@ export const SECTIONS: Section[] = [
   { key: 'produccion', icon: ChefHat, modules: ['production'] },
   { key: 'pasteleria', icon: CakeSlice, modules: ['pastry'] },
   { key: 'camara', icon: Snowflake, modules: ['showcase'] },
-  { key: 'salon', icon: UtensilsCrossed, modules: ['salon', 'kitchen', 'fiscal'] },
   { key: 'productos', icon: Package, modules: ['products', 'categories', 'units', 'locations'] },
   { key: 'facturas', icon: Receipt, modules: ['invoices'] },
   { key: 'config', icon: SettingsIcon, modules: ['settings', 'users', 'cloud', 'export', 'integrations', 'diagnostics'], bottom: true },
@@ -224,4 +226,73 @@ export function moduleOfPath(pathname: string): ModuleKey | undefined {
     if (hit && (!best || path.length > MODULE_PATH[best].length)) best = k;
   }
   return best;
+}
+
+// ───────────── Áreas: Stock y Salón ─────────────
+
+/**
+ * La app tiene dos áreas, cada una con su menú: Stock (inventario, producción, facturas de
+ * proveedores) y Salón (mesas, mostrador, cocina, caja, carta, comprobantes y su configuración).
+ * Quien sólo usa el Salón (mozos, cocina) entra directo ahí y no ve el área de Stock.
+ */
+export type Area = 'stock' | 'salon';
+export const SALON_MODULES: ReadonlySet<ModuleKey> = new Set<ModuleKey>(['salon', 'kitchen', 'fiscal', 'salonConfig']);
+export const AREA_LABEL: Record<Area, string> = { stock: 'Stock', salon: 'Salón' };
+export const AREA_ICON: Record<Area, LucideIcon> = { stock: Boxes, salon: UtensilsCrossed };
+export const areaOfModule = (k?: ModuleKey): Area | undefined => (!k ? undefined : SALON_MODULES.has(k) ? 'salon' : 'stock');
+
+/** Entradas del menú del Salón: cada vista es una sección propia. */
+export interface SalonItem { key: string; label: string; icon: LucideIcon; to: string; module: ModuleKey; perms?: Permission[]; bottom?: boolean }
+export const SALON_NAV: SalonItem[] = [
+  { key: 'mesas', label: 'Mesas', icon: Armchair, to: '/salon', module: 'salon' },
+  { key: 'mostrador', label: 'Mostrador', icon: Store, to: '/salon?vista=mostrador', module: 'salon' },
+  { key: 'cocina', label: 'Cocina', icon: CookingPot, to: '/cocina', module: 'kitchen' },
+  { key: 'caja', label: 'Caja', icon: Wallet, to: '/salon?vista=caja', module: 'salon', perms: ['billing', 'admin'] },
+  { key: 'carta', label: 'Carta', icon: BookOpen, to: '/salon?vista=carta', module: 'salon' },
+  { key: 'hoy', label: 'Ventas de hoy', icon: BarChart3, to: '/salon?vista=hoy', module: 'salon' },
+  { key: 'comprobantes', label: 'Comprobantes', icon: ReceiptText, to: '/comprobantes', module: 'fiscal' },
+  { key: 'config', label: 'Configuración', icon: SettingsIcon, to: '/salon/configuracion', module: 'salonConfig', bottom: true },
+];
+export const SALON_VIEWS = ['mesas', 'mostrador', 'caja', 'carta', 'hoy'] as const;
+export type SalonView = (typeof SALON_VIEWS)[number];
+
+export function salonItems(visible: ModuleKey[], canAny: (p: Permission[]) => boolean): SalonItem[] {
+  const v = new Set(visible);
+  return SALON_NAV.filter((i) => v.has(i.module) && (!i.perms || canAny(i.perms)));
+}
+
+/** Entrada del Salón que corresponde a la ruta actual. */
+export function activeSalonItem(pathname: string, search: string): string | undefined {
+  if (pathname.startsWith('/salon/configuracion')) return 'config';
+  if (pathname.startsWith('/cocina')) return 'cocina';
+  if (pathname.startsWith('/comprobantes')) return 'comprobantes';
+  if (pathname === '/salon' || pathname.startsWith('/salon/')) {
+    const v = new URLSearchParams(search).get('vista');
+    return v && (SALON_VIEWS as readonly string[]).includes(v) ? v : 'mesas';
+  }
+  return undefined;
+}
+
+/** Áreas a las que tiene acceso la persona. */
+export function areasFor(visible: ModuleKey[]): Area[] {
+  const out: Area[] = [];
+  if (visible.some((k) => !SALON_MODULES.has(k) && k !== 'settings')) out.push('stock');
+  if (visible.some((k) => SALON_MODULES.has(k))) out.push('salon');
+  return out;
+}
+
+/** Adónde lleva cada área al elegirla. */
+export function areaHome(area: Area, visible: ModuleKey[], canAny: (p: Permission[]) => boolean): string {
+  if (area === 'salon') return salonItems(visible, canAny)[0]?.to ?? '/salon';
+  if (visible.includes('dashboard')) return '/';
+  const first = visible.find((k) => !SALON_MODULES.has(k));
+  return first ? MODULE_PATH[first] : '/';
+}
+
+const AREA_KEY = 'sm.area';
+export function readArea(): Area | undefined {
+  try { const a = localStorage.getItem(AREA_KEY); return a === 'salon' || a === 'stock' ? a : undefined; } catch { return undefined; }
+}
+export function writeArea(a: Area) {
+  try { localStorage.setItem(AREA_KEY, a); } catch { /* sin almacenamiento */ }
 }

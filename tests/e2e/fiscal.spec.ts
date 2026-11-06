@@ -39,7 +39,7 @@ test('facturación electrónica: configurar, cobrar la mesa y emitir Factura B c
   await expect(page.getByText('Sincronizado').first()).toBeVisible();
 
   // Configuración fiscal
-  await go(page, '/configuracion/fiscal');
+  await go(page, '/salon/configuracion');
   await expect(page.getByRole('heading', { name: 'Configuración fiscal', level: 1 })).toBeVisible();
   await page.getByLabel('Facturar desde Stock Manager al cobrar las mesas').check();
   await page.getByLabel('Dirección del servicio de ARCA').fill(SERVICE);
@@ -57,7 +57,7 @@ test('facturación electrónica: configurar, cobrar la mesa y emitir Factura B c
   await go(page, '/salon');
   await page.getByLabel('Cantidad de mesas').fill('4');
   await page.getByRole('button', { name: 'Crear mesas' }).click();
-  await page.getByRole('group', { name: 'Sección del salón' }).getByRole('button', { name: 'Carta' }).click();
+  await go(page, '/salon?vista=carta');
   await page.getByRole('button', { name: 'Agregar el primero' }).click();
   let m = dialog(page);
   await m.getByLabel('Nombre').fill('Desayuno americano');
@@ -65,7 +65,7 @@ test('facturación electrónica: configurar, cobrar la mesa y emitir Factura B c
   await m.getByLabel('Precio', { exact: true }).fill('9500');
   await m.getByRole('button', { name: 'Guardar', exact: true }).click();
   await expect(page.getByText('Agregado a la carta')).toBeVisible();
-  await page.getByRole('group', { name: 'Sección del salón' }).getByRole('button', { name: 'Mesas' }).click();
+  await go(page, '/salon');
   await page.getByRole('button', { name: 'Mesa 2: Libre' }).click();
   m = dialog(page);
   await m.getByRole('button', { name: 'Agregar Desayuno americano' }).click();
@@ -95,7 +95,7 @@ test('facturación electrónica: configurar, cobrar la mesa y emitir Factura B c
   expect(emitBody.doc).toMatchObject({ ptoVta: 5, cbteTipo: 6, nro: 42, docTipo: 99, condicionIvaReceptor: 5, impTotal: 19000, impNeto: 15702.48, impIva: 3297.52 });
 
   // Hoy y Comprobantes
-  await page.getByRole('group', { name: 'Sección del salón' }).getByRole('button', { name: 'Hoy' }).click();
+  await go(page, '/salon?vista=hoy');
   await expect(page.getByText('Factura B 00005-00000042')).toBeVisible();
   await expect(page.getByText(/Cobrado:.*Efectivo/)).toBeVisible();
   await go(page, '/comprobantes');

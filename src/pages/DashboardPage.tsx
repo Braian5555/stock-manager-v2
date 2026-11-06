@@ -1,9 +1,9 @@
-import { AlertTriangle, Boxes, Camera, ChefHat, CheckCircle2, ClipboardCheck, Lock, LogOut, MinusCircle, Package, Snowflake, Sparkles, type LucideIcon } from 'lucide-react';
+import { AlertTriangle, UtensilsCrossed, Boxes, Camera, ChefHat, CheckCircle2, ClipboardCheck, Lock, LogOut, MinusCircle, Package, Snowflake, Sparkles, type LucideIcon } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import { useProducts } from '../hooks/useData';
 import { DESKTOP_QUERY, useMediaQuery } from '../hooks/useMediaQuery';
-import { MODULE_PATH, MODULE_PERMISSIONS, moduleEnabled, visibleModules, visibleSections } from '../layouts/modules';
+import { MODULE_PATH, MODULE_PERMISSIONS, SALON_MODULES, areaHome, areasFor, moduleEnabled, visibleModules, visibleSections, writeArea } from '../layouts/modules';
 import { PERMISSIONS, type ModuleKey, type Permission } from '../models';
 import { useAssistantAvailable } from '../store/assistant';
 import { useSession } from '../store/session';
@@ -100,8 +100,10 @@ export function DashboardPage() {
 function Sections() {
   const settings = useSettings();
   const { canAny } = useSession();
-  const sections = visibleSections(settings, visibleModules(settings, canAny)).filter((s) => s.key !== 'inicio');
-  if (!sections.length) return null;
+  const visible = visibleModules(settings, canAny);
+  const sections = visibleSections(settings, visible.filter((k) => !SALON_MODULES.has(k))).filter((s) => s.key !== 'inicio');
+  const salon = areasFor(visible).includes('salon');
+  if (!sections.length && !salon) return null;
   return (
     <nav className="hm-sections" aria-label="Secciones">
       {sections.map((s) => {
@@ -113,6 +115,12 @@ function Sections() {
           </Link>
         );
       })}
+      {salon && (
+        <Link to={areaHome('salon', visible, canAny)} className="hm-section is-area" onClick={() => writeArea('salon')}>
+          <UtensilsCrossed size={22} aria-hidden />
+          <span>Ir al Salón</span>
+        </Link>
+      )}
     </nav>
   );
 }

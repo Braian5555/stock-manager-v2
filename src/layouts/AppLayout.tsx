@@ -8,7 +8,10 @@ import { syncPending } from '../integrations/integrationService';
 import { UpdatePrompt } from '../pwa/UpdatePrompt';
 import { useFeedback } from '../store/feedback';
 import { useSettings } from '../store/settings';
-import { MODULE_ICON, MODULE_PATH, bottomNavModules, moduleOfPath, soleModule, navLabel, visibleModules, visibleSections, type VisibleSection } from './modules';
+import {
+  AREA_ICON, AREA_LABEL, MODULE_ICON, MODULE_PATH, SALON_MODULES, activeSalonItem, areaHome, areaOfModule, areasFor, bottomNavModules, moduleOfPath, navLabel, readArea, salonItems,
+  soleModule, visibleModules, visibleSections, writeArea, type Area, type SalonItem, type VisibleSection,
+} from './modules';
 import { useAutoSync } from '../hooks/useAutoSync';
 import { SyncBadge } from '../components/SyncBadge';
 import { UserMenu } from '../components/auth/UserMenu';
@@ -64,10 +67,22 @@ export function AppLayout() {
     if (single && !visible.some((k) => location.pathname === MODULE_PATH[k]) && !/^\/(asistente|ayuda|acerca)/.test(location.pathname)) navigate(MODULE_PATH[single], { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- sólo al cambiar de usuario
   }, [user?.id, single]);
-  const sections = visibleSections(settings, visible);
   const current = moduleOfPath(location.pathname);
+  // Área (Stock o Salón): la de la pantalla actual; en pantallas comunes (asistente, ayuda), la última usada.
+  const areas = areasFor(visible);
+  const wanted: Area = areaOfModule(current) ?? readArea() ?? areas[0] ?? 'stock';
+  const area: Area = areas.includes(wanted) ? wanted : areas[0] ?? 'stock';
+  useEffect(() => { if (areaOfModule(current)) writeArea(area); }, [area, current]);
+  const stockVisible = visible.filter((k) => !SALON_MODULES.has(k));
+  const sections = area === 'stock' ? visibleSections(settings, stockVisible) : [];
   const section = sections.find((sec) => current && sec.tabs.includes(current));
-  const bottom = bottomNavModules(settings, visible);
+  const salon = area === 'salon' ? salonItems(visible, canAny) : [];
+  const salonActive = activeSalonItem(location.pathname, location.search);
+  const salonCurrent = salon.find((i) => i.key === salonActive);
+  const bottom = area === 'stock' ? bottomNavModules(settings, stockVisible) : [];
+  const salonBottom = area === 'salon' ? pickSalonBottom(salon) : [];
+  const home = areaHome(area, visible, canAny);
+  const switchArea = (a: Area) => { writeArea(a); navigate(areaHome(a, visible, canAny)); };
   const [collapsed, setCollapsed] = useState(() => readCollapsed());
   const toggleSidebar = () => setCollapsed((c) => { writeCollapsed(!c); return !c; });
   const connected = integration && integration.mode !== 'disabled' && integration.mode !== 'excel' && integration.status !== 'desconectado';
@@ -79,7 +94,7 @@ export function AppLayout() {
     <div className={`app ${collapsed ? 'side-collapsed' : ''} ${isHome ? 'no-side' : ''}`}>
       <a href="#contenido" className="skip-link" onClick={(e) => { e.preventDefault(); document.getElementById('contenido')?.focus(); }}>Saltar al contenido</a>
       <header className="topbar">
-        <Link to="/" className="brand" aria-label={`${settings.businessName} — Inicio`}>
+        <Link to={home} className="brand" aria-label={`${settings.businessName} — ${area === 'salon' ? 'Salón' : 'Inicio'}`}>
           <Logo size={34} />
           <span className="brand-text">
             <span className="brand-name truncate">{settings.businessName}</span>
@@ -88,7 +103,9 @@ export function AppLayout() {
         </Link>
 
         {section && <span className="topbar-title truncate">{section.label}</span>}
+        {salonCurrent && <span className="topbar-title truncate">{salonCurrent.label}</span>}
         <span className="grow topbar-spacer" />
+        {areas.length > 1 && <AreaSwitch area={area} onChange={switchArea} className="area-switch-top" />}
         {can('stock.view') && (
           <button type="button" className="search-trigger" onClick={() => setSearchOpen(true)} aria-label="Buscar (Ctrl+K)">
             <Search size={18} aria-hidden />
@@ -106,7 +123,7 @@ export function AppLayout() {
         <UserMenu />
       </header>
 
-      {!isHome && <Sidebar sections={sections} assistant={assistant} active={section?.key ?? (/^\/(ayuda|acerca)/.test(location.pathname) ? 'ayuda' : location.pathname.startsWith('/asistente') ? 'asistente' : undefined)} collapsed={collapsed} onToggle={toggleSidebar} />}
+      {!isHome && <Sidebar sections={sections} salon={salon} area={area} areas={areas} onArea={switchArea} home={home} assistant={assistant} active={area === 'salon' ? salonActive : section?.key ?? (/^\/(ayuda|acerca)/.test(location.pathname) ? 'ayuda' : location.pathname.startsWith('/asistente') ? 'asistente' : undefined)} collapsed={collapsed} onToggle={toggleSidebar} />}
       {/* Configuración no lleva pestañas: todo se elige desde sus tarjetas (antes estaba repetido arriba y abajo). */}
       {section && section.key !== 'config' && section.tabs.length > 1 && <SectionTabs tabs={section.tabs} label={section.label} />}
 
@@ -145,6 +162,15 @@ export function AppLayout() {
             </NavLink>
           );
         })}
+        {salonBottom.map((i) => {
+          const Icon = i.icon;
+          return (
+            <Link key={i.key} to={i.to} className={salonActive === i.key ? 'active' : undefined} aria-current={salonActive === i.key ? 'page' : undefined}>
+              <Icon size={23} aria-hidden />
+              <span>{i.label}</span>
+            </Link>
+          );
+        })}
         <NavLink to="/mas">
           <LayoutGrid size={23} aria-hidden />
           <span>Más</span>
@@ -171,9 +197,43 @@ function writeCollapsed(v: boolean) {
   }
 }
 
-/** Barra lateral (computadora): una entrada por sección; abajo, Configuración y Ayuda. */
-function Sidebar({ sections, active, collapsed, onToggle, assistant }: { sections: VisibleSection[]; active?: string; collapsed: boolean; onToggle: () => void; assistant: boolean }) {
+/** Barra inferior del Salón: Mesas, Mostrador, Cocina y Caja (o lo que la persona pueda ver). */
+function pickSalonBottom(items: SalonItem[]): SalonItem[] {
+  const prefer = ['mesas', 'mostrador', 'cocina', 'caja', 'comprobantes', 'carta'];
+  return prefer.map((k) => items.find((i) => i.key === k)).filter((i): i is SalonItem => !!i).slice(0, 4);
+}
+
+/** Selector de área: Stock o Salón. */
+export function AreaSwitch({ area, onChange, className = '' }: { area: Area; onChange: (a: Area) => void; className?: string }) {
+  return (
+    <div className={`area-switch ${className}`} role="group" aria-label="Área">
+      {(['stock', 'salon'] as Area[]).map((a) => {
+        const Icon = AREA_ICON[a];
+        return (
+          <button key={a} type="button" className="area-switch-btn" aria-label={AREA_LABEL[a]} aria-pressed={area === a} onClick={() => onChange(a)}>
+            <Icon size={16} aria-hidden />
+            <span>{AREA_LABEL[a]}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Barra lateral (computadora): selector de área y una entrada por sección; abajo, Configuración y Ayuda. */
+function Sidebar({ sections, salon, area, areas, onArea, home, active, collapsed, onToggle, assistant }: {
+  sections: VisibleSection[]; salon: SalonItem[]; area: Area; areas: Area[]; onArea: (a: Area) => void; home: string; active?: string; collapsed: boolean; onToggle: () => void; assistant: boolean;
+}) {
   const settings = useSettings();
+  const salonItem = (i: SalonItem) => {
+    const Icon = i.icon;
+    return (
+      <Link key={i.key} to={i.to} className={`side-item ${active === i.key ? 'active' : ''}`} aria-current={active === i.key ? 'page' : undefined} title={collapsed ? i.label : undefined}>
+        <Icon size={20} aria-hidden />
+        <span className="side-label">{i.label}</span>
+      </Link>
+    );
+  };
   const item = (sec: VisibleSection) => {
     const Icon = sec.icon;
     return (
@@ -186,7 +246,7 @@ function Sidebar({ sections, active, collapsed, onToggle, assistant }: { section
   return (
     <aside className="sidebar">
       <div className="side-head">
-        <Link to="/" className="side-brand" aria-label={`${settings.businessName} — Inicio`}>
+        <Link to={home} className="side-brand" aria-label={`${settings.businessName} — ${area === 'salon' ? 'Salón' : 'Inicio'}`}>
           <Logo size={32} />
           <span className="side-label side-brand-name truncate">{settings.businessName}</span>
         </Link>
@@ -194,8 +254,12 @@ function Sidebar({ sections, active, collapsed, onToggle, assistant }: { section
           {collapsed ? <ChevronRight size={18} aria-hidden /> : <ChevronLeft size={18} aria-hidden />}
         </button>
       </div>
-      <nav className="side-nav" aria-label="Navegación principal">
+      {areas.length > 1 && (collapsed
+        ? <button type="button" className="side-item side-area" onClick={() => onArea(area === 'stock' ? 'salon' : 'stock')} title={`Ir a ${AREA_LABEL[area === 'stock' ? 'salon' : 'stock']}`} aria-label={`Ir a ${AREA_LABEL[area === 'stock' ? 'salon' : 'stock']}`}>{area === 'stock' ? <AREA_ICON.salon size={20} aria-hidden /> : <AREA_ICON.stock size={20} aria-hidden />}</button>
+        : <AreaSwitch area={area} onChange={onArea} className="area-switch-side" />)}
+      <nav className="side-nav" aria-label={area === 'salon' ? 'Navegación: Salón' : 'Navegación principal'}>
         {sections.filter((s) => !s.bottom).map(item)}
+        {salon.filter((i) => !i.bottom).map(salonItem)}
         {assistant && (
           <Link to="/asistente" className={`side-item ${active === 'asistente' ? 'active' : ''}`} aria-current={active === 'asistente' ? 'page' : undefined} title={collapsed ? 'Asistente IA' : undefined}>
             <Sparkles size={20} aria-hidden />
@@ -204,6 +268,7 @@ function Sidebar({ sections, active, collapsed, onToggle, assistant }: { section
         )}
         <span className="grow" />
         {sections.filter((s) => s.bottom).map(item)}
+        {salon.filter((i) => i.bottom).map(salonItem)}
         <Link to="/ayuda" className={`side-item ${active === 'ayuda' ? 'active' : ''}`} title={collapsed ? 'Ayuda' : undefined}>
           <HelpCircle size={20} aria-hidden />
           <span className="side-label">Ayuda</span>

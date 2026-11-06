@@ -1,7 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { BellRing, Map as MapIcon, Pencil, Plus, Receipt, Search, Trash2, UtensilsCrossed } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { Link } from 'react-router';
+import { Link, useNavigate, useSearchParams } from 'react-router';
 import { db } from '../database/db';
 import { EMPTY } from '../hooks/useData';
 import { sinceLabel, useNow } from '../hooks/useNow';
@@ -20,10 +20,18 @@ import { FloorPlan, STATE_LABEL, tableState } from '../components/salon/FloorPla
 import { CounterTab } from '../components/salon/CounterTab';
 import { CashTab } from '../components/salon/CashTab';
 import { useMenu, useOpenCash, useOpenTickets, useTables } from '../components/salon/hooks';
+import { SALON_VIEWS, type SalonView } from '../layouts/modules';
 import { useSettings } from '../store/settings';
 import { fmtMoney, fmtTime, matches } from '../utils/format';
 
-type Tab = 'mesas' | 'mostrador' | 'caja' | 'carta' | 'hoy';
+type Tab = SalonView;
+const TITLE: Record<Tab, { title: string; sub: string }> = {
+  mesas: { title: 'Mesas', sub: 'Plano del salón: tocá una mesa para abrirla o ver su pedido.' },
+  mostrador: { title: 'Mostrador', sub: 'Pedidos de mostrador, para llevar y delivery.' },
+  caja: { title: 'Caja', sub: 'Apertura, ingresos y egresos, propinas y arqueo.' },
+  carta: { title: 'Carta', sub: 'Lo que se vende en el salón: precios, adicionales y código de Maxirest.' },
+  hoy: { title: 'Ventas de hoy', sub: 'Pedidos del día, lo cobrado y lo más pedido.' },
+};
 type View = 'plano' | 'lista';
 const VIEW_KEY = 'sm.salon.view';
 const readView = (): View => { try { return localStorage.getItem(VIEW_KEY) === 'lista' ? 'lista' : 'plano'; } catch { return 'plano'; } };
@@ -35,7 +43,11 @@ const readView = (): View => { try { return localStorage.getItem(VIEW_KEY) === '
  */
 export function SalonPage() {
   const { can } = useSession();
-  const [tab, setTab] = useState<Tab>('mesas');
+  const [params] = useSearchParams();
+  const navigate = useNavigate();
+  const v = params.get('vista');
+  const tab: Tab = v && (SALON_VIEWS as readonly string[]).includes(v) ? (v as Tab) : 'mesas';
+  const setTab = (t: Tab) => navigate(t === 'mesas' ? '/salon' : `/salon?vista=${t}`);
   const tables = useTables();
   const open = useOpenTickets();
   const cash = useOpenCash();
@@ -47,25 +59,16 @@ export function SalonPage() {
   const openTotal = open.reduce((s, t) => s + t.total, 0);
   const billing = can('billing') || can('admin');
 
-  const tabs: { value: Tab; label: string }[] = [
-    { value: 'mesas', label: 'Mesas' },
-    { value: 'mostrador', label: `Mostrador${counter.length ? ` (${counter.length})` : ''}` },
-    ...(billing ? [{ value: 'caja' as Tab, label: cash ? 'Caja' : 'Caja (cerrada)' }] : []),
-    { value: 'carta', label: 'Carta' },
-    { value: 'hoy', label: 'Hoy' },
-  ];
+  const status = tables.length || counter.length ? `${byTable.size} de ${tables.length} mesas ocupadas${counter.length ? ` · ${counter.length} sin mesa` : ''}${openTotal ? ` · ${fmtMoney(openTotal)} abierto` : ''}` : '';
+  const subtitle = tab === 'mesas' || tab === 'mostrador' ? status || TITLE[tab].sub : tab === 'caja' ? (cash ? `Caja #${cash.number} abierta` : 'La caja está cerrada') : TITLE[tab].sub;
 
   return (
     <div className="salon">
-      <PageHeader
-        title="Salón"
-        subtitle={tables.length || counter.length ? `${byTable.size} de ${tables.length} mesas ocupadas${counter.length ? ` · ${counter.length} sin mesa` : ''}${openTotal ? ` · ${fmtMoney(openTotal)} abierto` : ''}` : 'Mesas, mostrador, delivery, caja y comandas a cocina.'}
-        actions={<Segmented<Tab> label="Sección del salón" value={tab} onChange={setTab} options={tabs} />}
-      />
+      <PageHeader title={TITLE[tab].title} subtitle={subtitle} />
       <CloudRulesNote />
       {tab === 'mesas' && <TablesBoard tables={tables} byTable={byTable} onOpen={setSheet} onGoMenu={() => setTab('carta')} />}
       {tab === 'mostrador' && <CounterTab open={counter} onOpen={setSheet} />}
-      {tab === 'caja' && billing && <CashTab />}
+      {tab === 'caja' && (billing ? <CashTab /> : <div className="card card-pad"><p className="muted" style={{ margin: 0 }}>La caja la manejan quienes tienen permiso para cobrar.</p></div>)}
       {tab === 'carta' && <MenuTab />}
       {tab === 'hoy' && <TodayTab />}
       {sheet && <TicketSheet ticketId={sheet} onClose={() => setSheet(null)} onCharge={(t) => { setSheet(null); setCharging(t); }} tables={tables} busy={new Set(byTable.keys())} />}

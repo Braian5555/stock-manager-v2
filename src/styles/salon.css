@@ -282,3 +282,23 @@
 .cash-initial { display: block; font-weight: 500; }
 @media (max-width: 639px) { .cash-opt { display: none; } }
 @media (min-width: 1024px) { .salon-plan { aspect-ratio: 2 / 1; } }
+
+/* ───────────── Áreas: Stock / Salón ───────────── */
+.area-switch { display: inline-flex; padding: 3px; gap: 2px; border-radius: 999px; background: rgb(0 0 0 / 0.18); }
+.area-switch-btn {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 34px; padding: 4px 12px; border: 0; border-radius: 999px;
+  background: transparent; color: inherit; font: inherit; font-size: 0.85rem; font-weight: 700; cursor: pointer; opacity: 0.8;
+}
+.area-switch-btn[aria-pressed="true"] { background: var(--primary); color: #fff; opacity: 1; }
+.area-switch-btn:focus-visible { outline: 3px solid var(--primary-line); outline-offset: 2px; }
+.area-switch-side { margin: 4px 12px 10px; display: flex; color: #f7ecda; background: rgb(255 255 255 / 0.08); }
+.area-switch-side .area-switch-btn { flex: 1; justify-content: center; }
+.area-switch-top { color: var(--text); background: var(--surface-2); }
+@media (min-width: 1024px) { .area-switch-top { display: none; } }
+@media (max-width: 1023px) { .topbar .area-switch-btn span { display: none; } .topbar .area-switch-btn { padding: 4px 10px; } .topbar .area-switch-btn[aria-pressed="true"] span { display: inline; } }
+.area-switch-more { display: flex; color: var(--text); background: var(--surface-2); }
+.area-switch-more .area-switch-btn { flex: 1; justify-content: center; min-height: 44px; font-size: 1rem; }
+.side-area { border: 0; background: none; color: inherit; cursor: pointer; width: 100%; }
+.hm-section.is-area { background: var(--primary); border-color: var(--primary); color: #fff; }
+.hm-section.is-area svg { color: #fff; }
+@media (max-width: 480px) { .topbar:has(.area-switch-top) .brand-text { display: none; } }

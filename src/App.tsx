@@ -18,6 +18,7 @@ const ShowcasePage = lazyPage(() => import('./pages/ShowcasePage'), 'ShowcasePag
 const SalonPage = lazyPage(() => import('./pages/SalonPage'), 'SalonPage');
 const KitchenPage = lazyPage(() => import('./pages/KitchenPage'), 'KitchenPage');
 const FiscalDocsPage = lazyPage(() => import('./pages/FiscalDocsPage'), 'FiscalDocsPage');
+const SalonConfigPage = lazyPage(() => import('./pages/SalonConfigPage'), 'SalonConfigPage');
 const DiagnosticsPage = lazyPage(() => import('./pages/DiagnosticsPage'), 'DiagnosticsPage');
 const OrdersPage = lazyPage(() => import('./pages/OrdersPage'), 'OrdersPage');
 const InvoicesPage = lazyPage(() => import('./pages/InvoicesPage'), 'InvoicesPage');
@@ -91,6 +92,7 @@ export function App() {
                 <Route path="ubicaciones" element={<Guard module="locations"><CatalogPage key="location" kind="location" /></Guard>} />
                 <Route path="proveedores" element={<Guard module="suppliers"><CatalogPage key="supplier" kind="supplier" /></Guard>} />
                 <Route path="salon" element={<Guard module="salon"><SalonPage /></Guard>} />
+                <Route path="salon/configuracion" element={<Guard module="salonConfig"><SalonConfigPage /></Guard>} />
                 <Route path="cocina" element={<Guard module="kitchen"><KitchenPage /></Guard>} />
                 <Route path="comprobantes" element={<Guard module="fiscal"><FiscalDocsPage /></Guard>} />
                 <Route path="conteo" element={<Guard module="count"><CountsPage /></Guard>} />
@@ -108,6 +110,7 @@ export function App() {
                 <Route path="movimientos" element={<Guard module="movements"><MovementsPage /></Guard>} />
                 <Route path="conciliacion" element={<Guard module="reconciliation"><ReconciliationPage /></Guard>} />
                 <Route path="exportar" element={<Guard module="export"><ExportPage /></Guard>} />
+                <Route path="configuracion/fiscal" element={<Navigate to="/salon/configuracion" replace />} />
                 <Route path="configuracion" element={<Guard module="settings"><SettingsPage /></Guard>} />
                 <Route path="configuracion/:section" element={<Guard module="settings"><SettingsPage /></Guard>} />
                 <Route path="reportes" element={<Guard module="reports"><ReportsPage /></Guard>} />
