@@ -3,7 +3,7 @@ import { useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import { useProducts } from '../hooks/useData';
 import { DESKTOP_QUERY, useMediaQuery } from '../hooks/useMediaQuery';
-import { MODULE_PERMISSIONS, moduleEnabled } from '../layouts/modules';
+import { MODULE_PATH, MODULE_PERMISSIONS, moduleEnabled, visibleModules, visibleSections } from '../layouts/modules';
 import { PERMISSIONS, type ModuleKey, type Permission } from '../models';
 import { useAssistantAvailable } from '../store/assistant';
 import { useSession } from '../store/session';
@@ -52,6 +52,8 @@ export function DashboardPage() {
     <div className="hm">
       <Top name={user?.name ?? ''} business={settings.businessName} />
 
+      <Sections />
+
       {products.length === 0 && can('catalog.manage') && <WelcomeCard />}
 
       <Bento d={d} allowed={allowed} onNegatives={() => setNegOpen(true)} />
@@ -89,6 +91,29 @@ export function DashboardPage() {
         </button>
       )}
     </div>
+  );
+}
+
+// ───────────────────────── Menú de secciones ─────────────────────────
+
+/** Las mismas secciones de la barra lateral, para entrar directo desde Inicio (celular y compu). */
+function Sections() {
+  const settings = useSettings();
+  const { canAny } = useSession();
+  const sections = visibleSections(settings, visibleModules(settings, canAny)).filter((s) => s.key !== 'inicio');
+  if (!sections.length) return null;
+  return (
+    <nav className="hm-sections" aria-label="Secciones">
+      {sections.map((s) => {
+        const Icon = s.icon;
+        return (
+          <Link key={s.key} to={MODULE_PATH[s.tabs[0]]} className="hm-section">
+            <Icon size={22} aria-hidden />
+            <span>{s.label}</span>
+          </Link>
+        );
+      })}
+    </nav>
   );
 }
 

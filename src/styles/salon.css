@@ -161,3 +161,18 @@
 .charge-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .charge-field > span { font-size: 0.8rem; font-weight: 650; color: var(--text-2); }
 .fiscal-code { font-family: ui-monospace, monospace; background: var(--surface-2); padding: 1px 6px; border-radius: 4px; overflow-wrap: anywhere; }
+
+/* ───────────── Inicio: menú de secciones ───────────── */
+.hm-sections { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+@media (max-width: 359px) { .hm-sections { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (min-width: 768px) { .hm-sections { grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); } }
+.hm-section {
+  min-height: 76px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 10px 6px;
+  border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); color: var(--text);
+  font-size: 0.8rem; font-weight: 650; line-height: 1.15; text-align: center; text-decoration: none;
+}
+.hm-section span { max-width: 100%; hyphens: auto; -webkit-hyphens: auto; overflow-wrap: break-word; }
+.hm-section svg { color: var(--primary); }
+.hm-section:hover { border-color: var(--text-3); }
+.hm-section:active { transform: scale(0.97); }
+.hm-section:focus-visible { outline: 3px solid var(--primary-line); outline-offset: 2px; }
