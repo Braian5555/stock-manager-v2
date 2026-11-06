@@ -1,4 +1,4 @@
-import { Snowflake, UtensilsCrossed, CookingPot, ReceiptText, Store, Wallet, BookOpen, Armchair,
+import { Snowflake, UtensilsCrossed, CookingPot, ReceiptText, Store, Wallet, BookOpen, Armchair, LineChart,
   ArrowLeftRight, BarChart3, Boxes, ClipboardCheck, Cloud, Download, Forklift, Home, MapPin, Package, Plug, Receipt, Ruler, Scale, Settings as SettingsIcon,
   ShoppingCart, Stethoscope, Tags, Truck, UserCog, ChefHat, CakeSlice,
   type LucideIcon,
@@ -80,16 +80,17 @@ const SHORT_LABEL: Partial<Record<ModuleKey, string>> = {
  * Sus datos se conservan (los proveedores siguen en cada producto); sólo dejan de mostrarse.
  * Para reactivarlos alcanza con sacarlos de esta lista.
  */
-export const RETIRED_MODULES: ReadonlySet<ModuleKey> = new Set<ModuleKey>(['orders', 'suppliers', 'transfers', 'reports', 'reconciliation']);
+export const RETIRED_MODULES: ReadonlySet<ModuleKey> = new Set<ModuleKey>(['transfers', 'reports', 'reconciliation']);
 export const moduleEnabled = (k: ModuleKey) => !RETIRED_MODULES.has(k);
 /** ¿Está activada la conexión opcional con Maxirest? Apagada, Maxirest no aparece en la app. */
 export const maxirestOn = (s: Pick<Settings, 'maxirest'> | undefined) => s?.maxirest === true;
 /** Permisos que sólo servían a los módulos retirados (se ocultan al editar usuarios). */
-export const RETIRED_PERMISSIONS: ReadonlySet<Permission> = new Set<Permission>(['orders.manage', 'orders.receive', 'transfers']);
+export const RETIRED_PERMISSIONS: ReadonlySet<Permission> = new Set<Permission>(['transfers']);
 
 /** Grupos para "Más" (celular y computadora). */
 export const MODULE_GROUPS: { title: string; keys: ModuleKey[] }[] = [
-  { title: 'Operación diaria', keys: ['dashboard', 'stock', 'count', 'production', 'pastry', 'showcase', 'movements', 'invoices'] },
+  { title: 'Operación diaria', keys: ['dashboard', 'stock', 'count', 'production', 'pastry', 'showcase', 'movements'] },
+  { title: 'Compras', keys: ['invoices', 'orders', 'suppliers'] },
   { title: 'Catálogo', keys: ['products', 'categories', 'units', 'locations'] },
   { title: 'Administración', keys: ['cloud', 'users', 'export', 'integrations', 'diagnostics', 'settings'] },
 ];
@@ -198,7 +199,7 @@ export const SECTIONS: Section[] = [
   { key: 'pasteleria', icon: CakeSlice, modules: ['pastry'] },
   { key: 'camara', icon: Snowflake, modules: ['showcase'] },
   { key: 'productos', icon: Package, modules: ['products', 'categories', 'units', 'locations'] },
-  { key: 'facturas', icon: Receipt, modules: ['invoices'] },
+  { key: 'compras', icon: Receipt, label: 'Compras', modules: ['invoices', 'orders', 'suppliers'] },
   { key: 'config', icon: SettingsIcon, modules: ['settings', 'users', 'cloud', 'export', 'integrations', 'diagnostics'], bottom: true },
 ];
 
@@ -215,6 +216,8 @@ export function visibleSections(settings: Settings, visible: ModuleKey[]): Visib
     const tabs = s.modules.filter((k) => order.has(k)).sort((a, b) => order.get(a)! - order.get(b)!);
     // Configuración siempre primero dentro de su sección.
     if (s.key === 'config') tabs.sort((a, b) => Number(b === 'settings') - Number(a === 'settings'));
+    // Compras: primero Facturas (lo de todos los días), después Pedidos y Proveedores.
+    if (s.key === 'compras') tabs.sort((a, b) => s.modules.indexOf(a) - s.modules.indexOf(b));
     const first = s.modules.find((k) => order.has(k)) ?? s.modules[0];
     return { ...s, tabs, label: s.label ?? navLabel(settings, first) };
   }).filter((s) => s.tabs.length > 0);
@@ -252,10 +255,11 @@ export const SALON_NAV: SalonItem[] = [
   { key: 'caja', label: 'Caja', icon: Wallet, to: '/salon?vista=caja', module: 'salon', perms: ['billing', 'admin'] },
   { key: 'carta', label: 'Carta', icon: BookOpen, to: '/salon?vista=carta', module: 'salon' },
   { key: 'hoy', label: 'Ventas de hoy', icon: BarChart3, to: '/salon?vista=hoy', module: 'salon' },
+  { key: 'reportes', label: 'Reportes', icon: LineChart, to: '/salon?vista=reportes', module: 'salon', perms: ['billing', 'admin'] },
   { key: 'comprobantes', label: 'Comprobantes', icon: ReceiptText, to: '/comprobantes', module: 'fiscal' },
   { key: 'config', label: 'Configuración', icon: SettingsIcon, to: '/salon/configuracion', module: 'salonConfig', bottom: true },
 ];
-export const SALON_VIEWS = ['mesas', 'mostrador', 'caja', 'carta', 'hoy'] as const;
+export const SALON_VIEWS = ['mesas', 'mostrador', 'caja', 'carta', 'hoy', 'reportes'] as const;
 export type SalonView = (typeof SALON_VIEWS)[number];
 
 export function salonItems(visible: ModuleKey[], canAny: (p: Permission[]) => boolean): SalonItem[] {

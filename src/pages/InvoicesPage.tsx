@@ -27,7 +27,7 @@ export function InvoicesPage() {
   const recoverable = useLiveQuery(() => recoverableInvoices(), [invoices.length]) ?? EMPTY;
   const [q, setQ] = useState('');
   const [showFilters, setShowFilters] = useState(false);
-  const [supplierId, setSupplierId] = useState('');
+  const [supplierId, setSupplierId] = useState(() => params.get('proveedor') ?? '');
   const [month, setMonth] = useState('');
   const [pay, setPay] = useState<'' | 'apagar' | 'pagadas' | 'sindatos'>('');
   // Desde el Inicio ("facturas sin cargar al stock"): ?stock=pendiente.

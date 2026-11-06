@@ -16,7 +16,7 @@ import { Badge, EmptyState, Field, Input, PageHeader, SearchInput, Select } from
 import { fmtDate, fmtDay, fmtNumber, fmtSigned, fmtTime, localYmd, matches } from '../utils/format';
 
 const ORIGIN_LABEL: Record<StockMovement['origin'], string> = {
-  manual: 'Manual', conteo: 'Conteo', pedido: 'Pedido', importacion: 'Importación', sincronizacion: 'Sincronización', deshacer: 'Deshacer', alta: 'Alta de producto', remito: 'Remito interno', factura: 'Factura', asistente: 'Asistente IA',
+  manual: 'Manual', conteo: 'Conteo', pedido: 'Pedido', importacion: 'Importación', sincronizacion: 'Sincronización', deshacer: 'Deshacer', alta: 'Alta de producto', remito: 'Remito interno', factura: 'Factura', asistente: 'Asistente IA', salon: 'Salón',
 };
 const PAGE = 100;
 

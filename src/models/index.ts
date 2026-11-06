@@ -97,10 +97,10 @@ export interface Recipe {
   items: RecipeItem[];
 }
 
-export const MOVEMENT_TYPES = ['ingreso', 'salida', 'ajuste', 'conteo', 'devolucion', 'perdida', 'consumo', 'produccion'] as const;
+export const MOVEMENT_TYPES = ['ingreso', 'salida', 'ajuste', 'conteo', 'devolucion', 'perdida', 'consumo', 'produccion', 'venta'] as const;
 export type MovementType = (typeof MOVEMENT_TYPES)[number];
 
-export type MovementOrigin = 'manual' | 'conteo' | 'pedido' | 'importacion' | 'sincronizacion' | 'deshacer' | 'alta' | 'remito' | 'factura' | 'asistente';
+export type MovementOrigin = 'manual' | 'conteo' | 'pedido' | 'importacion' | 'sincronizacion' | 'deshacer' | 'alta' | 'remito' | 'factura' | 'asistente' | 'salon';
 export type SourceSystem = 'local' | ExternalSystemId | 'excel';
 
 export interface StockMovement extends BaseEntity {
@@ -243,6 +243,8 @@ export interface Settings extends BaseEntity {
    * la conexión opcional en Configuración → Integraciones.
    */
   maxirest?: boolean;
+  /** Descontar del stock las recetas de la carta al cerrar cada pedido (si falta: sí). */
+  salonStock?: boolean;
 }
 
 export type IntegrationMode = 'disabled' | 'mock' | 'gateway' | 'excel';
@@ -517,6 +519,11 @@ export interface MenuItem extends BaseEntity {
   iva?: IvaRate;
   /** Adicionales que se pueden elegir al pedirlo. */
   extras?: MenuExtra[];
+  /**
+   * Receta para descontar stock al vender: qué insumos (o productos elaborados) lleva cada
+   * porción (`yield` porciones por tanda; en la carta casi siempre 1).
+   */
+  recipe?: Recipe;
   active: boolean;
 }
 

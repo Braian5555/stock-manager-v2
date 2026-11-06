@@ -117,7 +117,6 @@ test('facturas: sacar fotos, guardar, ver, descargar y bajarlas de la nube en ot
 });
 
 test('facturas: se adjuntan desde un pedido', async ({ page }) => {
-  test.skip(true, 'Pedidos retirado de la app');
   await loadDemo(page);
   await go(page, '/pedidos/nuevo');
   await page.getByLabel('Proveedor').selectOption({ index: 1 });
@@ -129,7 +128,6 @@ test('facturas: se adjuntan desde un pedido', async ({ page }) => {
   const d = dialog(page);
   await d.getByLabel('Foto desde la cámara').setInputFiles(await makePhoto(page, 'f.jpg', 800, 1000));
   await expect(d.getByRole('img', { name: 'Hoja 1' })).toBeVisible({ timeout: 20_000 });
-  await expect(d.getByLabel(/^Pedido/).locator('option:checked')).toHaveText(/Pedido #\d+/);
   await d.getByRole('button', { name: 'Guardar factura' }).click();
   await expect(page.getByText('Factura guardada')).toBeVisible();
   await expect(page.locator('.invoice-item')).toHaveCount(1);

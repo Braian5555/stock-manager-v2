@@ -70,7 +70,6 @@ test('6-7 · conteo detecta y aplica diferencias', async ({ page }) => {
 });
 
 test('8-10 · crea un pedido, lo recibe y suma stock con movimiento', async ({ page }) => {
-  test.skip(true, 'Pedidos y proveedores retirados de la app');
   await loadDemo(page);
   await go(page, '/pedidos/nuevo');
   await page.getByLabel('Proveedor').selectOption({ label: 'Carnicería Ejemplo' });
@@ -160,11 +159,9 @@ test('18-19 · PWA instalable y funciona offline', async ({ page, context }) => 
 });
 
 test('20-21 · alertas de stock bajo y pedido sugerido agrupado por proveedor', async ({ page }) => {
-  test.skip(true, 'Pedidos y proveedores retirados de la app');
   await loadDemo(page);
-  await expect(page.getByRole('link', { name: /4 productos tienen stock bajo/ })).toBeVisible();
-  await expect(page.getByRole('link', { name: /2 productos están sin stock/ })).toBeVisible();
-  await page.getByRole('link', { name: 'Crear pedido sugerido' }).click();
+  await go(page, '/pedidos');
+  await page.getByRole('button', { name: 'Pedido sugerido' }).click();
   const d = dialog(page);
   await expect(d.getByRole('heading', { name: 'Carnicería Ejemplo' })).toBeVisible();
   // Carne picada: stock 2, mín 10, máx 30 → 28
@@ -193,9 +190,9 @@ test('22-23 · navegación adaptada al dispositivo', async ({ page, isMobile }) 
     await expect(top).toBeVisible();
     await expect(page.getByRole('navigation', { name: 'Navegación inferior' })).toBeHidden();
     // Barra lateral con las secciones; cada sección muestra sus módulos como pestañas.
-    // Sólo stock, panadería (producción) y facturas; compras, remitos y reportes se retiraron.
-    for (const l of ['Inicio', 'Stock', 'Panadería', 'Productos', 'Facturas', 'Configuración', 'Ayuda']) await expect(top.getByRole('link', { name: l })).toBeVisible();
-    for (const l of ['Compras', 'Pedidos', 'Proveedores', 'Remitos', 'Reportes']) await expect(top.getByRole('link', { name: l })).toHaveCount(0);
+    // Compras agrupa facturas, pedidos y proveedores; remitos y reportes de stock se retiraron.
+    for (const l of ['Inicio', 'Stock', 'Panadería', 'Productos', 'Compras', 'Configuración', 'Ayuda']) await expect(top.getByRole('link', { name: l })).toBeVisible();
+    for (const l of ['Remitos', 'Reportes']) await expect(top.getByRole('link', { name: l })).toHaveCount(0);
     await expect(top.getByRole('link', { name: 'Stock' })).toHaveClass(/active/);
     await top.getByRole('link', { name: 'Productos' }).click();
     const tabs = page.getByRole('navigation', { name: 'Pestañas de Productos' });
@@ -203,8 +200,10 @@ test('22-23 · navegación adaptada al dispositivo', async ({ page, isMobile }) 
     await tabs.getByRole('link', { name: 'Familias' }).click();
     await expect(page.getByRole('heading', { name: 'Familias', level: 1 })).toBeVisible();
     await expect(top.getByRole('link', { name: 'Productos' })).toHaveClass(/active/);
-    await top.getByRole('link', { name: 'Facturas' }).click();
+    await top.getByRole('link', { name: 'Compras' }).click();
     await expect(page.getByRole('heading', { name: 'Facturas', level: 1 })).toBeVisible();
+    const buy = page.getByRole('navigation', { name: 'Pestañas de Compras' });
+    for (const l of ['Facturas', 'Pedidos', 'Proveedores']) await expect(buy.getByRole('link', { name: l })).toBeVisible();
     // La barra se puede achicar (sólo íconos) y volver a agrandar.
     await page.getByRole('button', { name: 'Achicar menú' }).click();
     await expect(top.getByRole('link', { name: 'Productos' })).toHaveAttribute('title', 'Productos');

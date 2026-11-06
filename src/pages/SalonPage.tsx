@@ -3,10 +3,13 @@ import { BellRing, Map as MapIcon, Pencil, Plus, Receipt, Search, Trash2, Utensi
 import { useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { db } from '../database/db';
-import { EMPTY } from '../hooks/useData';
+import { EMPTY, useLookups, useProducts } from '../hooks/useData';
+import { useCosts } from '../hooks/useCosts';
+import { dishCost, type DishCost } from '../services/menuCostService';
+import { RecipeEditor } from '../components/RecipeEditor';
 import { sinceLabel, useNow } from '../hooks/useNow';
 import { useToday, startOfDayIso } from '../hooks/useToday';
-import type { DiningTable, FiscalDoc, IvaRate, MenuExtra, TableTicket } from '../models';
+import type { DiningTable, FiscalDoc, IvaRate, MenuExtra, MenuItem, Recipe, TableTicket } from '../models';
 import { CBTE_NAME, IVA_RATES, PAYMENT_LABEL, docNumber, fiscalOf } from '../services/fiscalService';
 import { addNumberedTables, channelOf, discountAmount, openTicket, retireTable, saveMenuItem, saveTable, ticketLabel } from '../services/salonService';
 import { useFeedback } from '../store/feedback';
@@ -19,6 +22,7 @@ import { TicketSheet } from '../components/salon/TicketSheet';
 import { FloorPlan, STATE_LABEL, tableState } from '../components/salon/FloorPlan';
 import { CounterTab } from '../components/salon/CounterTab';
 import { CashTab } from '../components/salon/CashTab';
+import { SalesReports } from '../components/salon/SalesReports';
 import { useMenu, useOpenCash, useOpenTickets, useTables } from '../components/salon/hooks';
 import { SALON_VIEWS, type SalonView } from '../layouts/modules';
 import { useSettings } from '../store/settings';
@@ -31,6 +35,7 @@ const TITLE: Record<Tab, { title: string; sub: string }> = {
   caja: { title: 'Caja', sub: 'Apertura, ingresos y egresos, propinas y arqueo.' },
   carta: { title: 'Carta', sub: 'Lo que se vende en el salón: precios, secciones y adicionales.' },
   hoy: { title: 'Ventas de hoy', sub: 'Pedidos del día, lo cobrado y lo más pedido.' },
+  reportes: { title: 'Reportes de ventas', sub: 'Ventas por período, plato, día, hora, medio de pago, canal y mozo, con costo y margen.' },
 };
 type View = 'plano' | 'lista';
 const VIEW_KEY = 'sm.salon.view';
@@ -71,6 +76,7 @@ export function SalonPage() {
       {tab === 'caja' && (billing ? <CashTab /> : <div className="card card-pad"><p className="muted" style={{ margin: 0 }}>La caja la manejan quienes tienen permiso para cobrar.</p></div>)}
       {tab === 'carta' && <MenuTab />}
       {tab === 'hoy' && <TodayTab />}
+      {tab === 'reportes' && (billing ? <SalesReports /> : <div className="card card-pad"><p className="muted" style={{ margin: 0 }}>Los reportes los ven quienes tienen permiso para cobrar.</p></div>)}
       {sheet && <TicketSheet ticketId={sheet} onClose={() => setSheet(null)} onCharge={(t) => { setSheet(null); setCharging(t); }} tables={tables} busy={new Set(byTable.keys())} />}
       {charging && <ChargeModal ticket={charging} onClose={(closed) => { const t = charging; setCharging(null); if (!closed) setSheet(t.id); }} />}
     </div>
@@ -234,10 +240,16 @@ function TablesModal({ onClose, tables, busy }: { onClose: () => void; tables: D
 
 // ───────────────────────── Carta ─────────────────────────
 
-type ItemDraft = { id?: string; name: string; section: string; price?: number; kitchen: boolean; active: boolean; iva?: IvaRate; extras: MenuExtra[] };
+type ItemDraft = { id?: string; name: string; section: string; price?: number; kitchen: boolean; active: boolean; iva?: IvaRate; extras: MenuExtra[]; recipe?: Recipe };
 
 function MenuTab() {
   const menu = useMenu();
+  const fiscal = fiscalOf(useSettings());
+  const products = useProducts();
+  const costs = useCosts();
+  const byId = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
+  const costOfItem = (m: MenuItem) => (costs.visible ? dishCost(m, costs.costOf, byId, fiscal) : undefined);
+  const noRecipe = menu.filter((m) => m.active && !m.recipe?.items.length).length;
   const [edit, setEdit] = useState<ItemDraft | null>(null);
   const [q, setQ] = useState('');
   const sections = useMemo(() => [...new Set(menu.map((m) => m.section))].sort((a, b) => a.localeCompare(b, 'es')), [menu]);
@@ -253,6 +265,7 @@ function MenuTab() {
         </label>
         <button type="button" className="btn btn-primary" onClick={() => setEdit(blank())}><Plus size={18} aria-hidden /> Agregar a la carta</button>
       </div>
+      {menu.length > 0 && noRecipe > 0 && <p className="small muted">{noRecipe} {noRecipe === 1 ? 'plato no tiene' : 'platos no tienen'} receta: sin receta no se descuenta stock al venderlos ni se sabe cuánto cuestan.</p>}
 
       {menu.length === 0 ? (
         <div className="card"><EmptyState icon={<UtensilsCrossed size={40} />} title="La carta está vacía" action={<button type="button" className="btn btn-primary" onClick={() => setEdit(blank())}><Plus size={18} aria-hidden /> Agregar el primero</button>}>
@@ -269,9 +282,12 @@ function MenuTab() {
                     <div className="list-title truncate">{m.name}</div>
                     <div className="list-sub">{m.kitchen ? 'Va a cocina' : 'Sale directo'}{m.extras?.length ? ` · ${m.extras.length} adicional${m.extras.length === 1 ? '' : 'es'}` : ''}{m.active ? '' : ' · pausado'}</div>
                   </div>
-                  <b className="num">{fmtMoney(m.price)}</b>
+                  <span className="salon-menu-price">
+                    <b className="num">{fmtMoney(m.price)}</b>
+                    <CostTag c={costOfItem(m)} />
+                  </span>
                   <button type="button" className="btn btn-ghost icon-btn" aria-label={`Editar ${m.name}`}
-                    onClick={() => setEdit({ id: m.id, name: m.name, section: m.section, price: m.price, kitchen: m.kitchen, active: m.active, iva: m.iva, extras: m.extras ?? [] })}><Pencil size={18} /></button>
+                    onClick={() => setEdit({ id: m.id, name: m.name, section: m.section, price: m.price, kitchen: m.kitchen, active: m.active, iva: m.iva, extras: m.extras ?? [], recipe: m.recipe })}><Pencil size={18} /></button>
                 </li>
               ))}
             </ul>
@@ -283,13 +299,26 @@ function MenuTab() {
   );
 }
 
+/** Costo de la porción y qué porcentaje del precio (neto) se lleva. */
+function CostTag({ c }: { c?: DishCost }) {
+  if (!c) return null;
+  if (c.cost === 0 && c.missing.length) return <span className="salon-cost small" title={`Sin costo: ${c.missing.join(', ')}`}>sin costo</span>;
+  const tone = c.pct === undefined ? '' : c.pct > 40 ? ' is-high' : c.pct > 30 ? ' is-mid' : '';
+  return <span className={`salon-cost small${tone}`} title={c.missing.length ? `Sin costo: ${c.missing.join(', ')}` : undefined}>costo {fmtMoney(c.cost)}{c.pct !== undefined ? ` · ${String(c.pct).replace('.', ',')}%` : ''}{c.missing.length ? ' *' : ''}</span>;
+}
+
 function MenuItemModal({ draft, sections, onClose }: { draft: ItemDraft; sections: string[]; onClose: () => void }) {
   const { run } = useFeedback();
   const fiscal = fiscalOf(useSettings());
   const [d, setD] = useState(draft);
+  const products = useProducts();
+  const lk = useLookups();
+  const costs = useCosts();
+  const byId = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
+  const cost = costs.visible && d.recipe?.items.length ? dishCost({ price: d.price ?? 0, iva: d.iva, recipe: d.recipe }, costs.costOf, byId, fiscal) : undefined;
   const save = (again: boolean) => void run(async () => {
     await saveMenuItem({ ...d, price: d.price ?? NaN });
-    if (again) setD({ ...d, id: undefined, name: '', price: undefined, extras: [] });
+    if (again) setD({ ...d, id: undefined, name: '', price: undefined, extras: [], recipe: undefined });
     else onClose();
   }, d.id ? 'Guardado en la carta' : 'Agregado a la carta');
   return (
@@ -325,6 +354,16 @@ function MenuItemModal({ draft, sections, onClose }: { draft: ItemDraft; section
           ))}
           <button type="button" className="btn btn-sm" onClick={() => setD({ ...d, extras: [...d.extras, { name: '', price: 0 }] })}><Plus size={16} aria-hidden /> Agregar adicional</button>
         </fieldset>
+        <RecipeEditor value={d.recipe} onChange={(r) => setD({ ...d, recipe: r })} products={products} lk={lk} unit="porción" perPortion
+          legend={<>Receta de una porción <span className="muted small">— opcional: al vender se descuenta del stock y da el costo del plato</span></>} />
+        {cost && (
+          <div className="salon-dish-cost" role="status" aria-label="Costo del plato">
+            <span>Costo <b className="num">{fmtMoney(cost.cost)}</b></span>
+            <span>{fiscal.enabled && fiscal.condicionIva === 'RI' ? 'Precio sin IVA' : 'Precio'} <b className="num">{fmtMoney(cost.net)}</b></span>
+            <span>Margen <b className="num">{fmtMoney(cost.margin)}</b>{cost.pct !== undefined ? ` (costo ${String(cost.pct).replace('.', ',')}%)` : ''}</span>
+            {cost.missing.length > 0 && <span className="small" style={{ color: 'var(--low)' }}>Sin costo: {cost.missing.join(', ')} (cargalo en el producto o con una factura).</span>}
+          </div>
+        )}
         {d.id && <label className="check"><input type="checkbox" checked={!d.active} onChange={(e) => setD({ ...d, active: !e.target.checked })} /> Pausado (no se puede pedir)</label>}
         <button type="submit" hidden />
       </form>

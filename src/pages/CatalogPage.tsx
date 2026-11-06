@@ -15,7 +15,7 @@ import { PurchaseSheetModal } from '../components/PurchaseSheetModal';
 import { FamilyZeroModal } from '../components/FamilyZeroModal';
 import { useSession } from '../store/session';
 import { EmptyState, Field, Input, PageHeader, SearchInput, Textarea } from '../components/ui';
-import { matches } from '../utils/format';
+import { fmtMoney, matches } from '../utils/format';
 import { statusOf } from '../services/stockService';
 
 type Kind = 'category' | 'unit' | 'location' | 'supplier';
@@ -76,6 +76,22 @@ export function CatalogPage({ kind }: { kind: Kind }) {
       setParams({}, { replace: true });
     }
   }, [params, rows, setParams]);
+
+  // Proveedores: cuenta corriente con las facturas (lo comprado este mes y lo que falta pagar).
+  const canInvoices = can('invoices') || can('admin');
+  const invoices = useLiveQuery(async () => (kind === 'supplier' && canInvoices ? db.invoices.toArray() : []), [kind, canInvoices]) ?? EMPTY;
+  const account = useMemo(() => {
+    const month = new Date().toISOString().slice(0, 7);
+    const m = new Map<string, { month: number; due: number; dueCount: number }>();
+    for (const i of invoices as { supplierId?: string; date: string; total?: number; payment?: { paid: boolean } }[]) {
+      if (!i.supplierId) continue;
+      const a = m.get(i.supplierId) ?? { month: 0, due: 0, dueCount: 0 };
+      if (i.date.startsWith(month)) a.month += i.total ?? 0;
+      if (i.payment && !i.payment.paid) { a.due += i.total ?? 0; a.dueCount++; }
+      m.set(i.supplierId, a);
+    }
+    return m;
+  }, [invoices]);
 
   const usage = useMemo(() => {
     const m = new Map<string, number>();
@@ -185,6 +201,12 @@ export function CatalogPage({ kind }: { kind: Kind }) {
                     {kind === 'supplier' && typeof r.email === 'string' && <a href={`mailto:${r.email}`} className="row" style={{ gap: 4 }}><Mail size={12} aria-hidden />{r.email}</a>}
                     {kind === 'supplier' && typeof r.contact === 'string' && <span>{r.contact}</span>}
                   </div>
+                  {kind === 'supplier' && canInvoices && account.get(r.id) && (
+                    <Link to={`/facturas?proveedor=${r.id}`} className="list-sub row wrap supplier-account" style={{ gap: '2px 12px' }}>
+                      <span>Compras del mes: <b className="num">{fmtMoney(account.get(r.id)!.month)}</b></span>
+                      {account.get(r.id)!.due > 0 && <span className="catalog-alert low">A pagar: {fmtMoney(account.get(r.id)!.due)} ({account.get(r.id)!.dueCount} factura{account.get(r.id)!.dueCount === 1 ? '' : 's'})</span>}
+                    </Link>
+                  )}
                 </div>
                 {kind === 'supplier' && (usage.get(r.id) ?? 0) > 0 && (
                   <button type="button" className="btn btn-sm btn-ghost icon-btn" aria-label={`Planilla de compra de ${r.name}`} title="Planilla de compra" onClick={() => setSheetFor(r.id)}><ClipboardList size={16} /></button>

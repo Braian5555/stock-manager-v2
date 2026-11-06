@@ -3,13 +3,14 @@
  * comandas a cocina, descuentos y cortesías.
  *
  * El cobro (con factura ARCA, división de cuenta y caja) está en fiscalService y cashService.
- * Funciona solo, sin depender de otro sistema. No se descuenta stock al vender (el stock sale de
- * producción y de la cámara).
+ * Funciona solo, sin depender de otro sistema. Al cerrar un pedido se descuentan del stock las
+ * recetas de los platos (saleStockService), si está activado.
  */
 import { db } from '../database/db';
-import type { DiningTable, IvaRate, MenuExtra, MenuItem, TableShape, TableTicket, TicketChannel, TicketDiscount, TicketLine } from '../models';
+import type { DiningTable, IvaRate, MenuExtra, MenuItem, Recipe, TableShape, TableTicket, TicketChannel, TicketDiscount, TicketLine } from '../models';
 import { nowIso, uuid } from '../utils/id';
 import { saveEntity, type Draft } from './entityService';
+import { consumeTicketStock } from './saleStockService';
 import { getCurrentActor } from './userService';
 
 const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
@@ -92,7 +93,13 @@ export async function retireTable(id: string): Promise<void> {
 
 // ───────────── Carta ─────────────
 
-export async function saveMenuItem(d: { id?: string; name: string; section: string; price: number; kitchen: boolean; active?: boolean; iva?: IvaRate; extras?: MenuExtra[] }): Promise<MenuItem> {
+function cleanRecipe(r: Recipe | undefined): Recipe | undefined {
+  const items = (r?.items ?? []).filter((i) => i.productId && Number(i.quantity) > 0).map((i) => ({ productId: i.productId, quantity: Number(i.quantity) }));
+  if (r?.items.some((i) => !(Number(i.quantity) > 0))) throw new Error('Poné la cantidad de cada insumo de la receta (o sacalo).');
+  return items.length ? { yield: r!.yield > 0 ? r!.yield : 1, items } : undefined;
+}
+
+export async function saveMenuItem(d: { id?: string; name: string; section: string; price: number; kitchen: boolean; active?: boolean; iva?: IvaRate; extras?: MenuExtra[]; recipe?: Recipe }): Promise<MenuItem> {
   const name = d.name.trim();
   if (!name) throw new Error('Poné el nombre del plato o la bebida.');
   if (!Number.isFinite(d.price) || d.price < 0) throw new Error('El precio no es válido.');
@@ -111,6 +118,7 @@ export async function saveMenuItem(d: { id?: string; name: string; section: stri
     kitchen: d.kitchen,
     iva: d.iva,
     extras: extras.length ? extras : undefined,
+    recipe: cleanRecipe(d.recipe),
     active: d.active ?? true,
   } as Draft<MenuItem>);
 }
@@ -336,15 +344,17 @@ export async function requestBill(ticketId: string): Promise<TableTicket> {
   });
 }
 
-/** Cierra el pedido: la mesa queda libre. */
+/** Cierra el pedido: la mesa queda libre y se descuenta el stock de las recetas. */
 export async function closeTicket(ticketId: string): Promise<TableTicket> {
-  return mutate(ticketId, (t) => {
+  const closed = await mutate(ticketId, (t) => {
     mustBeOpen(t);
     if (t.lines.some((l) => l.status === 'nuevo')) throw new Error('Hay platos sin mandar: mandalos o sacalos antes de cerrar.');
     if (!t.lines.some((l) => l.qty > 0)) throw new Error('El pedido está vacío: si no se pidió nada, anulalo.');
     t.status = 'cerrada';
     t.closedAt = nowIso();
   });
+  await consumeTicketStock(closed, `${ticketLabel(closed)} · #${closed.number}`);
+  return closed;
 }
 
 export async function cancelTicket(ticketId: string): Promise<TableTicket> {

@@ -24,9 +24,9 @@ test('todas las rutas existentes y nuevas abren sin errores', async ({ page }) =
   expect(errors).toEqual([]);
 });
 
-test('secciones retiradas (pedidos, proveedores, remitos, reportes, conciliación): un enlace viejo lleva a Stock', async ({ page }) => {
+test('secciones retiradas (remitos, reportes de stock, conciliación): un enlace viejo lleva a Stock', async ({ page }) => {
   await loadDemo(page);
-  for (const hash of ['/pedidos', '/pedidos/nuevo', '/proveedores', '/remitos', '/reportes', '/conciliacion']) {
+  for (const hash of ['/remitos', '/reportes', '/conciliacion']) {
     await page.goto(`./#${hash}`);
     await expect(page, hash).toHaveURL(/#\/stock$/);
     await expect(page.locator('main h1').first()).toHaveText(/Stock/);
@@ -62,11 +62,11 @@ test('configuración: qué módulos van en cada barra', async ({ page, isMobile 
   } else {
     // En la computadora las secciones están todas en la barra lateral: ocultar un módulo lo saca.
     const top = page.getByRole('navigation', { name: 'Navegación principal' });
-    await expect(top.getByRole('link', { name: 'Facturas' })).toBeVisible();
-    await page.getByRole('button', { name: /^Ocultar Facturas/ }).click();
-    await expect(top.getByRole('link', { name: 'Facturas' })).toHaveCount(0);
-    await page.getByRole('button', { name: /^Mostrar Facturas/ }).click();
-    await expect(top.getByRole('link', { name: 'Facturas' })).toBeVisible();
+    await expect(top.getByRole('link', { name: 'Panadería' })).toBeVisible();
+    await page.getByRole('button', { name: /^Ocultar Panadería/ }).click();
+    await expect(top.getByRole('link', { name: 'Panadería' })).toHaveCount(0);
+    await page.getByRole('button', { name: /^Mostrar Panadería/ }).click();
+    await expect(top.getByRole('link', { name: 'Panadería' })).toBeVisible();
   }
 });
 

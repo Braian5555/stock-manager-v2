@@ -25,6 +25,7 @@ import { AccessibilitySection } from '../components/AccessibilitySection';
 import { AIReaderSection } from '../components/AIReaderSection';
 import { FiscalSettingsSection } from '../components/FiscalSettingsSection';
 import { printHtml, testTicketHtml } from '../services/printService';
+import { salonStockOn } from '../services/saleStockService';
 import { MODULE_ICON, MODULE_PATH, maxirestOn, moduleEnabled, navLabel } from '../layouts/modules';
 import { useCloud } from '../cloud/cloudService';
 import { useIntegration, useOnline, usePendingJobs } from '../hooks/useData';
@@ -72,6 +73,7 @@ const SECTIONS: Section[] = [
   // Salón
   { key: 'facturacion', group: 'salon', areas: ['salon'], title: 'Facturación electrónica', description: 'ARCA: emisor, punto de venta, ambiente y conexión.', icon: ReceiptText, render: () => <FiscalSettingsSection /> },
   { key: 'mesas', group: 'salon', areas: ['salon'], title: 'Mesas, carta y caja', description: 'Mesas y plano, carta con adicionales y caja.', icon: Armchair, render: () => <SalonShortcuts /> },
+  { key: 'stock-venta', group: 'salon', areas: ['salon'], title: 'Stock al vender', description: 'Descontar del stock las recetas de la carta al cerrar cada pedido.', icon: Boxes, render: () => <SalonStockSection /> },
   { key: 'impresion', group: 'salon', areas: ['salon'], title: 'Impresión de tickets', description: 'Tickets de 80 mm: factura, pre-cuenta, comanda y arqueo.', icon: Printer, render: () => <PrintSection /> },
   // Tu negocio (general)
   { key: 'empresa', group: 'negocio', areas: BOTH, title: 'Empresa y apariencia', description: 'Nombre, subtítulo, logo, colores y tema claro/oscuro.', icon: Building2, render: () => <CompanySection /> },
@@ -163,6 +165,26 @@ function SalonShortcuts() {
         { to: '/salon?vista=carta', title: 'Carta', description: 'Platos, precios, secciones, adicionales e IVA.', icon: BookOpen },
         { to: '/salon?vista=caja', title: 'Caja', description: 'Abrir y cerrar la caja, ingresos, egresos y arqueos.', icon: Wallet },
       ]} />
+    </>
+  );
+}
+
+function SalonStockSection() {
+  const { run } = useFeedback();
+  const settings = useSettings();
+  const on = salonStockOn(settings);
+  return (
+    <>
+      <PageHeader title="Stock al vender" subtitle="Como en un software gastronómico: lo que se vende sale del stock." />
+      <section className="card card-pad stack">
+        <label className="check"><input type="checkbox" checked={on} onChange={(e) => void run(() => updateSettings({ salonStock: e.target.checked }), e.target.checked ? 'Se descuenta el stock al vender' : 'Ya no se descuenta el stock al vender')} /> Descontar del stock las recetas de la carta al cerrar cada pedido</label>
+        <p className="small muted" style={{ margin: 0 }}>
+          A cada plato de la carta le cargás su receta (por ejemplo, un café con leche lleva 18 g de café y 150 ml de leche; un desayuno lleva 2 medialunas).
+          Al cerrar el pedido se descuentan esos insumos con un movimiento “Venta”. Las cortesías también se descuentan. Los platos sin receta no tocan el stock.
+        </p>
+        <p className="small muted" style={{ margin: 0 }}>Con la receta y el costo de cada insumo (de las facturas o cargado a mano), la carta muestra cuánto cuesta cada plato y su margen.</p>
+        <div><Link to="/salon?vista=carta" className="btn"><BookOpen size={18} aria-hidden /> Ir a la carta</Link></div>
+      </section>
     </>
   );
 }

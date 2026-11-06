@@ -302,3 +302,23 @@
 .hm-section.is-area { background: var(--primary); border-color: var(--primary); color: #fff; }
 .hm-section.is-area svg { color: #fff; }
 @media (max-width: 480px) { .topbar .area-switch-btn[aria-pressed="true"] span { display: none; } .topbar .area-switch-btn { padding: 4px 9px; min-height: 32px; } }
+
+/* ── Carta: costo y margen ── */
+.salon-menu-price { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; text-align: right; }
+.salon-cost { color: var(--text); opacity: .75; white-space: nowrap; }
+.salon-cost.is-mid { color: var(--low); opacity: 1; }
+.salon-cost.is-high { color: var(--crit); opacity: 1; font-weight: 600; }
+.salon-dish-cost { display: flex; flex-wrap: wrap; gap: 6px 18px; padding: 10px 12px; border: 1px dashed var(--border-strong); border-radius: var(--radius); background: var(--surface); }
+
+/* ── Reportes de ventas ── */
+.sales-period { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin-bottom: 12px; }
+.sales-period .field { margin: 0; }
+.sales-grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); margin-top: 12px; }
+.sales-bars { list-style: none; margin: 0; padding: 0 16px 14px; display: grid; gap: 8px; }
+.sales-bars li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 10px; align-items: baseline; }
+.sales-bars .bar { grid-column: 1 / -1; height: 8px; border-radius: 0 4px 4px 0; background: var(--primary); min-width: 2px; }
+.sales-bars .sub { grid-column: 1 / -1; font-size: .85em; opacity: .75; }
+.sales-hours { display: grid; grid-template-columns: repeat(auto-fill, minmax(34px, 1fr)); gap: 4px; align-items: end; padding: 0 16px 14px; }
+.sales-hour { display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: .78em; }
+.sales-hour .col { width: 100%; max-width: 24px; background: var(--primary); border-radius: 4px 4px 0 0; min-height: 2px; }
+.sales-table td.num, .sales-table th.num { text-align: right; }

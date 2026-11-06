@@ -1,5 +1,5 @@
 import { Plus, Trash2 } from 'lucide-react';
-import { useId, useMemo, useState } from 'react';
+import { useId, useMemo, useState, type ReactNode } from 'react';
 import type { Lookups } from '../hooks/useData';
 import type { Product, Recipe } from '../models';
 import { NumberInput } from './ui';
@@ -8,8 +8,12 @@ import { NumberInput } from './ui';
  * Receta de un producto que se elabora: cuánto rinde una tanda y qué insumos lleva.
  * Al anotar una producción se descuentan en proporción.
  */
-export function RecipeEditor({ value, onChange, products, lk, selfId, unit, onCreate }: {
+export function RecipeEditor({ value, onChange, products, lk, selfId, unit, onCreate, legend, perPortion }: {
   value?: Recipe; onChange: (r: Recipe | undefined) => void; products: Product[]; lk: Lookups; selfId?: string; unit: string;
+  /** Título propio (si falta, el de producción). */
+  legend?: ReactNode;
+  /** Receta por porción (platos de la carta): sin "una tanda rinde". */
+  perPortion?: boolean;
   /** Si está, se puede crear en el momento un insumo que no existe (con la unidad elegida). */
   onCreate?: (name: string, unitId: string) => Promise<Product | undefined>;
 }) {
@@ -30,12 +34,12 @@ export function RecipeEditor({ value, onChange, products, lk, selfId, unit, onCr
 
   return (
     <fieldset className="span-all recipe" aria-label="Receta">
-      <legend>Receta <span className="muted small">— opcional: al anotar una producción se descuentan estos insumos</span></legend>
-      <div className="recipe-yield">
+      <legend>{legend ?? <>Receta <span className="muted small">— opcional: al anotar una producción se descuentan estos insumos</span></>}</legend>
+      {!perPortion && <div className="recipe-yield">
         <span>Una tanda rinde</span>
         <NumberInput aria-label="Rinde" value={r.yield} min={0} onChange={(v) => update({ ...r, yield: v && v > 0 ? v : 1 })} style={{ maxWidth: 110 }} />
         <span className="muted">{unit || 'unidades'} y lleva:</span>
-      </div>
+      </div>}
       {r.items.length > 0 && (
         <ul className="recipe-items">
           {r.items.map((i, idx) => {

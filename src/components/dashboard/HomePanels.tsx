@@ -310,6 +310,7 @@ const MOVE_LOOK: Record<MovementType, { icon: LucideIcon; tone: Tone }> = {
   perdida: { icon: ArrowUpFromLine, tone: 'rose' },
   ajuste: { icon: Scale, tone: 'petrol' },
   conteo: { icon: ClipboardCheck, tone: 'petrol' },
+  venta: { icon: ArrowUpFromLine, tone: 'amber' },
 };
 
 export function ActivityCard({ d, limit = 8, showLink }: { d: HomePanels; limit?: number; showLink: boolean }) {
