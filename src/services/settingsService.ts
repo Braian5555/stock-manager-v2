@@ -50,10 +50,11 @@ const LEGACY_NAV_BOTTOM: ModuleKey[][] = [['dashboard', 'stock', 'orders', 'move
 export const MAX_NAV_BOTTOM = 4;
 
 /** Rojo de sello (estilo Kraft). */
-export const DEFAULT_PRIMARY = '#b3261e';
+export const DEFAULT_PRIMARY = '#31616e';
 /** Colores por defecto de versiones anteriores: si nunca se cambiaron, se adopta la identidad nueva. */
-const LEGACY_PRIMARY = ['#4f46e5', '#0e6b67'];
-const LEGACY_SECONDARY = ['#0ea5e9', '#22282b'];
+// Colores de fábrica de versiones anteriores (si nadie los cambió, pasan a los de Orillas).
+const LEGACY_PRIMARY = ['#4f46e5', '#0e6b67', '#b3261e'];
+const LEGACY_SECONDARY = ['#0ea5e9', '#22282b', '#3a2315'];
 
 export const defaultMenu = (): MenuItemSetting[] => MODULES.map((m) => ({ key: m.key, label: m.label, visible: true }));
 
@@ -67,7 +68,7 @@ export function defaultSettings(): Settings {
     subtitle: 'Software gastronómico',
     logo: { kind: 'default' },
     primaryColor: DEFAULT_PRIMARY,
-    secondaryColor: '#3a2315',
+    secondaryColor: '#1f4049',
     theme: 'system',
     menu: defaultMenu(),
     criticalRatio: 0.5,

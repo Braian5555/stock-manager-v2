@@ -115,7 +115,7 @@ export function StockPage() {
       <PageHeader
         title={menuLabel(settings, 'stock')}
         subtitle={punto ? `Stock en ${outlets.find((o) => o.id === punto)?.name ?? 'el punto'} según los remitos recibidos` : `${rows.length} productos`}
-        actions={<><ScanButton /><Link to="/stock/consumo" className="btn"><TrendingDown size={18} aria-hidden /> Consumo y mermas</Link>{can('catalog.manage') && <Link to="/productos?nuevo=1" className="btn btn-primary"><Plus size={18} aria-hidden /> Producto</Link>}</>}
+        actions={<><ScanButton /><Link to="/stock/consumo" className="btn"><TrendingDown size={18} aria-hidden /> Consumo</Link>{can('catalog.manage') && <Link to="/productos?nuevo=1" className="btn btn-primary"><Plus size={18} aria-hidden /> Producto</Link>}</>}
       />
       {outlets.length > 0 && (can('transfers') || can('stock.view')) && (
         <div style={{ marginBottom: 12, overflowX: 'auto' }}>

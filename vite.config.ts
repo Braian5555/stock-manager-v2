@@ -25,7 +25,7 @@ export default defineConfig({
       injectRegister: false,
       // En desarrollo no hay service worker: evita cachés que rompan las pruebas.
       devOptions: { enabled: false },
-      includeAssets: ['favicon.svg', 'icons/apple-touch-icon.png'],
+      includeAssets: ['favicon.svg', 'favicon.png', 'brand/orillas-mark.png', 'brand/orillas-logo.png', 'icons/apple-touch-icon.png'],
       manifestFilename: 'manifest.webmanifest',
       manifest: {
         id: BASE,
@@ -38,8 +38,8 @@ export default defineConfig({
         scope: BASE,
         display: 'standalone',
         orientation: 'any',
-        background_color: '#e4cfab',
-        theme_color: '#3a2315',
+        background_color: '#ebe6dc',
+        theme_color: '#1f4049',
         categories: ['business', 'productivity'],
         icons: [
           { src: 'icons/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },

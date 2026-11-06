@@ -26,7 +26,7 @@
 .salon-table-state { font-size: 0.8rem; font-weight: 650; color: var(--text-3); }
 .salon-table-meta { margin-top: auto; display: flex; flex-direction: column; font-size: 0.82rem; color: var(--text-2); }
 .salon-table-meta .num { font-weight: 700; font-size: 1rem; color: var(--text); }
-.salon-table.is-ocupada { border-style: solid; border-color: var(--text); background: var(--surface); box-shadow: 0 2px 0 rgb(58 35 21 / 0.1); }
+.salon-table.is-ocupada { border-style: solid; border-color: var(--text); background: var(--surface); box-shadow: 0 2px 0 rgb(31 64 73 / 0.1); }
 .salon-table.is-ocupada .salon-table-state { color: var(--primary); }
 .salon-table.is-listo { border-style: solid; border-color: var(--ok); background: var(--ok-bg); }
 .salon-table.is-listo .salon-table-state { color: var(--ok); }
@@ -106,8 +106,8 @@
 .kitchen .page-header { margin-bottom: 0; }
 .kitchen-board { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 14px; align-items: start; }
 .kitchen-ticket {
-  display: flex; flex-direction: column; background: #fffaf0; color: #2a1a0f; border-radius: 4px; padding: 0 0 12px;
-  box-shadow: 0 2px 0 rgb(58 35 21 / 0.12), 0 8px 18px rgb(58 35 21 / 0.12); border-top: 6px solid #3a2315;
+  display: flex; flex-direction: column; background: #fdfcf9; color: #16313a; border-radius: 4px; padding: 0 0 12px;
+  box-shadow: 0 2px 0 rgb(31 64 73 / 0.12), 0 8px 18px rgb(31 64 73 / 0.12); border-top: 6px solid #1f4049;
 }
 .kitchen-ticket.is-warn { border-top-color: #c98a12; }
 .kitchen-ticket.is-late { border-top-color: #b3261e; }
@@ -116,22 +116,22 @@
 .kitchen-time { font-weight: 700; font-size: 1rem; }
 .kitchen-ticket.is-warn .kitchen-time { color: #8a5a00; }
 .kitchen-ticket.is-late .kitchen-time { color: #b3261e; }
-.kitchen-meta { margin: 0; padding: 0 14px 8px; font-size: 0.8rem; color: #6b4c35; border-bottom: 1.5px dashed #c9ab7d; }
+.kitchen-meta { margin: 0; padding: 0 14px 8px; font-size: 0.8rem; color: #536f75; border-bottom: 1.5px dashed #cfc7b8; }
 .kitchen-lines { list-style: none; margin: 0; padding: 4px 0; }
 .kitchen-line {
   width: 100%; display: flex; align-items: flex-start; gap: 10px; padding: 9px 14px; min-height: 48px;
   border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer;
 }
-.kitchen-line:hover { background: rgb(58 35 21 / 0.05); }
+.kitchen-line:hover { background: rgb(31 64 73 / 0.05); }
 .kitchen-line:focus-visible { outline: 3px solid #b3261e55; outline-offset: -3px; }
 .kitchen-qty { min-width: 1.6em; font-size: 1.25rem; line-height: 1.2; }
 .kitchen-name { flex: 1; display: flex; flex-direction: column; font-weight: 650; font-size: 1.05rem; line-height: 1.25; }
-.kitchen-note { font-weight: 500; font-style: italic; font-size: 0.9rem; color: #573a26; }
-.kitchen-check { color: #b08f5f; flex: none; margin-top: 2px; }
-.kitchen-line.is-void .kitchen-name { text-decoration: line-through; color: #8a6a50; }
+.kitchen-note { font-weight: 500; font-style: italic; font-size: 0.9rem; color: #355a63; }
+.kitchen-check { color: #aea594; flex: none; margin-top: 2px; }
+.kitchen-line.is-void .kitchen-name { text-decoration: line-through; color: #6d8287; }
 .kitchen-line.is-void em { font-style: normal; display: inline; color: #b3261e; font-weight: 700; }
-.kitchen-done { margin: 4px 14px 0; width: auto; background: #3a2315; color: #f7ecda; border-color: #3a2315; }
-.kitchen-done:hover { background: #2a1a0f; }
+.kitchen-done { margin: 4px 14px 0; width: auto; background: #1f4049; color: #f8f6f1; border-color: #1f4049; }
+.kitchen-done:hover { background: #16313a; }
 
 /* ───────────── Cobro y comprobantes ───────────── */
 .charge-pay { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1fr) auto; gap: 8px; align-items: center; }
@@ -154,8 +154,8 @@
 .fiscal-log-list summary { cursor: pointer; font-size: 0.88rem; }
 .fiscal-pre { max-height: 260px; overflow: auto; white-space: pre-wrap; word-break: break-all; font-size: 0.75rem; background: var(--surface-2); padding: 8px; border-radius: var(--radius-sm); margin: 4px 0 8px; }
 .fiscal-check svg { margin-top: 2px; }
-.kitchen-print { margin-left: 6px; border: 0; background: none; color: #6b4c35; cursor: pointer; width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center; border-radius: 6px; }
-.kitchen-print:hover { background: rgb(58 35 21 / 0.08); }
+.kitchen-print { margin-left: 6px; border: 0; background: none; color: #536f75; cursor: pointer; width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center; border-radius: 6px; }
+.kitchen-print:hover { background: rgb(31 64 73 / 0.08); }
 .kitchen-head .kitchen-time { margin-left: auto; }
 .charge-pay { align-items: end; }
 .charge-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
@@ -183,7 +183,7 @@
 .salon-plan {
   position: relative; min-width: 560px; aspect-ratio: 16 / 10; border-radius: var(--radius-lg);
   background-color: var(--surface);
-  background-image: radial-gradient(circle, rgb(58 35 21 / 0.12) 1px, transparent 1.2px);
+  background-image: radial-gradient(circle, rgb(31 64 73 / 0.12) 1px, transparent 1.2px);
   background-size: 24px 24px; border: 1.5px solid var(--border); touch-action: pan-x pan-y;
 }
 .salon-plan.is-editing { border: 2px dashed var(--primary); touch-action: none; }
@@ -291,7 +291,7 @@
 }
 .area-switch-btn[aria-pressed="true"] { background: var(--primary); color: #fff; opacity: 1; }
 .area-switch-btn:focus-visible { outline: 3px solid var(--primary-line); outline-offset: 2px; }
-.area-switch-side { margin: 4px 12px 10px; display: flex; color: #f7ecda; background: rgb(255 255 255 / 0.08); }
+.area-switch-side { margin: 4px 12px 10px; display: flex; color: #f8f6f1; background: rgb(255 255 255 / 0.08); }
 .area-switch-side .area-switch-btn { flex: 1; justify-content: center; }
 .area-switch-top { color: var(--text); background: var(--surface-2); }
 @media (min-width: 1024px) { .area-switch-top { display: none; } }

@@ -39,7 +39,7 @@ const IntegrationsPage = lazyPage(() => import('./IntegrationsPage'), 'Integrati
 const ExportPage = lazyPage(() => import('./ExportPage'), 'ExportPage');
 
 const EMOJIS = ['📦', '🏪', '🍽️', '🍔', '🍕', '☕', '🍺', '🥩', '🥬', '🐟', '🧊', '🧴', '🛒', '🏨', '🏭', '🔧'];
-const COLORS = ['#b3261e', '#3d6b35', '#1f4e79', '#8a5a00', '#a3461f', '#7a2e4f', '#3a2315', '#145a7a', '#5a4a8a', '#4b5e2a'];
+const COLORS = ['#31616e', '#b3261e', '#3d6b35', '#1f4e79', '#8a5a00', '#a3461f', '#7a2e4f', '#1f4049', '#5a4a8a', '#4b5e2a'];
 
 type Area = 'stock' | 'salon';
 

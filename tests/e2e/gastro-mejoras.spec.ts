@@ -77,7 +77,7 @@ test('stock inteligente: consumo, para cuántos días alcanza y pedido según co
   await m.getByRole('button', { name: 'Registrar' }).click();
   await expect(page.getByRole('article', { name: 'Servilletas' })).toContainText(/Usás .*\/día · alcanza/);
 
-  await page.getByRole('link', { name: 'Consumo y mermas' }).click();
+  await page.getByRole('link', { name: 'Consumo', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Consumo y mermas', level: 1 })).toBeVisible();
   await expect(page.getByRole('row', { name: /Servilletas/ })).toContainText('20');
 

@@ -1,33 +1,34 @@
 /* ───────────────────────── Tokens ─────────────────────────
-   Estilo Kraft: papel de bolsa de panadería, tinta marrón y rojo de sello.
-   El rojo es el color de marca (configurable); los colores de estado se reservan para el stock. */
+   Estilo Orillas: crema de arena y tinta azul petróleo, como la marca del Parador.
+   El petróleo es el color de marca (configurable); los colores de estado se reservan para el stock
+   y el rojo de sello sigue marcando los negativos. */
 :root {
-  --primary: #b3261e;
+  --primary: #31616e;
   --primary-ink: #ffffff;
   --primary-fg: var(--primary);                 /* primario usado como texto */
   --primary-strong: color-mix(in srgb, var(--primary) 82%, #000);
   --primary-soft: color-mix(in srgb, var(--primary) 10%, transparent);
   --primary-line: color-mix(in srgb, var(--primary) 30%, transparent);
-  --secondary: #3a2315;
+  --secondary: #1f4049;
 
-  /* Barras en marrón tinta */
-  --bar: #3a2315;
-  --bar-2: #4c3020;
-  --bar-text: #e4cfab;
-  --bar-text-strong: #fff7ea;
-  --bar-accent: #f3c98b;                         /* indicador activo sobre marrón */
+  /* Barras en azul petróleo */
+  --bar: #1f4049;
+  --bar-2: #2a5360;
+  --bar-text: #ebe6dc;
+  --bar-text-strong: #fbfaf7;
+  --bar-accent: #e3cc9c;                         /* indicador activo: arena */
 
-  --bg: #e4cfab;                                 /* papel kraft */
-  --surface: #f7ecda;                            /* papel claro */
-  --surface-2: #f1e2c8;
-  --surface-3: #e9d5b3;
-  --border: #c9ab7d;
-  --border-strong: #b08f5f;
-  --dash: 1.5px dashed var(--border);
+  --bg: #ebe6dc;                                 /* crema de arena */
+  --surface: #f8f6f1;                            /* crema claro */
+  --surface-2: #f1ede5;
+  --surface-3: #e6e0d4;
+  --border: #cfc7b8;
+  --border-strong: #aea594;
+  --dash: 1px solid var(--border);
   --stamp: #b3261e;                              /* rojo de sello: negativos (no cambia con el color de marca) */
-  --text: #3a2315;
-  --text-2: #573a26;
-  --text-3: #6b4c35;
+  --text: #1f4049;
+  --text-2: #355a63;
+  --text-3: #536f75;
 
   --ok: #3d6b35;      --ok-bg: #dfe6c8;
   --low: #8a5a00;     --low-bg: #f3dfae;
@@ -39,13 +40,13 @@
   --radius-sm: 7px;
   --radius-lg: 12px;
   --shadow: none;
-  --shadow-raise: 0 2px 0 rgb(58 35 21 / 0.08), 0 10px 22px rgb(58 35 21 / 0.12);
-  --shadow-lg: 0 24px 56px rgb(40 22 10 / 0.28);
+  --shadow-raise: 0 2px 0 rgb(31 64 73 / 0.08), 0 10px 22px rgb(31 64 73 / 0.12);
+  --shadow-lg: 0 24px 56px rgb(16 36 42 / 0.28);
   --header-h: 60px;
   --bottom-h: 68px;
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --font: 'Work Sans Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
-  --font-display: 'Zilla Slab', Rockwell, Georgia, serif;
+  --font-display: 'Fraunces Variable', 'Zilla Slab', Georgia, serif;
   color-scheme: light;
 }
 
@@ -53,26 +54,26 @@
 html.text-grande { font-size: 112.5%; }
 html.text-muy-grande { font-size: 125%; }
 html.text-grande, html.text-muy-grande { --header-h: 64px; --bottom-h: 74px; }
-html.high-contrast { --text-2: #3a2315; --text-3: #4a2f1e; --border: #8c6a42; --border-strong: #6b4c35; }
-html.high-contrast[data-theme='dark'] { --text-2: #f4e8d4; --text-3: #e2cfb2; --border: #8a6c55; --border-strong: #a8896f; }
+html.high-contrast { --text-2: #1f4049; --text-3: #2a4b54; --border: #6f8a8f; --border-strong: #536f75; }
+html.high-contrast[data-theme='dark'] { --text-2: #eef2f0; --text-3: #d5e0e0; --border: #557177; --border-strong: #6f8c92; }
 html.high-contrast :focus-visible { outline-width: 4px; outline-color: var(--primary); }
 html.high-contrast .btn { border-width: 2px; }
 
 :root[data-theme='dark'] {
-  --primary-fg: color-mix(in srgb, var(--primary) 50%, #ffe3d8);
+  --primary-fg: color-mix(in srgb, var(--primary) 50%, #d8f0f2);
   --primary-soft: color-mix(in srgb, var(--primary) 26%, transparent);
   --primary-line: color-mix(in srgb, var(--primary) 55%, transparent);
-  --bar: #140d08;
-  --bar-2: #24170f;
-  --bg: #1d140d;                                 /* chocolate */
-  --surface: #291c13;
-  --surface-2: #31221a;
-  --surface-3: #3b2a1f;
-  --border: #574030;
-  --border-strong: #6e5340;
-  --text: #f4e8d4;
-  --text-2: #dcc6a6;
-  --text-3: #b9a083;
+  --bar: #0a1619;
+  --bar-2: #12252a;
+  --bg: #0e1b1f;                                 /* petróleo noche */
+  --surface: #15272c;
+  --surface-2: #1b2f35;
+  --surface-3: #22393f;
+  --border: #2f4950;
+  --border-strong: #405e66;
+  --text: #eef2f0;
+  --text-2: #c2d1d2;
+  --text-3: #93a9ac;
   --ok: #9cc58c;      --ok-bg: rgb(156 197 140 / 0.14);
   --low: #e9b75a;     --low-bg: rgb(233 183 90 / 0.15);
   --crit: #ef9a6f;    --crit-bg: rgb(239 154 111 / 0.15);
@@ -145,6 +146,11 @@ button, input, select, textarea { font: inherit; color: inherit; }
   background: var(--primary); color: var(--primary-ink); font-size: 20px; overflow: hidden;
 }
 .brand-logo img { width: 100%; height: 100%; object-fit: cover; }
+.brand-logo.is-brand { background: transparent; border-radius: 50%; box-shadow: 0 0 0 1.5px rgb(255 255 255 / 0.18); }
+.brand-name { font-family: var(--font-display); }
+.auth-brand { display: flex; flex-direction: column; align-items: center; gap: 4px; margin-bottom: 8px; text-align: center; }
+.auth-brand .brand-full { border-radius: 50%; box-shadow: 0 0 0 1px var(--border), var(--shadow-raise); }
+.auth-brand .brand-sub { color: var(--text-3); opacity: 1; font-size: 0.85rem; }
 .brand-name { font-weight: 750; font-size: 0.95rem; letter-spacing: -0.01em; }
 .brand-sub { font-size: 0.72rem; color: var(--bar-text); opacity: 0.75; }
 
@@ -186,7 +192,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .main { padding: 18px calc(16px + var(--safe-right)) calc(var(--bottom-h) + var(--safe-bottom) + 24px) calc(16px + var(--safe-left)); max-width: 1320px; margin: 0 auto; }
 
 /* Barra inferior (celular): siempre accesible, respeta el área segura del iPhone. */
-/* Barra marrón tinta, de borde a borde; lo activo lleva el rojo de sello. */
+/* Barra azul petróleo, de borde a borde; lo activo lleva el color de marca. */
 .bottom-nav {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
   height: calc(var(--bottom-h) + var(--safe-bottom));
@@ -512,7 +518,7 @@ a.alert:hover { filter: brightness(0.98); }
 /* ───────────────────────── Toasts ───────────────────────── */
 .toasts { position: fixed; z-index: 80; left: 12px; right: 12px; bottom: calc(var(--bottom-h) + var(--safe-bottom) + 12px); display: flex; flex-direction: column; gap: 8px; align-items: center; pointer-events: none; }
 @media (min-width: 1024px) { .toasts { bottom: 20px; left: auto; right: 20px; align-items: flex-end; } }
-.toast { pointer-events: auto; display: flex; align-items: center; gap: 12px; background: var(--bar); color: #fff7ea; padding: 10px 12px 10px 16px; border-radius: 12px; box-shadow: var(--shadow-lg); max-width: 520px; width: 100%; animation: up 0.2s ease; }
+.toast { pointer-events: auto; display: flex; align-items: center; gap: 12px; background: var(--bar); color: #fbfaf7; padding: 10px 12px 10px 16px; border-radius: 12px; box-shadow: var(--shadow-lg); max-width: 520px; width: 100%; animation: up 0.2s ease; }
 .toast.error { background: #7d1f19; }
 .toast .btn { background: transparent; color: #8fe0d6; border-color: transparent; min-height: 34px; box-shadow: none; }
 
@@ -535,7 +541,7 @@ a.alert:hover { filter: brightness(0.98); }
 .emoji-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px; }
 .emoji-grid button { font-size: 22px; height: 44px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface); cursor: pointer; }
 .emoji-grid button[aria-pressed='true'] { border-color: var(--primary); box-shadow: 0 0 0 2px var(--primary-soft); }
-.result-line { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px dashed var(--border); }
+.result-line { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border); }
 .result-line:last-child { border-bottom: 0; }
 .splash { min-height: 100dvh; display: grid; place-items: center; color: var(--text-3); }
 .cmdk-hit { display: flex; align-items: center; gap: 10px; }
@@ -1080,29 +1086,29 @@ div.plan-row { cursor: default; }
   --t-emerald: #3d6b35; --t-emerald-bg: #dfe6c8;
   --t-blue: #1f4e79;    --t-blue-bg: #dae2e6;
   --t-amber: #8a5a00;   --t-amber-bg: #f3dfae;
-  --t-slate: #573a26;   --t-slate-bg: #ecdcc0;
+  --t-slate: #355a63;   --t-slate-bg: #e3e8e6;
   --t-rose: #b3261e;    --t-rose-bg: #f6d5cc;
   --hm-radius: 12px;
   --hm-radius-lg: 12px;
   --hm-radius-xl: 14px;
-  --hm-ink: #3a2315;           /* bloque marrón tinta (producción de la semana) */
-  --hm-ink-text: #fff7ea;
-  --hm-ink-muted: #dcc49d;
-  --hm-accent: #f3c98b;        /* dorado de horno: hoy */
+  --hm-ink: #1f4049;           /* bloque petróleo (producción de la semana) */
+  --hm-ink-text: #fbfaf7;
+  --hm-ink-muted: #b9cdd1;
+  --hm-accent: #e3cc9c;        /* dorado de horno: hoy */
   --hm-coral: var(--stamp);    /* negativos: rojo de sello */
   --hm-shadow: none;
-  --hm-shadow-hover: 0 8px 20px rgb(58 35 21 / 0.12);
+  --hm-shadow-hover: 0 8px 20px rgb(31 64 73 / 0.12);
   display: flex; flex-direction: column; gap: 18px;
 }
 :root[data-theme='dark'] .hm {
   --t-emerald: #9cc58c; --t-emerald-bg: rgb(156 197 140 / 0.14);
   --t-blue: #95b9d8;    --t-blue-bg: rgb(149 185 216 / 0.14);
   --t-amber: #e9b75a;   --t-amber-bg: rgb(233 183 90 / 0.15);
-  --t-slate: #dcc6a6;   --t-slate-bg: rgb(220 198 166 / 0.12);
+  --t-slate: #c2d1d2;   --t-slate-bg: rgb(194 209 210 / 0.12);
   --t-rose: #f08a7e;    --t-rose-bg: rgb(240 138 126 / 0.16);
   --hm-shadow: none;
   --hm-shadow-hover: 0 10px 26px rgb(0 0 0 / 0.45);
-  --hm-ink: #140d08;
+  --hm-ink: #0a1619;
 }
 :root[data-theme='dark'] .hm-week { box-shadow: inset 0 0 0 1px var(--border); }
 .hm .tone-petrol { --tone: var(--t-petrol); --tone-bg: var(--t-petrol-bg); }
@@ -1346,7 +1352,7 @@ a.hm-row:hover { background: var(--surface-2); }
 
 .asst-confirm { display: flex; flex-direction: column; gap: 10px; padding: 12px; border-radius: var(--radius); border: 1px solid var(--primary-line); background: var(--surface); box-shadow: var(--shadow); }
 .asst-prop { display: flex; flex-direction: column; gap: 6px; }
-.asst-prop + .asst-prop { padding-top: 10px; border-top: 1px dashed var(--border); }
+.asst-prop + .asst-prop { padding-top: 10px; border-top: 1px solid var(--border); }
 .asst-prop-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
 .asst-prop-status { display: inline-flex; align-items: center; gap: 5px; font-size: 0.8rem; font-weight: 700; color: var(--text-3); }
 .asst-prop.is-pending .asst-prop-status { color: var(--low); }

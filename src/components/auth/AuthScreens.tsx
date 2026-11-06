@@ -5,7 +5,7 @@ import { useSession } from '../../store/session';
 import { useSettings } from '../../store/settings';
 import { useFeedback } from '../../store/feedback';
 import { PIN_RE } from '../../services/userService';
-import { Logo } from '../Logo';
+import { BrandLogo, Logo } from '../Logo';
 import { Field, Input } from '../ui';
 import { PinPad } from './PinPad';
 import { UserAvatar } from './UserAvatar';
@@ -21,13 +21,21 @@ function Shell({ children, wide }: { children: React.ReactNode; wide?: boolean }
   return (
     <div className="auth-shell">
       <div className={`auth-card card ${wide ? 'wide' : ''}`}>
-        <div className="row" style={{ justifyContent: 'center', gap: 10, marginBottom: 8 }}>
-          <Logo size={40} />
-          <div>
-            <div className="brand-name">{settings.businessName}</div>
+        {settings.logo.kind === 'default' || !settings.logo.value ? (
+          <div className="auth-brand">
+            <BrandLogo size={148} />
+            {settings.businessName !== 'Orillas' && <div className="brand-name">{settings.businessName}</div>}
             {settings.subtitle && <div className="brand-sub">{settings.subtitle}</div>}
           </div>
-        </div>
+        ) : (
+          <div className="row" style={{ justifyContent: 'center', gap: 10, marginBottom: 8 }}>
+            <Logo size={40} />
+            <div>
+              <div className="brand-name">{settings.businessName}</div>
+              {settings.subtitle && <div className="brand-sub">{settings.subtitle}</div>}
+            </div>
+          </div>
+        )}
         {children}
       </div>
     </div>

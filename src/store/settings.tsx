@@ -19,7 +19,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       const dark = settings.theme === 'dark' || (settings.theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
       root.dataset.theme = dark ? 'dark' : 'light';
       // La barra del sistema acompaña al encabezado marrón.
-      document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#140d08' : '#3a2315');
+      document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#0a1619' : '#1f4049');
     };
     apply();
     const primary = isHexColor(settings.primaryColor) ? settings.primaryColor : DEFAULT_PRIMARY;
