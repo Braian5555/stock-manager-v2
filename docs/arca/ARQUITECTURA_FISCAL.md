@@ -54,6 +54,13 @@ Límite conocido: si dos comprobantes con **el mismo total y el mismo receptor**
 
 Si ARCA no responde, la mesa se cierra igual (ya se cobró) y el comprobante queda en **Para resolver**.
 
+### Cuenta dividida y descuentos
+
+- **Partes iguales o por ítems:** cada parte es un cobro (`TicketCharge`) con sus pagos, propina y su propia factura. Las líneas de una parte igual van en proporción (cantidades fraccionarias) y la última parte cubre el resto exacto.
+- **Descuento** (% o monto) y **cortesías:** la factura lleva las líneas a precio de carta y la diferencia como **bonificación**; el importe facturado (y el IVA por alícuota) es el cobrado. Las notas de crédito respetan la misma proporción.
+- **Propina:** va a la caja, no se factura.
+- **Caja:** cada cobro queda en la caja abierta (`cashSessions`); si no hay, entra en la próxima que se abra.
+
 ## Impresión — `src/services/printService.ts`
 
 - **Ticket fiscal:** emisor, CUIT, IIBB, domicilio, inicio de actividades, condición IVA; tipo, código, punto de venta, número, fecha; receptor; detalle; neto e IVA (A/M) o “Régimen de Transparencia Fiscal al Consumidor (Ley 27.743)” con IVA contenido (B); total; pagos; CAE y vencimiento; QR oficial (`https://www.arca.gob.ar/fe/qr/?p=<JSON base64>`).

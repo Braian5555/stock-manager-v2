@@ -6,9 +6,10 @@ import { db } from '../database/db';
 import { EMPTY } from '../hooks/useData';
 import type { FiscalDoc, FiscalLine, FiscalLogEntry, FiscalReceptor, FiscalStatus, TableTicket } from '../models';
 import {
-  CBTE_NAME, CONSUMIDOR_FINAL, DOC_TIPO_LABEL, PAYMENT_LABEL, docNumber, fiscalOf, fiscalReady, fmtCuit, invoiceLater, issue, letterFor, noteFor, receptorProblems, recentReceptors, verifyInArca, ymdToDate,
+  CBTE_NAME, CONSUMIDOR_FINAL, DOC_TIPO_LABEL, PAYMENT_LABEL, docNumber, docPlace, fiscalOf, fiscalReady, fmtCuit, invoiceLater, issue, letterFor, noteFor, receptorProblems, recentReceptors, verifyInArca, ymdToDate,
 } from '../services/fiscalService';
 import { fiscalTicketHtml, printHtml } from '../services/printService';
+import { ticketLabel } from '../services/salonService';
 import { useFeedback } from '../store/feedback';
 import { useSession } from '../store/session';
 import { useSettings } from '../store/settings';
@@ -39,7 +40,8 @@ export function FiscalDocsPage() {
   const { can } = useSession();
   const [tab, setTab] = useState<Tab>('emitidos');
   const docs = (useLiveQuery(() => db.fiscalDocs.orderBy('createdAt').reverse().toArray(), []) ?? EMPTY) as FiscalDoc[];
-  const unbilled = (useLiveQuery(() => db.tickets.where('status').equals('cerrada').filter((t) => !!t.fiscalPending).toArray(), []) ?? EMPTY) as TableTicket[];
+  const unbilledTickets = (useLiveQuery(() => db.tickets.filter((t) => !!t.fiscalPending && t.status !== 'anulada').toArray(), []) ?? EMPTY) as TableTicket[];
+  const unbilled = unbilledRows(unbilledTickets);
   const pending = docs.filter((d) => PENDING.includes(d.status) && !(d.status === 'rechazada' && docs.some((x) => x.ticketId && x.ticketId === d.ticketId && x.status === 'autorizada')));
   const [open, setOpen] = useState<string | null>(null);
 
@@ -75,7 +77,7 @@ function DocRow({ d, onOpen }: { d: FiscalDoc; onOpen: (id: string) => void }) {
     <li className="list-item">
       <button type="button" className="list-btn grow" onClick={() => onOpen(d.id)}>
         <span className="list-title">{CBTE_NAME[d.cbteTipo]} {d.nro ? docNumber(d) : `${String(d.ptoVta).padStart(5, '0')}-········`}</span>
-        <span className="list-sub">{d.receptor.docTipo === 99 ? 'Consumidor final' : `${d.receptor.nombre ?? ''} · ${DOC_TIPO_LABEL[d.receptor.docTipo]} ${d.receptor.docNro}`}{d.tableName ? ` · Mesa ${d.tableName}` : ''} · {fmtDateTime(d.authorizedAt ?? d.createdAt)}</span>
+        <span className="list-sub">{d.receptor.docTipo === 99 ? 'Consumidor final' : `${d.receptor.nombre ?? ''} · ${DOC_TIPO_LABEL[d.receptor.docTipo]} ${d.receptor.docNro}`}{d.tableName ? ` · ${docPlace(d)}` : ''} · {fmtDateTime(d.authorizedAt ?? d.createdAt)}</span>
       </button>
       <span className="salon-today-right">
         <b className="num">{d.kind === 'nc' ? '−' : ''}{fmtMoney(d.impTotal)}</b>
@@ -123,7 +125,7 @@ function PendingList({ docs, onOpen }: { docs: FiscalDoc[]; onOpen: (id: string)
         {docs.map((d) => (
           <li key={d.id} className="list-item fiscal-pending">
             <button type="button" className="list-btn grow" onClick={() => onOpen(d.id)}>
-              <span className="list-title">{CBTE_NAME[d.cbteTipo]} · {fmtMoney(d.impTotal)}{d.tableName ? ` · Mesa ${d.tableName}` : ''}</span>
+              <span className="list-title">{CBTE_NAME[d.cbteTipo]} · {fmtMoney(d.impTotal)}{d.tableName ? ` · ${docPlace(d)}` : ''}</span>
               <span className="list-sub">{d.message ?? STATUS_LABEL[d.status]}</span>
             </button>
             <Badge tone={STATUS_TONE[d.status]}>{STATUS_LABEL[d.status]}</Badge>
@@ -139,26 +141,39 @@ function PendingList({ docs, onOpen }: { docs: FiscalDoc[]; onOpen: (id: string)
   );
 }
 
-function Unbilled({ tickets }: { tickets: TableTicket[] }) {
-  const [sel, setSel] = useState<TableTicket | null>(null);
-  if (!tickets.length) return <div className="card"><EmptyState icon={<Receipt size={40} />} title="No hay mesas sin facturar">Las mesas que se cobran con “Sin factura por ahora” quedan acá para facturarlas después.</EmptyState></div>;
+interface UnbilledRow { ticket: TableTicket; chargeId?: string; amount: number; at?: string; methods: string; label?: string }
+
+/** Cobros sin factura (uno por parte si la cuenta se dividió). */
+function unbilledRows(tickets: TableTicket[]): UnbilledRow[] {
+  const rows: UnbilledRow[] = [];
+  for (const t of tickets) {
+    const pend = (t.charges ?? []).filter((c) => c.fiscalPending);
+    if (!(t.charges ?? []).length) rows.push({ ticket: t, amount: t.total, at: t.paidAt ?? t.closedAt, methods: (t.payments ?? []).map((p) => PAYMENT_LABEL[p.method]).join(' + ') });
+    for (const c of pend) rows.push({ ticket: t, chargeId: c.id, amount: c.amount, at: c.at, methods: c.payments.map((p) => PAYMENT_LABEL[p.method]).join(' + '), label: c.label });
+  }
+  return rows.sort((a, b) => (b.at ?? '').localeCompare(a.at ?? ''));
+}
+
+function Unbilled({ tickets: rows }: { tickets: UnbilledRow[] }) {
+  const [sel, setSel] = useState<UnbilledRow | null>(null);
+  if (!rows.length) return <div className="card"><EmptyState icon={<Receipt size={40} />} title="No hay cobros sin facturar">Lo que se cobra con “Sin factura por ahora” queda acá para facturarlo después.</EmptyState></div>;
   return (<>
-    <section className="card" aria-label="Mesas sin facturar">
+    <section className="card" aria-label="Cobros sin facturar">
       <ul className="list">
-        {tickets.sort((a, b) => (b.closedAt ?? '').localeCompare(a.closedAt ?? '')).map((t) => (
-          <li key={t.id} className="list-item">
-            <div className="grow"><div className="list-title">Mesa {t.tableName} · #{t.number}</div><div className="list-sub">Cobrada {fmtDateTime(t.paidAt ?? t.closedAt)} · {(t.payments ?? []).map((p) => PAYMENT_LABEL[p.method]).join(' + ')}</div></div>
-            <b className="num">{fmtMoney(t.total)}</b>
-            <button type="button" className="btn btn-sm btn-primary" onClick={() => setSel(t)}>Facturar</button>
+        {rows.map((r) => (
+          <li key={r.chargeId ?? r.ticket.id} className="list-item">
+            <div className="grow"><div className="list-title">{ticketLabel(r.ticket)} · #{r.ticket.number}{r.label ? ` · ${r.label}` : ''}</div><div className="list-sub">Cobrado {fmtDateTime(r.at)} · {r.methods}</div></div>
+            <b className="num">{fmtMoney(r.amount)}</b>
+            <button type="button" className="btn btn-sm btn-primary" onClick={() => setSel(r)}>Facturar</button>
           </li>
         ))}
       </ul>
     </section>
-    {sel && <InvoiceLaterModal ticket={sel} onClose={() => setSel(null)} />}
+    {sel && <InvoiceLaterModal ticket={sel.ticket} chargeId={sel.chargeId} amount={sel.amount} onClose={() => setSel(null)} />}
   </>);
 }
 
-function InvoiceLaterModal({ ticket, onClose }: { ticket: TableTicket; onClose: () => void }) {
+function InvoiceLaterModal({ ticket, chargeId, amount, onClose }: { ticket: TableTicket; chargeId?: string; amount: number; onClose: () => void }) {
   const f = fiscalOf(useSettings());
   const { run, notify } = useFeedback();
   const [cf, setCf] = useState(true);
@@ -168,18 +183,18 @@ function InvoiceLaterModal({ ticket, onClose }: { ticket: TableTicket; onClose: 
   useEffect(() => { void recentReceptors().then(setRecent); }, []);
   const receptor = cf ? CONSUMIDOR_FINAL : rec;
   const letra = letterFor(f, receptor.condicionIva);
-  const problems = receptorProblems(receptor, letra, ticket.total);
+  const problems = receptorProblems(receptor, letra, amount);
   const go = async () => {
     setBusy(true);
-    const d = await run(() => invoiceLater(ticket.id, receptor));
+    const d = await run(() => invoiceLater(ticket.id, receptor, chargeId));
     setBusy(false);
     if (!d) return;
     if (d.status === 'autorizada') { notify(`${CBTE_NAME[d.cbteTipo]} ${docNumber(d)} autorizada`); onClose(); }
     else notify(d.message ?? 'No se pudo emitir: quedó en “Para resolver”.', { tone: 'error' });
   };
   return (
-    <Modal open title={`Facturar mesa ${ticket.tableName}`} onClose={onClose}
-      footer={<><button type="button" className="btn" onClick={onClose}>Cancelar</button><button type="button" className="btn btn-primary" disabled={busy || problems.length > 0} onClick={() => void go()}>{busy ? 'Facturando…' : `Emitir Factura ${letra} · ${fmtMoney(ticket.total)}`}</button></>}>
+    <Modal open title={`Facturar · ${ticketLabel(ticket)}`} onClose={onClose}
+      footer={<><button type="button" className="btn" onClick={onClose}>Cancelar</button><button type="button" className="btn btn-primary" disabled={busy || problems.length > 0} onClick={() => void go()}>{busy ? 'Facturando…' : `Emitir Factura ${letra} · ${fmtMoney(amount)}`}</button></>}>
       <Segmented<'cf' | 'datos'> label="Cliente" value={cf ? 'cf' : 'datos'} onChange={(v) => setCf(v === 'cf')} options={[{ value: 'cf', label: 'Consumidor final' }, { value: 'datos', label: 'Con datos (CUIT/DNI)' }]} />
       {!cf && <ReceptorForm rec={rec} setRec={setRec} recent={recent} letra={letra} />}
       {problems.length > 0 && <p className="small" style={{ color: 'var(--crit)' }}>{problems.join(' ')}</p>}
@@ -224,7 +239,7 @@ function DocDetail({ id, onClose, onOpen }: { id: string; onClose: () => void; o
         {d.message && <p className="small" style={{ color: ok ? 'var(--text-2)' : 'var(--crit)' }}>{d.message}</p>}
         <dl className="fiscal-dl">
           <dt>Cliente</dt><dd>{d.receptor.docTipo === 99 ? 'Consumidor final' : `${d.receptor.nombre ?? ''} · ${DOC_TIPO_LABEL[d.receptor.docTipo]} ${d.receptor.docTipo === 80 || d.receptor.docTipo === 86 ? fmtCuit(d.receptor.docNro) : d.receptor.docNro}`}</dd>
-          <dt>Fecha</dt><dd>{d.fecha ? ymdToDate(d.fecha) : '—'}{d.tableName ? ` · Mesa ${d.tableName}` : ''}{d.createdBy ? ` · ${d.createdBy.name}` : ''}</dd>
+          <dt>Fecha</dt><dd>{d.fecha ? ymdToDate(d.fecha) : '—'}{d.tableName ? ` · ${docPlace(d)}` : ''}{d.createdBy ? ` · ${d.createdBy.name}` : ''}</dd>
           {ok && <><dt>CAE</dt><dd className="num">{d.cae} (vence {ymdToDate(d.caeVto)})</dd></>}
           {d.asociado && <><dt>Asociado a</dt><dd>{d.asociado.docId ? <button type="button" className="link-btn" onClick={() => onOpen(d.asociado!.docId!)}>{CBTE_NAME[d.asociado.cbteTipo]} {String(d.asociado.ptoVta).padStart(5, '0')}-{String(d.asociado.nro).padStart(8, '0')}</button> : `${CBTE_NAME[d.asociado.cbteTipo]} ${d.asociado.nro}`}</dd></>}
           {d.attempt && !ok && <><dt>Número reservado</dt><dd className="num">{d.attempt.nro} (se consulta en ARCA antes de pedir otro)</dd></>}

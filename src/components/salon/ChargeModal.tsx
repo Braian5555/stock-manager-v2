@@ -1,33 +1,47 @@
-import { CheckCircle2, Plus, Printer, RotateCcw, Trash2, TriangleAlert } from 'lucide-react';
+import { useLiveQuery } from 'dexie-react-hooks';
+import { CheckCircle2, Minus, Plus, Printer, RotateCcw, Trash2, TriangleAlert, Wallet } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
+import { db } from '../../database/db';
 import type { DocTipo, FiscalDoc, FiscalReceptor, Payment, SalePaymentMethod, TableTicket } from '../../models';
 import {
-  CBTE_NAME, COND_IVA, CONSUMIDOR_FINAL, CF_ID_THRESHOLD, DOC_TIPO_LABEL, PAYMENT_LABEL, chargeTicket, docNumber, fiscalOf, fiscalReady, invoiceLater, issue,
-  letterFor, receptorProblems, recentReceptors, ymdToDate,
+  CBTE_NAME, COND_IVA, CONSUMIDOR_FINAL, CF_ID_THRESHOLD, DOC_TIPO_LABEL, PAYMENT_LABEL, chargeTicket, docNumber, fiscalOf, fiscalReady, invoiceLater, issue, itemsAmount,
+  letterFor, receptorProblems, recentReceptors, ymdToDate, type ChargePart,
 } from '../../services/fiscalService';
 import { fiscalTicketHtml, printHtml } from '../../services/printService';
-import { closeTicket } from '../../services/salonService';
+import { chargedAmount, closeTicket, paidQty, remainingAmount, ticketLabel } from '../../services/salonService';
 import { useFeedback } from '../../store/feedback';
 import { useSettings } from '../../store/settings';
 import { fmtMoney } from '../../utils/format';
 import { Field, Input, NumberInput, Segmented, Select } from '../ui';
 import { Modal } from '../ui/Modal';
+import { useOpenCash } from './hooks';
 
 type InvoiceMode = 'cf' | 'datos' | 'no';
+type SplitMode = 'todo' | 'partes' | 'items';
 const METHODS = Object.keys(PAYMENT_LABEL) as SalePaymentMethod[];
-const round2 = (n: number) => Math.round(n * 100) / 100;
+const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
 /**
- * Cobrar la mesa: medios de pago (se puede dividir), datos del cliente y factura electrónica.
- * Cuando ARCA autoriza, se puede imprimir el ticket fiscal. Si ARCA no contesta, la mesa se cierra
- * igual (ya se cobró) y el comprobante queda para reintentar en Comprobantes.
+ * Cobrar la cuenta: todo junto o dividida (partes iguales o por ítems), medios de pago, propina,
+ * datos del cliente y factura electrónica de cada parte. Queda anotado en la caja abierta.
+ * Si ARCA no contesta, se cobra igual y el comprobante queda para reintentar en Comprobantes.
  */
-export function ChargeModal({ ticket, onClose }: { ticket: TableTicket; onClose: (closed: boolean) => void }) {
+export function ChargeModal({ ticket: initial, onClose }: { ticket: TableTicket; onClose: (closed: boolean) => void }) {
   const settings = useSettings();
   const f = fiscalOf(settings);
   const billing = fiscalReady(f);
+  const cash = useOpenCash();
   const { run, notify } = useFeedback();
-  const [payments, setPayments] = useState<Payment[]>([{ method: 'efectivo', amount: ticket.total }]);
+  const ticket = useLiveQuery(() => db.tickets.get(initial.id), [initial.id]) ?? initial;
+  const label = ticketLabel(ticket);
+  const remaining = remainingAmount(ticket);
+  const charged = chargedAmount(ticket);
+  const [split, setSplit] = useState<SplitMode>(charged > 0 ? 'partes' : 'todo');
+  const [parts, setParts] = useState(2);
+  const [sel, setSel] = useState<Record<string, number>>({});
+  const [payments, setPayments] = useState<Payment[]>([{ method: 'efectivo', amount: remaining }]);
+  const [tip, setTip] = useState<number | undefined>();
+  const [tipMethod, setTipMethod] = useState<SalePaymentMethod | ''>('');
   const [mode, setMode] = useState<InvoiceMode>(billing ? 'cf' : 'no');
   const [rec, setRec] = useState<FiscalReceptor>({ docTipo: 80, docNro: '', condicionIva: 1 });
   const [recent, setRecent] = useState<FiscalReceptor[]>([]);
@@ -36,30 +50,53 @@ export function ChargeModal({ ticket, onClose }: { ticket: TableTicket; onClose:
   const [closed, setClosed] = useState(false);
   useEffect(() => { if (billing) void recentReceptors().then(setRecent); }, [billing]);
 
+  // Cuánto se cobra ahora.
+  const done = (ticket.charges ?? []).length;
+  const partNo = Math.min(parts, done + 1);
+  const itemsSel = Object.entries(sel).filter(([, q]) => q > 0).map(([lineId, qty]) => ({ lineId, qty }));
+  const amount = split === 'todo' ? remaining
+    : split === 'partes' ? (partNo >= parts ? remaining : Math.min(remaining, round2(ticket.total / parts)))
+    : Math.min(remaining, itemsAmount(ticket, itemsSel));
+  const part: ChargePart = split === 'todo' ? { kind: 'rest' } : split === 'partes' ? { kind: 'equal', amount, label: `${partNo} de ${parts}` } : { kind: 'items', items: itemsSel };
+  useEffect(() => { setPayments((xs) => [{ ...xs[0], amount, received: undefined }]); }, [amount]);
+
   const paid = round2(payments.reduce((s, p) => s + (p.amount || 0), 0));
-  const left = round2(ticket.total - paid);
-  const cash = payments.find((p) => p.method === 'efectivo');
-  const change = cash?.received && cash.received > cash.amount ? round2(cash.received - cash.amount) : 0;
+  const left = round2(amount - paid);
+  const cashPay = payments.find((p) => p.method === 'efectivo');
+  const change = cashPay?.received && cashPay.received > cashPay.amount + (tipMethod === 'efectivo' || (!tipMethod && payments[0].method === 'efectivo') ? tip ?? 0 : 0) ? round2(cashPay.received - cashPay.amount - ((tipMethod || payments[0].method) === 'efectivo' ? tip ?? 0 : 0)) : 0;
   const receptor: FiscalReceptor = mode === 'datos' ? rec : CONSUMIDOR_FINAL;
   const letra = letterFor(f, receptor.condicionIva);
-  const problems = useMemo(() => (mode === 'no' ? [] : receptorProblems(receptor, letra, ticket.total)), [mode, receptor, letra, ticket.total]);
-  const cfTooBig = mode === 'cf' && ticket.total >= CF_ID_THRESHOLD;
+  const problems = useMemo(() => (mode === 'no' ? [] : receptorProblems(receptor, letra, amount)), [mode, receptor, letra, amount]);
+  const cfTooBig = mode === 'cf' && amount >= CF_ID_THRESHOLD;
 
   const setPay = (i: number, p: Partial<Payment>) => setPayments((xs) => xs.map((x, j) => (j === i ? { ...x, ...p } : x)));
   const addPay = () => setPayments((xs) => [...xs, { method: xs.some((x) => x.method === 'debito') ? 'transferencia' : 'debito', amount: Math.max(0, left) }]);
 
+  const finishIfPaid = async (rest: number) => {
+    if (rest > 0.009) return false;
+    const ok = await run(() => closeTicket(ticket.id, { maxirest: !billing }));
+    if (ok) setClosed(true);
+    return true;
+  };
+
   const submit = async () => {
-    if (Math.abs(left) > 0.009) return notify(left > 0 ? `Faltan ${fmtMoney(left)} para completar el total.` : `Los pagos superan el total por ${fmtMoney(-left)}.`, { tone: 'error' });
+    if (!(amount > 0)) return notify(split === 'items' ? 'Elegí qué se paga.' : 'No queda nada por cobrar.', { tone: 'error' });
+    if (Math.abs(left) > 0.009) return notify(left > 0 ? `Faltan ${fmtMoney(left)} para completar lo que se cobra.` : `Los pagos superan lo que se cobra por ${fmtMoney(-left)}.`, { tone: 'error' });
     if (problems.length) return notify(problems.join(' '), { tone: 'error' });
     setBusy(true);
     try {
       const clean = payments.filter((p) => p.amount > 0).map((p) => (p.method === 'efectivo' && p.received ? p : { method: p.method, amount: p.amount }));
-      const r = await run(() => chargeTicket(ticket.id, { payments: clean, invoice: mode === 'no' ? false : { receptor } }));
+      const r = await run(() => chargeTicket(ticket.id, {
+        payments: clean, invoice: mode === 'no' ? false : { receptor }, part,
+        ...(tip ? { tip: { amount: tip, method: tipMethod || clean[0].method } } : {}),
+      }));
       if (!r) return;
-      await run(() => closeTicket(ticket.id, { maxirest: !billing }));
-      setClosed(true);
+      setSel({});
+      setTip(undefined);
+      const all = await finishIfPaid(r.remaining);
       if (r.doc) setDoc(r.doc);
-      else { notify(`Mesa ${ticket.tableName} cobrada y cerrada`); onClose(true); }
+      else if (all) { notify(`${label}: cobrado y cerrado`); onClose(true); }
+      else notify(`Parte cobrada. Faltan ${fmtMoney(r.remaining)}.`);
     } finally {
       setBusy(false);
     }
@@ -69,8 +106,9 @@ export function ChargeModal({ ticket, onClose }: { ticket: TableTicket; onClose:
     if (!doc) return;
     setBusy(true);
     try {
+      const charge = (ticket.charges ?? []).find((c) => c.fiscalDocId === doc.id);
       const next = doc.status === 'rechazada' || (doc.status === 'error' && !doc.attempt)
-        ? await run(() => invoiceLater(ticket.id, receptor))
+        ? await run(() => invoiceLater(ticket.id, receptor, charge?.id))
         : await run(() => issue(doc.id));
       if (next) setDoc(next);
     } finally {
@@ -79,17 +117,18 @@ export function ChargeModal({ ticket, onClose }: { ticket: TableTicket; onClose:
   };
 
   const print = async (d: FiscalDoc) => run(async () => printHtml(await fiscalTicketHtml(d, f.pie)));
+  const afterResult = () => { if (closed || remaining <= 0.009) onClose(true); else setDoc(null); };
 
   // ── Resultado de la factura ──
   if (doc) {
     const ok = doc.status === 'autorizada';
     const canFix = doc.status === 'rechazada' || (doc.status === 'error' && !doc.attempt);
     return (
-      <Modal open title={`Mesa ${ticket.tableName}`} onClose={() => onClose(closed)}
+      <Modal open title={label} onClose={() => onClose(closed)}
         footer={<>
           {!ok && <button type="button" className="btn" disabled={busy} onClick={() => void retry()}><RotateCcw size={18} aria-hidden /> {busy ? 'Enviando…' : canFix ? 'Volver a emitir' : 'Reintentar'}</button>}
           {ok && <button type="button" className="btn" onClick={() => void print(doc)}><Printer size={18} aria-hidden /> Imprimir ticket</button>}
-          <button type="button" className="btn btn-primary" onClick={() => onClose(closed)}>Listo</button>
+          <button type="button" className="btn btn-primary" onClick={afterResult}>{remaining > 0.009 && !closed ? `Seguir cobrando (${fmtMoney(remaining)})` : 'Listo'}</button>
         </>}>
         {ok ? (
           <div className="fiscal-result is-ok" role="status">
@@ -106,26 +145,68 @@ export function ChargeModal({ ticket, onClose }: { ticket: TableTicket; onClose:
             <div>
               <p className="fiscal-result-title">{doc.status === 'rechazada' ? 'ARCA rechazó la factura' : doc.status === 'incierta' ? 'No se sabe si ARCA la autorizó' : 'No se pudo emitir la factura'}</p>
               <p className="small">{doc.message}</p>
-              <p className="small muted">La mesa ya quedó cobrada y cerrada. {canFix ? 'Corregí los datos del cliente y volvé a emitir,' : 'Podés reintentar ahora'} o más tarde desde Comprobantes. {doc.status === 'incierta' ? 'Al reintentar se consulta en ARCA antes de pedir otra: no se duplica.' : ''}</p>
+              <p className="small muted">El cobro ya quedó anotado. {canFix ? 'Corregí los datos del cliente y volvé a emitir,' : 'Podés reintentar ahora'} o más tarde desde Comprobantes. {doc.status === 'incierta' ? 'Al reintentar se consulta en ARCA antes de pedir otra: no se duplica.' : ''}</p>
             </div>
           </div>
         )}
+        {remaining > 0.009 && !closed && <p className="small">Falta cobrar {fmtMoney(remaining)} de esta cuenta.</p>}
         {canFix && <ReceptorForm rec={rec} setRec={setRec} recent={recent} letra={letterFor(f, rec.condicionIva)} />}
       </Modal>
     );
   }
 
+  const payable = ticket.lines.filter((l) => l.qty > 0 && !l.comp);
+
   // ── Cobro ──
   return (
-    <Modal open wide title={`Cobrar mesa ${ticket.tableName}`} onClose={() => onClose(false)}
+    <Modal open wide title={`Cobrar · ${label}`} onClose={() => onClose(false)}
       footer={<>
-        <div className="salon-total"><span>Total</span><b className="num">{fmtMoney(ticket.total)}</b></div>
-        <button type="button" className="btn btn-primary" disabled={busy || Math.abs(left) > 0.009 || problems.length > 0} onClick={() => void submit()}>
-          {busy ? (mode === 'no' ? 'Cobrando…' : 'Facturando…') : mode === 'no' ? `Cobrar ${fmtMoney(ticket.total)} y cerrar` : `Cobrar y emitir Factura ${letra}`}
+        <div className="salon-total"><span>{split === 'todo' && !charged ? 'Total' : 'Se cobra'}</span><b className="num">{fmtMoney(amount)}</b></div>
+        <button type="button" className="btn btn-primary" disabled={busy || !(amount > 0) || Math.abs(left) > 0.009 || problems.length > 0} onClick={() => void submit()}>
+          {busy ? (mode === 'no' ? 'Cobrando…' : 'Facturando…') : mode === 'no' ? (amount >= remaining - 0.009 ? `Cobrar ${fmtMoney(amount)} y cerrar` : `Cobrar ${fmtMoney(amount)}`) : `Cobrar y emitir Factura ${letra}`}
         </button>
       </>}>
-      <section className="stack" aria-labelledby="charge-pay">
-        <h3 id="charge-pay" className="salon-sub" style={{ marginTop: 0 }}>Pago</h3>
+      {cash === null && <div className="alert alert-info" role="note"><Wallet size={18} aria-hidden /><span>No hay caja abierta: este cobro entra en la próxima caja que se abra (Salón → Caja).</span></div>}
+      {(charged > 0 || ticket.discount) && (
+        <p className="small charge-summary">Total {fmtMoney(ticket.total)}{ticket.discount ? ' (con descuento)' : ''}{charged > 0 ? ` · ya cobrado ${fmtMoney(charged)} · falta ${fmtMoney(remaining)}` : ''}</p>
+      )}
+
+      <section className="stack" aria-labelledby="charge-split">
+        <h3 id="charge-split" className="salon-sub" style={{ marginTop: 0 }}>Cuenta</h3>
+        <Segmented<SplitMode> label="Cómo se paga" value={split} onChange={setSplit}
+          options={[{ value: 'todo', label: charged > 0 ? 'Todo lo que falta' : 'Todo junto' }, { value: 'partes', label: 'Partes iguales' }, { value: 'items', label: 'Por ítems' }]} />
+        {split === 'partes' && (
+          <div className="row wrap charge-parts">
+            <span className="salon-qty" role="group" aria-label="Cantidad de partes">
+              <button type="button" className="btn btn-ghost icon-btn" aria-label="Una parte menos" disabled={parts <= Math.max(2, done + 1)} onClick={() => setParts((n) => n - 1)}><Minus size={16} /></button>
+              <b className="num">{parts}</b>
+              <button type="button" className="btn btn-ghost icon-btn" aria-label="Una parte más" onClick={() => setParts((n) => Math.min(30, n + 1))}><Plus size={16} /></button>
+            </span>
+            <span>partes de {fmtMoney(round2(ticket.total / parts))} · cobrando la <b>{partNo} de {parts}</b></span>
+          </div>
+        )}
+        {split === 'items' && (
+          <ul className="salon-lines charge-items" aria-label="Qué se paga">
+            {payable.map((l) => {
+              const max = round2(l.qty - paidQty(ticket, l.id));
+              const q = sel[l.id] ?? 0;
+              return (
+                <li key={l.id} className={`salon-line${max <= 0 ? ' is-void' : ''}`}>
+                  <span className="salon-qty" role="group" aria-label={`A pagar de ${l.name}`}>
+                    <button type="button" className="btn btn-ghost icon-btn" aria-label={`Uno menos de ${l.name}`} disabled={q <= 0} onClick={() => setSel((x) => ({ ...x, [l.id]: q - 1 }))}><Minus size={16} /></button>
+                    <b className="num">{q}</b>
+                    <button type="button" className="btn btn-ghost icon-btn" aria-label={`Uno más de ${l.name}`} disabled={q >= max} onClick={() => setSel((x) => ({ ...x, [l.id]: q + 1 }))}><Plus size={16} /></button>
+                  </span>
+                  <span className="grow salon-line-text"><span className="salon-line-name">{l.name}</span><span className="small muted">{max <= 0 ? 'Pagado' : `quedan ${max} × ${fmtMoney(l.price)}`}</span></span>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
+
+      <section className="stack" aria-labelledby="charge-pay" style={{ marginTop: 14 }}>
+        <h3 id="charge-pay" className="salon-sub">Pago</h3>
         {payments.map((p, i) => (
           <div key={i} className="charge-pay">
             <label className="charge-field"><span>Medio</span>
@@ -139,19 +220,33 @@ export function ChargeModal({ ticket, onClose }: { ticket: TableTicket; onClose:
           </div>
         ))}
         <div className="row wrap" style={{ justifyContent: 'space-between' }}>
-          <button type="button" className="btn btn-sm" onClick={addPay}><Plus size={16} aria-hidden /> Dividir el pago</button>
-          <span className="small">{Math.abs(left) > 0.009 ? <b style={{ color: 'var(--crit)' }}>{left > 0 ? `Faltan ${fmtMoney(left)}` : `Sobran ${fmtMoney(-left)}`}</b> : change ? <b>Vuelto: {fmtMoney(change)}</b> : 'Total cubierto'}</span>
+          <button type="button" className="btn btn-sm" onClick={addPay}><Plus size={16} aria-hidden /> Otro medio de pago</button>
+          <span className="small">{Math.abs(left) > 0.009 ? <b style={{ color: 'var(--crit)' }}>{left > 0 ? `Faltan ${fmtMoney(left)}` : `Sobran ${fmtMoney(-left)}`}</b> : change ? <b>Vuelto: {fmtMoney(change)}</b> : 'Cubierto'}</span>
+        </div>
+        <div className="charge-tip">
+          <label className="charge-field"><span>Propina (opcional)</span><NumberInput aria-label="Propina" value={tip} onChange={setTip} min={0} placeholder="0" /></label>
+          <div className="group-chips">
+            {[10, 15].map((pc) => <button key={pc} type="button" className="group-chip" onClick={() => setTip(round2(amount * pc / 100))}>{pc}%</button>)}
+            {tip ? <button type="button" className="group-chip" onClick={() => setTip(undefined)}>Sin propina</button> : null}
+          </div>
+          {tip ? (
+            <label className="charge-field"><span>Propina en</span>
+              <Select aria-label="Medio de la propina" value={tipMethod || payments[0].method} onChange={(e) => setTipMethod(e.target.value as SalePaymentMethod)}>
+                {METHODS.map((m) => <option key={m} value={m}>{PAYMENT_LABEL[m]}</option>)}
+              </Select>
+            </label>
+          ) : null}
         </div>
       </section>
 
       <section className="stack" aria-labelledby="charge-inv" style={{ marginTop: 14 }}>
-        <h3 id="charge-inv" className="salon-sub">Factura</h3>
+        <h3 id="charge-inv" className="salon-sub">Factura{split !== 'todo' ? ' de esta parte' : ''}</h3>
         {billing ? (<>
           <Segmented<InvoiceMode> label="Factura" value={mode} onChange={setMode}
             options={[{ value: 'cf', label: 'Consumidor final' }, { value: 'datos', label: 'Con datos (CUIT/DNI)' }, { value: 'no', label: 'Sin factura por ahora' }]} />
           {mode === 'datos' && <ReceptorForm rec={rec} setRec={setRec} recent={recent} letra={letra} />}
-          {mode !== 'no' && <p className="small muted" style={{ margin: 0 }}>Se emite <b>Factura {letra}</b> {f.ambiente === 'homologacion' ? 'de PRUEBA (homologación)' : 'electrónica'} en el punto de venta {f.ptoVta}.</p>}
-          {mode === 'no' && <p className="small muted" style={{ margin: 0 }}>La mesa se cobra y queda en “Sin facturar” para emitir la factura después (por ejemplo, si ARCA no anda).</p>}
+          {mode !== 'no' && <p className="small muted" style={{ margin: 0 }}>Se emite <b>Factura {letra}</b> {f.ambiente === 'homologacion' ? 'de PRUEBA (homologación)' : 'electrónica'} por {fmtMoney(amount)} en el punto de venta {f.ptoVta}. La propina no se factura.</p>}
+          {mode === 'no' && <p className="small muted" style={{ margin: 0 }}>Se cobra y queda en “Sin facturar” para emitir la factura después (por ejemplo, si ARCA no anda).</p>}
           {cfTooBig && <p className="small" style={{ color: 'var(--crit)', margin: 0 }}>Desde {fmtMoney(CF_ID_THRESHOLD)} hay que identificar al cliente: elegí “Con datos”.</p>}
           {mode === 'datos' && problems.length > 0 && <p className="small" style={{ color: 'var(--crit)', margin: 0 }}>{problems.join(' ')}</p>}
         </>) : (

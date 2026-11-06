@@ -73,10 +73,10 @@ test('facturación electrónica: configurar, cobrar la mesa y emitir Factura B c
   if (!(await m.getByRole('region', { name: 'Pedido' }).isVisible())) await m.getByRole('group', { name: 'Ver' }).getByRole('button', { name: /^Pedido/ }).click();
   await m.getByRole('button', { name: /^Mandar a cocina/ }).click();
   await m.getByRole('button', { name: 'Pidió la cuenta' }).click();
-  await m.getByRole('button', { name: 'Cobrar y cerrar' }).first().click();
+  await m.getByRole('button', { name: 'Cobrar', exact: true }).first().click();
 
   // Cobro con factura
-  m = page.getByRole('dialog', { name: 'Cobrar mesa 2' });
+  m = page.getByRole('dialog', { name: 'Cobrar · Mesa 2' });
   await expect(m).toBeVisible();
   await m.getByLabel('Efectivo recibido').fill('20000');
   await expect(m.getByText('Vuelto: $ 1.000,00').or(m.getByText(/Vuelto: \$\s?1\.000,00/))).toBeVisible();
@@ -97,7 +97,7 @@ test('facturación electrónica: configurar, cobrar la mesa y emitir Factura B c
   // Hoy y Comprobantes
   await page.getByRole('group', { name: 'Sección del salón' }).getByRole('button', { name: 'Hoy' }).click();
   await expect(page.getByText('Factura B 00005-00000042')).toBeVisible();
-  await expect(page.getByText(/Caja:.*Efectivo/)).toBeVisible();
+  await expect(page.getByText(/Cobrado:.*Efectivo/)).toBeVisible();
   await go(page, '/comprobantes');
   await expect(page.getByRole('heading', { name: 'Comprobantes', level: 1 })).toBeVisible();
   await page.getByRole('button', { name: /Factura B 00005-00000042/ }).click();

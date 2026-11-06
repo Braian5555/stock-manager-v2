@@ -479,9 +479,23 @@ export interface DiningTable extends BaseEntity {
   /** Sector: "Salón", "Terraza", "Barra"… */
   zone: string;
   seats?: number;
-  /** Orden en el plano. */
+  /** Orden en la lista. */
   order: number;
   active: boolean;
+  /** Posición en el plano del sector, en % del ancho y alto (0–100). */
+  x?: number;
+  y?: number;
+  shape?: TableShape;
+  /** 1 chica, 2 mediana, 3 grande. */
+  size?: 1 | 2 | 3;
+}
+
+export type TableShape = 'cuadrada' | 'redonda' | 'rectangular';
+
+/** Adicional de un plato ("leche de almendras", "extra queso"): suma al precio. */
+export interface MenuExtra {
+  name: string;
+  price: number;
 }
 
 /** Plato o bebida de la carta (lo que se vende; no es un producto de stock). */
@@ -496,6 +510,8 @@ export interface MenuItem extends BaseEntity {
   kitchen: boolean;
   /** Alícuota de IVA incluida en el precio (si falta, la de la configuración fiscal). */
   iva?: IvaRate;
+  /** Adicionales que se pueden elegir al pedirlo. */
+  extras?: MenuExtra[];
   active: boolean;
 }
 
@@ -514,6 +530,40 @@ export interface TicketLine {
   status: TicketLineStatus;
   sentAt?: ISODate;
   readyAt?: ISODate;
+  by?: { id: string; name: string };
+  /** Adicionales elegidos (su precio ya está sumado en `price`). */
+  extras?: MenuExtra[];
+  /** Cortesía: no se cobra. */
+  comp?: boolean;
+  /** Ítem libre (envío, varios): no es de la carta. */
+  custom?: boolean;
+}
+
+/** De dónde viene el pedido. */
+export type TicketChannel = 'mesa' | 'mostrador' | 'llevar' | 'delivery';
+
+export interface TicketDiscount {
+  kind: 'pct' | 'monto';
+  value: number;
+  reason?: string;
+}
+
+/** Un cobro de la cuenta (toda o una parte, si se divide). */
+export interface TicketCharge {
+  id: string;
+  at: ISODate;
+  /** Lo que se cobró de la cuenta (sin propina). */
+  amount: number;
+  payments: Payment[];
+  tip?: { amount: number; method: SalePaymentMethod };
+  /** "1 de 3", "Por ítems"… */
+  label?: string;
+  /** Si se dividió por ítems: qué se pagó. */
+  items?: { lineId: string; qty: number }[];
+  fiscalDocId?: string;
+  /** Se cobró sin factura (queda para facturar después). */
+  fiscalPending?: boolean;
+  cashSessionId?: string;
   by?: { id: string; name: string };
 }
 
@@ -538,6 +588,44 @@ export interface TableTicket extends BaseEntity {
   fiscalDocId?: string;
   /** Se cerró sin factura todavía (p. ej. ARCA caída): queda para facturar después. */
   fiscalPending?: boolean;
+  /** Mesa (por defecto), mostrador, para llevar o delivery. */
+  channel?: TicketChannel;
+  /** Cliente de mostrador / para llevar / delivery. */
+  customer?: { name?: string; phone?: string; address?: string };
+  /** Suma de lo pedido antes del descuento. */
+  subtotal?: number;
+  discount?: TicketDiscount;
+  /** Cobros (uno, o varios si se dividió la cuenta). */
+  charges?: TicketCharge[];
+}
+
+// ───────────────────────── Caja ─────────────────────────
+
+/** Turno de caja: se abre con el efectivo inicial y se cierra contando cada medio de pago. */
+export interface CashSession extends BaseEntity {
+  number: number;
+  register: string;
+  openedAt: ISODate;
+  openedBy?: { id: string; name: string };
+  /** Efectivo con el que se abre. */
+  initialCash: number;
+  status: 'abierta' | 'cerrada';
+  closedAt?: ISODate;
+  closedBy?: { id: string; name: string };
+  /** Lo que el sistema esperaba y lo que se contó, por medio de pago (al cerrar). */
+  expected?: Partial<Record<SalePaymentMethod, number>>;
+  counted?: Partial<Record<SalePaymentMethod, number>>;
+  note?: string;
+}
+
+export interface CashMovement extends BaseEntity {
+  sessionId: string;
+  at: ISODate;
+  kind: 'ingreso' | 'egreso';
+  amount: number;
+  method: SalePaymentMethod;
+  reason: string;
+  by?: { id: string; name: string };
 }
 
 // ───────────────────────── Facturación electrónica (ARCA) ─────────────────────────
@@ -632,6 +720,8 @@ export interface FiscalDoc extends BaseEntity {
   impOpEx: number;
   impTrib: number;
   iva: { id: number; rate: IvaRate; baseImp: number; importe: number }[];
+  /** Bonificación: diferencia entre lo pedido (líneas) y el total facturado (descuentos). */
+  bonif?: number;
   status: FiscalStatus;
   /** Número que se va a pedir, anotado ANTES de enviar (para no duplicar si se corta). */
   attempt?: { nro: number; fecha: string; at: ISODate };

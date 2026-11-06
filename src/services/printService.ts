@@ -6,8 +6,10 @@
  *  - Comanda: para cocina, sin precios. NO VÁLIDO COMO FACTURA.
  */
 import QRCode from 'qrcode';
-import type { FiscalDoc, TableTicket, TicketLine } from '../models';
-import { CBTE_NAME, COND_IVA, DOC_TIPO_LABEL, EMISOR_COND_LABEL, PAYMENT_LABEL, docNumber, fmtCuit, pad, qrUrl, ymdToDate } from './fiscalService';
+import type { CashSession, FiscalDoc, SalePaymentMethod, TableTicket, TicketLine } from '../models';
+import type { CashSummary } from './cashService';
+import { CBTE_NAME, COND_IVA, DOC_TIPO_LABEL, EMISOR_COND_LABEL, PAYMENT_LABEL, docNumber, docPlace, fmtCuit, pad, qrUrl, ymdToDate } from './fiscalService';
+import { discountAmount, ticketLabel } from './salonService';
 
 const esc = (s: unknown) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const money = (n: number) => n.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -102,10 +104,11 @@ export async function fiscalTicketHtml(d: FiscalDoc, pie?: string): Promise<stri
     ${r.docTipo !== 99 ? `<p>${esc(DOC_TIPO_LABEL[r.docTipo])} ${esc(r.docTipo === 80 || r.docTipo === 86 ? fmtCuit(r.docNro) : r.docNro)}</p>` : ''}
     <p class="note">${esc(COND_IVA[r.condicionIva] ?? '')}</p>
     ${r.domicilio ? `<p class="note">${esc(r.domicilio)}</p>` : ''}
-    ${d.tableName ? `<p class="note">Mesa ${esc(d.tableName)}</p>` : ''}
+    ${d.tableName ? `<p class="note">${esc(docPlace(d))}</p>` : ''}
     <div class="hr"></div>
     ${lines}
     <div class="hr"></div>
+    ${d.bonif ? `<div class="row"><span>Subtotal</span><span>${money(d.impTotal + d.bonif)}</span></div><div class="row"><span>Bonificación</span><span>−${money(d.bonif)}</span></div>` : ''}
     ${ivaRows}
     <div class="row big"><span>TOTAL</span><span>$ ${money(d.impTotal)}</span></div>
     ${transparency}
@@ -123,26 +126,59 @@ export async function fiscalTicketHtml(d: FiscalDoc, pie?: string): Promise<stri
 /** Pre-cuenta: lo consumido con precios. No es un comprobante fiscal. */
 export function precuentaHtml(t: TableTicket, business: string): string {
   const live = t.lines.filter((l) => l.qty > 0);
+  const disc = discountAmount(t.subtotal ?? t.total, t.discount);
+  const paid = (t.charges ?? []).reduce((x, c) => x + c.amount, 0);
   const body = `
     <p class="c big">${esc(business)}</p>
     <div class="warn">PRE-CUENTA<br>NO VÁLIDO COMO FACTURA</div>
-    <div class="row"><span>Mesa ${esc(t.tableName)} · #${t.number}</span><span>${dateTime(new Date().toISOString())}</span></div>
+    <div class="row"><span>${esc(ticketLabel(t))} · #${t.number}</span><span>${dateTime(new Date().toISOString())}</span></div>
     ${t.guests ? `<p>${t.guests} comensales</p>` : ''}
     <div class="hr"></div>
-    ${live.map((l) => `<div class="row"><span>${qtyFmt(l.qty)} ${esc(l.name)}</span><span>${money(l.qty * l.price)}</span></div>`).join('')}
+    ${live.map((l) => `<div class="row"><span>${qtyFmt(l.qty)} ${esc(l.name)}${l.comp ? ' (cortesía)' : ''}</span><span>${l.comp ? '0,00' : money(l.qty * l.price)}</span></div>`).join('')}
     <div class="hr"></div>
-    <div class="row big"><span>TOTAL</span><span>$ ${money(t.total)}</span></div>`;
-  return page(`Pre-cuenta mesa ${t.tableName}`, body);
+    ${disc ? `<div class="row"><span>Subtotal</span><span>${money(t.subtotal ?? t.total)}</span></div><div class="row"><span>Descuento${t.discount?.kind === 'pct' ? ` ${t.discount.value}%` : ''}</span><span>−${money(disc)}</span></div>` : ''}
+    <div class="row big"><span>TOTAL</span><span>$ ${money(t.total)}</span></div>
+    ${paid ? `<div class="row"><span>Ya pagado</span><span>−${money(paid)}</span></div><div class="row big"><span>FALTA</span><span>$ ${money(t.total - paid)}</span></div>` : ''}`;
+  return page(`Pre-cuenta ${ticketLabel(t)}`, body);
 }
 
 /** Comanda para cocina: sin precios. */
 export function comandaHtml(t: TableTicket, lines: TicketLine[]): string {
   const body = `
     <div class="warn">COMANDA — NO VÁLIDO COMO FACTURA</div>
-    <p class="huge">MESA ${esc(t.tableName)}</p>
+    <p class="huge">${esc(ticketLabel(t).toUpperCase())}</p>
+    ${t.customer?.address ? `<p>${esc(t.customer.address)}${t.customer.phone ? ` · ${esc(t.customer.phone)}` : ''}</p>` : ''}
     <div class="row"><span>#${t.number}${t.openedBy ? ` · ${esc(t.openedBy.name)}` : ''}</span><span>${time(new Date().toISOString())}</span></div>
     <div class="hr"></div>
     ${lines.map((l) => `<p class="big">${l.qty === 0 ? 'ANULADO ' : `${qtyFmt(l.qty)} x `}${esc(l.name)}</p>${l.notes ? `<p>&nbsp;&nbsp;» ${esc(l.notes)}</p>` : ''}`).join('')}
     <div class="hr"></div>`;
-  return page(`Comanda mesa ${t.tableName}`, body);
+  return page(`Comanda ${ticketLabel(t)}`, body);
+}
+
+/** Arqueo de caja (parcial o al cierre). */
+export function arqueoHtml(s: CashSession, sum: CashSummary, business: string, diffs: { method: SalePaymentMethod; expected: number; counted: number; diff: number }[]): string {
+  const methods = (Object.keys(sum.expected) as SalePaymentMethod[]).filter((m) => sum.expected[m] || sum.sales[m] || sum.tips[m] || sum.ingresos[m] || sum.egresos[m]);
+  const body = `
+    <p class="c big">${esc(business)}</p>
+    <div class="warn">${s.status === 'cerrada' ? 'ARQUEO DE CAJA' : 'CAJA — RESUMEN PARCIAL'}<br>NO VÁLIDO COMO FACTURA</div>
+    <p>${esc(s.register)} #${s.number}</p>
+    <p class="note">Abierta ${dateTime(s.openedAt)}${s.openedBy ? ` · ${esc(s.openedBy.name)}` : ''}</p>
+    ${s.closedAt ? `<p class="note">Cerrada ${dateTime(s.closedAt)}${s.closedBy ? ` · ${esc(s.closedBy.name)}` : ''}</p>` : ''}
+    <div class="hr"></div>
+    <div class="row"><span>Efectivo inicial</span><span>${money(s.initialCash)}</span></div>
+    <div class="row b"><span>Ventas (${sum.count})</span><span>${money(sum.totalSales)}</span></div>
+    <div class="row"><span>Propinas</span><span>${money(sum.totalTips)}</span></div>
+    <div class="hr"></div>
+    ${methods.map((m) => `<p class="b">${esc(PAYMENT_LABEL[m])}</p>
+      <div class="row note"><span>Ventas</span><span>${money(sum.sales[m])}</span></div>
+      ${sum.tips[m] ? `<div class="row note"><span>Propinas</span><span>${money(sum.tips[m])}</span></div>` : ''}
+      ${sum.ingresos[m] ? `<div class="row note"><span>Ingresos</span><span>${money(sum.ingresos[m])}</span></div>` : ''}
+      ${sum.egresos[m] ? `<div class="row note"><span>Egresos</span><span>−${money(sum.egresos[m])}</span></div>` : ''}
+      <div class="row"><span>Esperado</span><span>${money(sum.expected[m])}</span></div>`).join('')}
+    ${diffs.length ? `<div class="hr"></div><p class="b">Contado</p>${diffs.map((d) => `<div class="row"><span>${esc(PAYMENT_LABEL[d.method])}</span><span>${money(d.counted)} (${d.diff === 0 ? 'justo' : `${d.diff > 0 ? '+' : '−'}${money(Math.abs(d.diff))}`})</span></div>`).join('')}
+      <div class="row big"><span>DIFERENCIA</span><span>${money(diffs.reduce((x, d) => x + d.diff, 0))}</span></div>` : ''}
+    ${s.note ? `<p class="note">Comentario: ${esc(s.note)}</p>` : ''}
+    <div class="hr"></div>
+    <p class="note">Impreso ${dateTime(new Date().toISOString())}</p>`;
+  return page(`Arqueo ${s.register} #${s.number}`, body);
 }

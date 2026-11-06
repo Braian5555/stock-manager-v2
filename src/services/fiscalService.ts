@@ -11,8 +11,10 @@
 import { cloudSession } from '../cloud/cloudService';
 import { db } from '../database/db';
 import type {
-  DocTipo, EmisorCondicion, FiscalDoc, FiscalKind, FiscalLetter, FiscalLine, FiscalLogEntry, FiscalReceptor, FiscalSettings, IvaRate, MenuItem, Payment, SalePaymentMethod, TableTicket,
+  DocTipo, EmisorCondicion, FiscalDoc, FiscalKind, FiscalLetter, FiscalLine, FiscalLogEntry, FiscalReceptor, FiscalSettings, IvaRate, MenuItem, Payment, SalePaymentMethod, TableTicket, TicketCharge,
 } from '../models';
+import { openSession } from './cashService';
+import { paidQty, remainingAmount, ticketLabel } from './salonService';
 import { nowIso, uuid } from '../utils/id';
 import { getSettings } from './settingsService';
 import { getCurrentActor } from './userService';
@@ -63,6 +65,8 @@ export const todayAR = (now = Date.now()) => new Date(now - 3 * 3600_000).toISOS
 export const ymdToDate = (s?: string) => (s && /^\d{8}$/.test(s) ? `${s.slice(6, 8)}/${s.slice(4, 6)}/${s.slice(0, 4)}` : '—');
 export const pad = (n: number | undefined, len: number) => String(n ?? 0).padStart(len, '0');
 export const docNumber = (d: Pick<FiscalDoc, 'ptoVta' | 'nro'>) => `${pad(d.ptoVta, 5)}-${pad(d.nro, 8)}`;
+/** "Mesa 4", "Mostrador · Ana" (los comprobantes viejos guardaban sólo el número de mesa). */
+export const docPlace = (d: Pick<FiscalDoc, 'tableName'>) => (!d.tableName ? '' : /^[\w-]{1,6}$/.test(d.tableName) && !/^(Mostrador|Delivery)/.test(d.tableName) ? `Mesa ${d.tableName}` : d.tableName);
 
 export const DEFAULT_FISCAL: FiscalSettings = {
   enabled: false, serviceUrl: '', ambiente: 'homologacion', cuit: '', razonSocial: '', domicilio: '', condicionIva: 'RI',
@@ -95,26 +99,52 @@ export function letterFor(f: Pick<FiscalSettings, 'condicionIva' | 'letraA'>, co
   return [1, 6, 13, 16].includes(condicionReceptor) ? f.letraA : 'B';
 }
 
-/** Importes del comprobante desde líneas con precio final (IVA incluido), agrupando por alícuota. */
-export function computeAmounts(lines: FiscalLine[], letra: FiscalLetter) {
+/**
+ * Importes del comprobante desde líneas con precio final (IVA incluido), agrupando por alícuota.
+ * Con `target` (descuentos), el total facturado es ése: se reparte proporcionalmente entre
+ * las alícuotas y la diferencia con las líneas queda como bonificación.
+ */
+export function computeAmounts(lines: FiscalLine[], letra: FiscalLetter, target?: number) {
   const live = lines.filter((l) => l.qty > 0);
-  const impTotal = round2(live.reduce((s, l) => s + l.total, 0));
-  if (letra === 'C') return { impTotal, impNeto: impTotal, impIva: 0, impTotConc: 0, impOpEx: 0, impTrib: 0, iva: [] as FiscalDoc['iva'] };
+  const gross = round2(live.reduce((s, l) => s + l.total, 0));
+  const goal = target === undefined ? gross : round2(target);
+  const bonif = round2(gross - goal);
+  if (letra === 'C') return { impTotal: goal, impNeto: goal, impIva: 0, impTotConc: 0, impOpEx: 0, impTrib: 0, iva: [] as FiscalDoc['iva'], bonif };
   const groups = new Map<IvaRate, number>();
   for (const l of live) groups.set(l.iva, round2((groups.get(l.iva) ?? 0) + l.total));
-  const iva = [...groups.entries()].sort((a, b) => b[0] - a[0]).map(([rate, total]) => {
+  let entries = [...groups.entries()].sort((a, b) => b[0] - a[0]);
+  if (gross > 0 && goal !== gross) {
+    entries = entries.map(([r, t]) => [r, round2(t * goal / gross)] as [IvaRate, number]);
+    const diff = round2(goal - entries.reduce((s, [, t]) => s + t, 0));
+    if (diff && entries.length) {
+      const big = entries.reduce((m, e, i) => (e[1] > entries[m][1] ? i : m), 0);
+      entries[big] = [entries[big][0], round2(entries[big][1] + diff)];
+    }
+  }
+  const iva = entries.filter(([, t]) => t > 0).map(([rate, total]) => {
     const baseImp = round2(total / (1 + rate / 100));
     return { id: IVA_ID[rate], rate, baseImp, importe: round2(total - baseImp) };
   });
   const impNeto = round2(iva.reduce((s, a) => s + a.baseImp, 0));
   const impIva = round2(iva.reduce((s, a) => s + a.importe, 0));
-  return { impTotal: round2(impNeto + impIva), impNeto, impIva, impTotConc: 0, impOpEx: 0, impTrib: 0, iva };
+  return { impTotal: round2(impNeto + impIva), impNeto, impIva, impTotConc: 0, impOpEx: 0, impTrib: 0, iva, bonif };
 }
 
 export function linesFromTicket(t: TableTicket, items: Map<string, MenuItem>, ivaDefault: IvaRate): FiscalLine[] {
-  return t.lines.filter((l) => l.qty > 0).map((l) => ({
+  return t.lines.filter((l) => l.qty > 0 && !l.comp).map((l) => ({
     name: l.name, qty: l.qty, unitPrice: l.price, iva: items.get(l.menuItemId)?.iva ?? ivaDefault, total: round2(l.qty * l.price),
   }));
+}
+
+/** Achica las líneas a una parte de la cuenta (dividir en partes iguales) sin dejar centavos sueltos. */
+export function scaleLines(lines: FiscalLine[], target: number): FiscalLine[] {
+  const gross = lines.reduce((s, l) => s + l.total, 0);
+  if (!gross) return lines;
+  const ratio = target / gross;
+  const out = lines.map((l) => ({ ...l, qty: Math.round(l.qty * ratio * 1000) / 1000, total: round2(l.total * ratio) }));
+  const diff = round2(target - out.reduce((s, l) => s + l.total, 0));
+  if (diff && out.length) out[out.length - 1].total = round2(out[out.length - 1].total + diff);
+  return out;
 }
 
 /** Problemas del receptor para esa letra (vacío = ok). */
@@ -139,14 +169,14 @@ const actor = () => {
 
 export async function createDoc(input: {
   kind: FiscalKind; receptor: FiscalReceptor; lines: FiscalLine[]; ticket?: TableTicket; payments?: Payment[];
-  asociado?: FiscalDoc['asociado']; letra?: FiscalLetter;
+  asociado?: FiscalDoc['asociado']; letra?: FiscalLetter; target?: number;
 }): Promise<FiscalDoc> {
   const f = fiscalOf(await getSettings());
   const missing = fiscalMissing(f);
   if (!f.enabled) throw new Error('La facturación electrónica no está activada (Configuración → Configuración fiscal).');
   if (missing.length) throw new Error(`Falta completar en Configuración fiscal: ${missing.join(', ')}.`);
   const letra = input.letra ?? letterFor(f, input.receptor.condicionIva);
-  const amounts = computeAmounts(input.lines, letra);
+  const { bonif, ...amounts } = computeAmounts(input.lines, letra, input.target);
   if (!(amounts.impTotal > 0)) throw new Error('El comprobante no tiene importe.');
   const rp = receptorProblems(input.receptor, letra, amounts.impTotal);
   if (rp.length) throw new Error(rp.join(' '));
@@ -159,8 +189,9 @@ export async function createDoc(input: {
     receptor: { ...input.receptor, docNro: input.receptor.docNro.replace(/\D/g, '') || '0', nombre: input.receptor.nombre?.trim() || undefined, domicilio: input.receptor.domicilio?.trim() || undefined },
     lines: input.lines.filter((l) => l.qty > 0),
     ...amounts,
+    ...(bonif > 0.009 ? { bonif } : {}),
     status: 'borrador',
-    ...(input.ticket ? { ticketId: input.ticket.id, tableName: input.ticket.tableName } : {}),
+    ...(input.ticket ? { ticketId: input.ticket.id, tableName: ticketLabel(input.ticket) } : {}),
     ...(input.payments?.length ? { payments: input.payments } : {}),
     ...(input.asociado ? { asociado: input.asociado } : {}),
     ...(by ? { createdBy: by } : {}),
@@ -317,49 +348,151 @@ export async function serviceStatus(probar: boolean) {
   return r.data;
 }
 
-// ───────────── cobro de la mesa ─────────────
+// ───────────── cobro de la cuenta ─────────────
 
-/** Cobra la mesa (medios de pago) y, si se pide, arma la factura y la manda a ARCA. */
-export async function chargeTicket(ticketId: string, opts: { payments: Payment[]; invoice: false | { receptor: FiscalReceptor } }): Promise<{ ticket: TableTicket; doc?: FiscalDoc }> {
-  const ticket = await db.tickets.get(ticketId);
-  if (!ticket) throw new Error('El pedido no existe.');
-  if (ticket.status !== 'abierta' && ticket.status !== 'cuenta') throw new Error('Esa mesa ya está cerrada.');
-  if (ticket.lines.some((l) => l.status === 'nuevo')) throw new Error('Hay platos sin mandar: mandalos a cocina o sacalos antes de cobrar.');
-  if (ticket.paidAt) throw new Error('Esa mesa ya se cobró.');
-  const paid = round2(opts.payments.reduce((s, p) => s + p.amount, 0));
-  if (Math.abs(paid - ticket.total) > 0.009) throw new Error(`Los pagos (${paid.toLocaleString('es-AR')}) no suman el total (${ticket.total.toLocaleString('es-AR')}).`);
-  let doc: FiscalDoc | undefined;
-  if (opts.invoice) {
-    if (ticket.fiscalDocId) {
-      const prev = await db.fiscalDocs.get(ticket.fiscalDocId);
-      if (prev && prev.status !== 'rechazada' && prev.status !== 'error') throw new Error('Esta mesa ya tiene un comprobante.');
-    }
-    const s = await getSettings();
-    const items = new Map((await db.menuItems.toArray()).map((m) => [m.id, m]));
-    doc = await createDoc({ kind: 'factura', receptor: opts.invoice.receptor, lines: linesFromTicket(ticket, items, fiscalOf(s).ivaDefault), ticket, payments: opts.payments });
-    if (Math.abs(doc.impTotal - ticket.total) > 0.009) throw new Error('El total de la factura no coincide con el de la mesa.');
+/** Qué se cobra: el resto de la cuenta, una parte igual, o ciertos ítems. */
+export type ChargePart =
+  | { kind: 'rest' }
+  | { kind: 'equal'; amount: number; label: string }
+  | { kind: 'items'; items: { lineId: string; qty: number }[] };
+
+/** Líneas y total a facturar de una parte de la cuenta. */
+function partLines(t: TableTicket, items: Map<string, MenuItem>, ivaDefault: IvaRate, part: ChargePart, amount: number): { lines: FiscalLine[]; target: number } {
+  const all = linesFromTicket(t, items, ivaDefault);
+  if (part.kind === 'items') {
+    const byId = new Map(t.lines.map((l) => [l.id, l]));
+    const lines = part.items.filter((i) => i.qty > 0).map((i) => {
+      const l = byId.get(i.lineId)!;
+      return { name: l.name, qty: i.qty, unitPrice: l.price, iva: items.get(l.menuItemId)?.iva ?? ivaDefault, total: round2(i.qty * l.price) };
+    });
+    return { lines, target: amount };
   }
-  const t = nowIso();
-  // Sin factura acá: si Stock Manager factura, queda para facturar después; si no, factura Maxirest.
-  const billingHere = fiscalOf(await getSettings()).enabled;
-  const next: TableTicket = { ...ticket, payments: opts.payments, paidAt: t, updatedAt: t, ...(doc ? { fiscalDocId: doc.id, fiscalPending: false } : { fiscalPending: billingHere && !ticket.fiscalDocId }) };
-  await db.tickets.put(next);
-  if (doc) doc = await issue(doc.id);
-  return { ticket: next, doc };
+  // Toda la cuenta de una vez: las líneas tal cual (con el descuento como bonificación).
+  if (!(t.charges ?? []).length && Math.abs(amount - t.total) < 0.009) return { lines: all, target: amount };
+  // Una parte: las mismas líneas en proporción.
+  const gross = all.reduce((s, l) => s + l.total, 0);
+  const scaled = scaleLines(all, round2(gross * amount / (t.total || 1)));
+  return { lines: scaled, target: amount };
 }
 
-/** Factura después una mesa ya cobrada (p. ej. si ARCA estaba caída al cerrar). */
-export async function invoiceLater(ticketId: string, receptor: FiscalReceptor): Promise<FiscalDoc> {
+/** Importe de una parte por ítems (con el descuento de la cuenta aplicado). */
+export function itemsAmount(t: TableTicket, items: { lineId: string; qty: number }[]): number {
+  const byId = new Map(t.lines.map((l) => [l.id, l]));
+  const gross = items.reduce((s, i) => s + i.qty * (byId.get(i.lineId)?.price ?? 0), 0);
+  const factor = t.subtotal ? t.total / t.subtotal : 1;
+  return round2(gross * factor);
+}
+
+/**
+ * Cobra la cuenta (toda o una parte) con sus medios de pago y propina, la anota en la caja
+ * abierta y, si se pide, emite la factura de esa parte en ARCA.
+ */
+export async function chargeTicket(ticketId: string, opts: {
+  payments: Payment[]; invoice: false | { receptor: FiscalReceptor }; part?: ChargePart; tip?: { amount: number; method: SalePaymentMethod };
+}): Promise<{ ticket: TableTicket; doc?: FiscalDoc; remaining: number }> {
   const ticket = await db.tickets.get(ticketId);
   if (!ticket) throw new Error('El pedido no existe.');
-  if (ticket.fiscalDocId) {
-    const prev = await db.fiscalDocs.get(ticket.fiscalDocId);
-    if (prev && prev.status !== 'rechazada' && prev.status !== 'error') return issue(prev.id);
+  if (ticket.status !== 'abierta' && ticket.status !== 'cuenta') throw new Error('Ese pedido ya está cerrado.');
+  if (ticket.lines.some((l) => l.status === 'nuevo')) throw new Error('Hay platos sin mandar: mandalos a cocina o sacalos antes de cobrar.');
+  if (ticket.paidAt && !ticket.charges?.length) throw new Error('Ese pedido ya se cobró.');
+  const remaining = remainingAmount(ticket);
+  if (remaining <= 0.009) throw new Error('La cuenta ya está paga.');
+  const part = opts.part ?? { kind: 'rest' };
+  let amount = remaining;
+  if (part.kind === 'equal') {
+    if (!(part.amount > 0)) throw new Error('La parte tiene que ser mayor a cero.');
+    amount = round2(Math.min(part.amount, remaining));
+  } else if (part.kind === 'items') {
+    const byId = new Map(ticket.lines.map((l) => [l.id, l]));
+    for (const i of part.items) {
+      const l = byId.get(i.lineId);
+      if (!l || l.comp || l.qty <= 0) throw new Error('Ese ítem no se puede cobrar.');
+      if (i.qty < 0 || i.qty > l.qty - paidQty(ticket, l.id) + 1e-9) throw new Error(`De "${l.name}" quedan ${l.qty - paidQty(ticket, l.id)} por cobrar.`);
+    }
+    if (!part.items.some((i) => i.qty > 0)) throw new Error('Elegí qué se paga.');
+    amount = Math.min(itemsAmount(ticket, part.items), remaining);
+    // Si con esto se pagan todos los ítems, se cobra exactamente el resto (sin centavos sueltos).
+    const left = ticket.lines.filter((l) => l.qty > 0 && !l.comp).every((l) => l.qty - paidQty(ticket, l.id) - (part.items.find((i) => i.lineId === l.id)?.qty ?? 0) <= 1e-9);
+    if (left) amount = remaining;
   }
+  const paid = round2(opts.payments.reduce((s, p) => s + p.amount, 0));
+  if (Math.abs(paid - amount) > 0.009) throw new Error(`Los pagos (${paid.toLocaleString('es-AR')}) no suman lo que se cobra (${amount.toLocaleString('es-AR')}).`);
+  if (opts.tip && (!Number.isFinite(opts.tip.amount) || opts.tip.amount < 0)) throw new Error('La propina no es válida.');
+
+  const s = await getSettings();
+  const f = fiscalOf(s);
+  let doc: FiscalDoc | undefined;
+  if (opts.invoice) {
+    const items = new Map((await db.menuItems.toArray()).map((m) => [m.id, m]));
+    const { lines, target } = partLines(ticket, items, f.ivaDefault, part, amount);
+    doc = await createDoc({ kind: 'factura', receptor: opts.invoice.receptor, lines, target, ticket, payments: opts.payments });
+    if (Math.abs(doc.impTotal - amount) > 0.009) throw new Error('El total de la factura no coincide con lo cobrado.');
+  }
+  const session = await openSession();
+  const by = getCurrentActor();
+  const t = nowIso();
+  const n = (ticket.charges ?? []).length + 1;
+  const charge: TicketCharge = {
+    id: uuid(), at: t, amount, payments: opts.payments,
+    ...(opts.tip?.amount ? { tip: { amount: round2(opts.tip.amount), method: opts.tip.method } } : {}),
+    ...(part.kind === 'equal' ? { label: part.label } : part.kind === 'items' ? { label: 'Por ítems', items: part.items.filter((i) => i.qty > 0) } : n > 1 ? { label: 'Resto' } : {}),
+    ...(doc ? { fiscalDocId: doc.id } : f.enabled ? { fiscalPending: true } : {}),
+    ...(session ? { cashSessionId: session.id } : {}),
+    ...(by ? { by: { id: by.id, name: by.name } } : {}),
+  };
+  const charges = [...(ticket.charges ?? []), charge];
+  const left = round2(Math.max(0, ticket.total - charges.reduce((x, c) => x + c.amount, 0)));
+  const next: TableTicket = {
+    ...ticket, charges, payments: charges.flatMap((c) => c.payments), updatedAt: t,
+    ...(left <= 0.009 ? { paidAt: t } : {}),
+    ...(doc ? { fiscalDocId: doc.id } : {}),
+    fiscalPending: charges.some((c) => c.fiscalPending),
+  };
+  await db.tickets.put(next);
+  if (doc) doc = await issue(doc.id);
+  return { ticket: next, doc, remaining: left };
+}
+
+/** Factura después un cobro hecho sin factura (p. ej. si ARCA estaba caída). */
+export async function invoiceLater(ticketId: string, receptor: FiscalReceptor, chargeId?: string): Promise<FiscalDoc> {
+  const ticket = await db.tickets.get(ticketId);
+  if (!ticket) throw new Error('El pedido no existe.');
   const s = await getSettings();
   const items = new Map((await db.menuItems.toArray()).map((m) => [m.id, m]));
-  const doc = await createDoc({ kind: 'factura', receptor, lines: linesFromTicket(ticket, items, fiscalOf(s).ivaDefault), ticket, payments: ticket.payments });
-  await db.tickets.put({ ...ticket, fiscalDocId: doc.id, fiscalPending: false, updatedAt: nowIso() });
+  const ivaDefault = fiscalOf(s).ivaDefault;
+  const charges = ticket.charges ?? [];
+  // Pedidos viejos (cobrados antes de existir los cobros por partes).
+  if (!charges.length) {
+    if (ticket.fiscalDocId) {
+      const prev = await db.fiscalDocs.get(ticket.fiscalDocId);
+      if (prev && prev.status !== 'rechazada' && prev.status !== 'error') return issue(prev.id);
+    }
+    const doc = await createDoc({ kind: 'factura', receptor, lines: linesFromTicket(ticket, items, ivaDefault), target: ticket.total, ticket, payments: ticket.payments });
+    await db.tickets.put({ ...ticket, fiscalDocId: doc.id, fiscalPending: false, updatedAt: nowIso() });
+    return issue(doc.id);
+  }
+  let charge = chargeId ? charges.find((c) => c.id === chargeId) : charges.find((c) => c.fiscalPending || !c.fiscalDocId);
+  if (!charge && !chargeId) {
+    // Un cobro cuya factura fue rechazada o tuvo error: se vuelve a emitir.
+    for (const c of charges) {
+      const d = c.fiscalDocId ? await db.fiscalDocs.get(c.fiscalDocId) : undefined;
+      if (d && (d.status === 'rechazada' || (d.status === 'error' && !d.attempt))) { charge = c; break; }
+    }
+  }
+  if (!charge) throw new Error('No hay cobros sin factura en este pedido.');
+  if (charge.fiscalDocId) {
+    const prev = await db.fiscalDocs.get(charge.fiscalDocId);
+    if (prev && prev.status !== 'rechazada' && prev.status !== 'error') return issue(prev.id);
+  }
+  const part: ChargePart = charge.items ? { kind: 'items', items: charge.items } : charges.length === 1 && Math.abs(charge.amount - ticket.total) < 0.009 ? { kind: 'rest' } : { kind: 'equal', amount: charge.amount, label: charge.label ?? '' };
+  const lines = part.kind === 'rest'
+    ? { lines: linesFromTicket(ticket, items, ivaDefault), target: charge.amount }
+    : part.kind === 'items'
+      ? partLines(ticket, items, ivaDefault, part, charge.amount)
+      : { lines: scaleLines(linesFromTicket(ticket, items, ivaDefault), round2(linesFromTicket(ticket, items, ivaDefault).reduce((x, l) => x + l.total, 0) * charge.amount / (ticket.total || 1))), target: charge.amount };
+  const doc = await createDoc({ kind: 'factura', receptor, lines: lines.lines, target: lines.target, ticket, payments: charge.payments });
+  const updated = charges.map((c) => (c.id === charge.id ? { ...c, fiscalDocId: doc.id, fiscalPending: false } : c));
+  await db.tickets.put({ ...ticket, charges: updated, fiscalDocId: doc.id, fiscalPending: updated.some((c) => c.fiscalPending), updatedAt: nowIso() });
   return issue(doc.id);
 }
 
@@ -368,13 +501,16 @@ export async function noteFor(original: FiscalDoc, kind: 'nc' | 'nd', lines?: Fi
   if (original.status !== 'autorizada' || !original.nro) throw new Error('Sólo se puede hacer una nota sobre un comprobante autorizado.');
   if (original.kind !== 'factura') throw new Error('La nota se hace sobre la factura original.');
   const use = lines ?? original.lines;
+  // Si la factura tuvo bonificación, la nota de crédito lleva la misma proporción.
+  const gross = original.lines.reduce((s, l) => s + l.total, 0);
+  const factor = kind === 'nc' && gross > 0 ? original.impTotal / gross : 1;
+  const target = round2(use.reduce((s, l) => s + l.total, 0) * factor);
   if (kind === 'nc') {
     const credited = (await db.fiscalDocs.filter((x) => x.asociado?.docId === original.id && x.kind === 'nc' && x.status === 'autorizada').toArray()).reduce((s, x) => s + x.impTotal, 0);
-    const total = round2(use.reduce((s, l) => s + l.total, 0));
-    if (round2(credited + total) - original.impTotal > 0.009) throw new Error(`La nota de crédito supera lo que queda de la factura (${round2(original.impTotal - credited).toLocaleString('es-AR')}).`);
+    if (round2(credited + target) - original.impTotal > 0.009) throw new Error(`La nota de crédito supera lo que queda de la factura (${round2(original.impTotal - credited).toLocaleString('es-AR')}).`);
   }
   const doc = await createDoc({
-    kind, receptor: original.receptor, lines: use, letra: original.letra,
+    kind, receptor: original.receptor, lines: use, letra: original.letra, target,
     asociado: { docId: original.id, cbteTipo: original.cbteTipo, ptoVta: original.ptoVta, nro: original.nro, fecha: original.fecha },
   });
   return issue(doc.id);

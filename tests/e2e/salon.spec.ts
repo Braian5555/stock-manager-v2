@@ -9,7 +9,7 @@ test('salón: armar mesas y carta, tomar un pedido, cocina lo marca listo y se c
   // Mesas
   await page.getByLabel('Cantidad de mesas').fill('6');
   await page.getByRole('button', { name: 'Crear mesas' }).click();
-  await expect(page.getByRole('list', { name: 'Mesas' }).getByRole('listitem')).toHaveCount(6);
+  await expect(page.getByRole('group', { name: 'Plano del salón' }).getByRole('button')).toHaveCount(6);
 
   // Carta
   await page.getByRole('group', { name: 'Sección del salón' }).getByRole('button', { name: 'Carta' }).click();
@@ -60,11 +60,11 @@ test('salón: armar mesas y carta, tomar un pedido, cocina lo marca listo y se c
   if (!(await m.getByRole('button', { name: 'Todo llevado' }).isVisible())) await m.getByRole('group', { name: 'Ver' }).getByRole('button', { name: /^Pedido/ }).click();
   await m.getByRole('button', { name: 'Todo llevado' }).click();
   await m.getByRole('button', { name: 'Pidió la cuenta' }).click();
-  await m.getByRole('button', { name: 'Cobrar y cerrar' }).first().click();
-  const pay = page.getByRole('dialog', { name: 'Cobrar mesa 4' });
+  await m.getByRole('button', { name: 'Cobrar', exact: true }).first().click();
+  const pay = page.getByRole('dialog', { name: 'Cobrar · Mesa 4' });
   await expect(pay.getByText('La factura se hace en Maxirest')).toBeVisible();
   await pay.getByRole('button', { name: /^Cobrar .* y cerrar$/ }).click();
-  await expect(page.getByText('Mesa 4 cobrada y cerrada')).toBeVisible();
+  await expect(page.getByText('Mesa 4: cobrado y cerrado')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Mesa 4: Libre' })).toBeVisible();
 
   await page.getByRole('group', { name: 'Sección del salón' }).getByRole('button', { name: 'Hoy' }).click();

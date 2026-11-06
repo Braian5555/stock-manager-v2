@@ -6,7 +6,7 @@ import { db } from '../database/db';
 import { EMPTY } from '../hooks/useData';
 import { minutesSince, sinceLabel, useNow } from '../hooks/useNow';
 import type { TableTicket } from '../models';
-import { markLineReady, markTicketReady } from '../services/salonService';
+import { markLineReady, markTicketReady, ticketLabel } from '../services/salonService';
 import { useFeedback } from '../store/feedback';
 import { EmptyState, PageHeader } from '../components/ui';
 import { CloudRulesNote } from '../components/salon/CloudRulesNote';
@@ -41,11 +41,11 @@ export function KitchenPage() {
             const min = minutesSince(since, now);
             const tone = min >= LATE_MIN ? 'is-late' : min >= WARN_MIN ? 'is-warn' : '';
             return (
-              <li key={t.id} className={`kitchen-ticket ${tone}`} aria-label={`Mesa ${t.tableName}`}>
+              <li key={t.id} className={`kitchen-ticket ${tone}`} aria-label={ticketLabel(t)}>
                 <header className="kitchen-head">
-                  <span className="kitchen-table">Mesa {t.tableName}</span>
+                  <span className="kitchen-table">{ticketLabel(t)}</span>
                   <span className="kitchen-time num">{sinceLabel(since, now)}</span>
-                  <button type="button" className="kitchen-print" aria-label={`Imprimir comanda de la mesa ${t.tableName}`} onClick={() => void run(() => printHtml(comandaHtml(t, lines)))}><Printer size={18} aria-hidden /></button>
+                  <button type="button" className="kitchen-print" aria-label={`Imprimir comanda: ${ticketLabel(t)}`} onClick={() => void run(() => printHtml(comandaHtml(t, lines)))}><Printer size={18} aria-hidden /></button>
                 </header>
                 <p className="kitchen-meta">#{t.number}{t.guests ? ` · ${t.guests} comensales` : ''}{t.openedBy ? ` · ${t.openedBy.name}` : ''}</p>
                 <ul className="kitchen-lines">
@@ -63,7 +63,7 @@ export function KitchenPage() {
                     </li>
                   ))}
                 </ul>
-                <button type="button" className="btn btn-block kitchen-done" onClick={() => void run(() => markTicketReady(t.id), `Mesa ${t.tableName}: listo`)}>
+                <button type="button" className="btn btn-block kitchen-done" onClick={() => void run(() => markTicketReady(t.id), `${ticketLabel(t)}: listo`)}>
                   <CheckCheck size={18} aria-hidden /> Todo listo
                 </button>
               </li>
