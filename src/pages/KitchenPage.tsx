@@ -1,19 +1,22 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Check, CheckCheck, CookingPot, Printer } from 'lucide-react';
 import { comandaHtml, printHtml } from '../services/printService';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { db } from '../database/db';
 import { EMPTY } from '../hooks/useData';
 import { minutesSince, sinceLabel, useNow } from '../hooks/useNow';
-import type { TableTicket } from '../models';
-import { markLineReady, markTicketReady, ticketLabel } from '../services/salonService';
+import type { Station, TableTicket } from '../models';
+import { KITCHEN_LATE_MIN, KITCHEN_WARN_MIN, STATION_LABEL, markLineReady, markLinesReady, markTicketReady, stationOf, ticketLabel } from '../services/salonService';
+import { useMenu } from '../components/salon/hooks';
 import { useFeedback } from '../store/feedback';
-import { EmptyState, PageHeader } from '../components/ui';
+import { EmptyState, PageHeader, Segmented } from '../components/ui';
 import { CloudRulesNote } from '../components/salon/CloudRulesNote';
 
-/** A partir de cuántos minutos una comanda se marca como demorada. */
-const WARN_MIN = 15;
-const LATE_MIN = 25;
+const WARN_MIN = KITCHEN_WARN_MIN;
+const LATE_MIN = KITCHEN_LATE_MIN;
+type Filter = Station | 'todo';
+const STATION_KEY = 'sm.kitchen.station';
+const readStation = (): Filter => { try { const v = localStorage.getItem(STATION_KEY); return v === 'cocina' || v === 'barra' ? v : 'todo'; } catch { return 'todo'; } };
 
 /**
  * Cocina: las comandas que mandan los mozos, de la más vieja a la más nueva.
@@ -23,15 +26,25 @@ export function KitchenPage() {
   const { run } = useFeedback();
   const now = useNow(20_000);
   const open = (useLiveQuery(() => db.tickets.where('status').anyOf('abierta', 'cuenta').toArray(), []) ?? EMPTY) as TableTicket[];
+  // Barra: si hay platos que se preparan en la barra, cada puesto puede ver sólo lo suyo (se recuerda en este equipo).
+  const hasBar = useMenu().some((m) => m.kitchen && m.station === 'barra') || open.some((t) => t.lines.some((l) => l.station === 'barra' && l.status === 'cocina'));
+  const [stationState, setStationState] = useState<Filter>(readStation);
+  const station: Filter = hasBar ? stationState : 'todo';
+  const setStation = (v: Filter) => { setStationState(v); try { localStorage.setItem(STATION_KEY, v); } catch { /* sin almacenamiento */ } };
   const cards = useMemo(() => open
-    .map((t) => ({ t, lines: t.lines.filter((l) => l.status === 'cocina'), since: t.lines.filter((l) => l.status === 'cocina').map((l) => l.sentAt ?? t.openedAt).sort()[0] }))
+    .map((t) => {
+      const lines = t.lines.filter((l) => l.status === 'cocina' && (station === 'todo' || stationOf(l) === station));
+      return { t, lines, since: lines.map((l) => l.sentAt ?? t.openedAt).sort()[0] };
+    })
     .filter((c) => c.lines.length)
-    .sort((a, b) => (a.since ?? '').localeCompare(b.since ?? '')), [open]);
+    .sort((a, b) => (a.since ?? '').localeCompare(b.since ?? '')), [open, station]);
+  const title = station === 'todo' ? (hasBar ? 'Cocina y barra' : 'Cocina') : STATION_LABEL[station];
   const dishes = cards.reduce((s, c) => s + c.lines.reduce((x, l) => x + l.qty, 0), 0);
 
   return (
     <div className="kitchen">
-      <PageHeader title="Cocina" subtitle={cards.length ? `${cards.length} ${cards.length === 1 ? 'comanda' : 'comandas'} · ${dishes} ${dishes === 1 ? 'plato' : 'platos'} por hacer` : 'Las comandas de los mozos aparecen acá.'} />
+      <PageHeader title={title} subtitle={cards.length ? `${cards.length} ${cards.length === 1 ? 'comanda' : 'comandas'} · ${dishes} ${dishes === 1 ? 'plato' : 'platos'} por hacer` : 'Las comandas de los mozos aparecen acá.'} />
+      {hasBar && <div style={{ marginBottom: 12 }}><Segmented<Filter> label="Puesto" value={station} onChange={setStation} options={[{ value: 'todo', label: 'Todo' }, { value: 'cocina', label: 'Cocina' }, { value: 'barra', label: 'Barra' }]} /></div>}
       <CloudRulesNote />
       {cards.length === 0 ? (
         <div className="card"><EmptyState icon={<CookingPot size={40} />} title="Sin comandas pendientes">Cuando un mozo manda un pedido a cocina, aparece acá al instante.</EmptyState></div>
@@ -56,6 +69,7 @@ export function KitchenPage() {
                         <b className="kitchen-qty num">{l.qty === 0 ? '✕' : l.qty}</b>
                         <span className="kitchen-name">
                           {l.name}{l.qty === 0 && <em> anulado</em>}
+                          {station === 'todo' && hasBar && <span className="kitchen-station">{STATION_LABEL[stationOf(l)]}</span>}
                           {l.notes && <span className="kitchen-note">{l.notes}</span>}
                         </span>
                         <Check size={20} aria-hidden className="kitchen-check" />
@@ -63,7 +77,7 @@ export function KitchenPage() {
                     </li>
                   ))}
                 </ul>
-                <button type="button" className="btn btn-block kitchen-done" onClick={() => void run(() => markTicketReady(t.id), `${ticketLabel(t)}: listo`)}>
+                <button type="button" className="btn btn-block kitchen-done" onClick={() => void run(() => (station === 'todo' ? markTicketReady(t.id) : markLinesReady(t.id, lines.map((l) => l.id))), `${ticketLabel(t)}: listo`)}>
                   <CheckCheck size={18} aria-hidden /> Todo listo
                 </button>
               </li>

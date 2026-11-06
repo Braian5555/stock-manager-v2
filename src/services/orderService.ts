@@ -1,3 +1,4 @@
+import { targetByUse, type Usage } from './consumptionService';
 import { db } from '../database/db';
 import type { Order, OrderItem, OrderStatus, Product, Settings } from '../models';
 import { nowIso, uuid } from '../utils/id';
@@ -184,11 +185,15 @@ export interface SuggestedGroup {
  * - toMin: completar sólo hasta el mínimo.
  * La cantidad se expresa en unidad de compra (redondeando hacia arriba si hay factor).
  */
-export function suggestOrders(products: Product[], settings: Pick<Settings, 'suggestionMode'>): SuggestedGroup[] {
+export function suggestOrders(products: Product[], settings: Pick<Settings, 'suggestionMode' | 'suggestionDays'>, usage?: Map<string, Usage>): SuggestedGroup[] {
   const groups = new Map<string, SuggestedGroup>();
+  const days = settings.suggestionDays && settings.suggestionDays > 0 ? settings.suggestionDays : 7;
   for (const p of products) {
-    if (!p.active || p.minStock <= 0 || p.stock > p.minStock) continue;
-    const target = settings.suggestionMode === 'toMax' && p.maxStock > p.minStock ? p.maxStock : p.minStock;
+    if (!p.active) continue;
+    // Según consumo: alcanza para menos de N días → pedir lo que falta para cubrirlos.
+    const byUse = settings.suggestionMode === 'byUse' ? targetByUse(p, usage?.get(p.id), days) : undefined;
+    if (byUse !== undefined ? p.stock >= byUse : p.minStock <= 0 || p.stock > p.minStock) continue;
+    const target = byUse ?? (settings.suggestionMode === 'toMax' && p.maxStock > p.minStock ? p.maxStock : p.minStock);
     const needed = round3(target - Math.max(0, p.stock));
     if (needed <= 0) continue;
     const factor = p.purchaseFactor > 0 ? p.purchaseFactor : 1;

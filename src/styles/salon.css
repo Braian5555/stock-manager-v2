@@ -322,3 +322,15 @@
 .sales-hour { display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: .78em; }
 .sales-hour .col { width: 100%; max-width: 24px; background: var(--primary); border-radius: 4px 4px 0 0; min-height: 2px; }
 .sales-table td.num, .sales-table th.num { text-align: right; }
+
+/* ── Demoras y puestos ── */
+.salon-late { background: color-mix(in srgb, var(--crit) 14%, var(--surface)); border-color: var(--crit); }
+.salon-ptable.is-late { box-shadow: 0 0 0 3px var(--crit); }
+.salon-ptable.is-late .salon-ptable-time { color: var(--crit); font-weight: 700; }
+.kitchen-station { display: inline-block; margin-left: 8px; padding: 0 6px; border: 1px solid currentColor; border-radius: 4px; font-size: .75em; font-weight: 600; opacity: .8; vertical-align: middle; }
+
+/* ── Stock inteligente ── */
+.pcard-usage { display: flex; align-items: center; gap: 4px; opacity: .8; }
+.pcard-usage.is-soon { color: var(--crit); opacity: 1; font-weight: 600; }
+.stock-tile.is-soon { border-color: var(--crit); }
+.sales-table tr.is-soon td { color: var(--crit); }

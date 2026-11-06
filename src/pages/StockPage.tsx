@@ -1,6 +1,6 @@
 import { useSession } from '../store/session';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { ArrowLeftRight, Boxes, MapPin, Pencil, Plus, SlidersHorizontal, Tags, Truck, X } from 'lucide-react';
+import { ArrowLeftRight, Boxes, Hourglass, MapPin, Pencil, Plus, SlidersHorizontal, Tags, TrendingDown, Truck, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { db } from '../database/db';
@@ -18,8 +18,12 @@ import { OutletStockPanel } from '../components/transfers/OutletStockPanel';
 import { MovementModal } from '../components/MovementModal';
 import { fmtNumber, matches, normalize } from '../utils/format';
 import { useIncremental } from '../hooks/useIncremental';
+import { useUsage } from '../hooks/useUsage';
+import { daysLabel } from '../services/consumptionService';
 
-type SortKey = 'name' | 'qty' | 'category' | 'location';
+type SortKey = 'name' | 'qty' | 'category' | 'location' | 'runout';
+/** Se marca "se termina pronto" si alcanza para esta cantidad de días o menos. */
+const SOON_DAYS = 3;
 
 const rowProduct = (r: { p: Product }) => r.p;
 
@@ -61,10 +65,12 @@ export function StockPage() {
   };
 
   const activeFilters = Object.values(f).filter(Boolean).length;
+  const usage = useUsage(30);
+  const soon = (id: string) => { const d = usage.get(id)?.daysLeft; return d !== undefined && d <= SOON_DAYS; };
 
   // Alertas: cuántos hay en cada estado (de todo el stock activo, sin filtros) y cuántos no avisan por no tener mínimo.
   const alerts = useMemo(() => {
-    const a = { sin_stock: 0, reponer: 0, noMin: 0, negativo: 0 };
+    const a = { sin_stock: 0, reponer: 0, noMin: 0, negativo: 0, pronto: 0 };
     for (const p of products) {
       if (!p.active) continue;
       if (p.stock < 0) a.negativo++;
@@ -72,9 +78,10 @@ export function StockPage() {
       if (st === 'sin_stock') a.sin_stock++;
       else if (st === 'bajo' || st === 'critico') a.reponer++;
       if (p.minStock <= 0) a.noMin++;
+      if (p.stock > 0 && soon(p.id)) a.pronto++;
     }
     return a;
-  }, [products, settings]);
+  }, [products, settings, usage]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const rows = useMemo(() => {
     const list = products
@@ -85,17 +92,19 @@ export function StockPage() {
         (!f.familia || p.categoryId === f.familia) &&
         (!f.ubicacion || p.locationId === f.ubicacion) &&
         (!f.proveedor || p.supplierId === f.proveedor || p.alternativeSupplierIds.includes(f.proveedor)) &&
-        (!f.estado || (f.estado === 'negativo' ? p.stock < 0 : f.estado === 'reponer' ? s !== 'normal' : f.estado === 'bajo' ? s === 'bajo' || s === 'critico' : s === f.estado)),
+        (!f.estado || (f.estado === 'negativo' ? p.stock < 0 : f.estado === 'pronto' ? p.stock > 0 && soon(p.id) : f.estado === 'reponer' ? s !== 'normal' : f.estado === 'bajo' ? s === 'bajo' || s === 'critico' : s === f.estado)),
       );
     const by = (a: string, b: string) => normalize(a).localeCompare(normalize(b), 'es');
+    const left = (id: string) => usage.get(id)?.daysLeft ?? Infinity;
     list.sort((a, b) =>
-      sort === 'qty' ? a.p.stock - b.p.stock
+      sort === 'runout' ? left(a.p.id) - left(b.p.id) || by(a.p.name, b.p.name)
+        : sort === 'qty' ? a.p.stock - b.p.stock
         : sort === 'category' ? by(lk.category(a.p.categoryId), lk.category(b.p.categoryId)) || by(a.p.name, b.p.name)
         : sort === 'location' ? by(lk.location(a.p.locationId), lk.location(b.p.locationId)) || by(a.p.name, b.p.name)
         : by(a.p.name, b.p.name),
     );
     return list;
-  }, [products, settings, q, f.familia, f.ubicacion, f.proveedor, f.estado, sort, lk]);
+  }, [products, settings, q, f.familia, f.ubicacion, f.proveedor, f.estado, sort, lk, usage]); // eslint-disable-line react-hooks/exhaustive-deps
   // Columna de familias (o ubicaciones/unidades): filtra sin cambiar el orden elegido.
   const g = useProductGroups(rows, rowProduct, lk);
   const grouped = useMemo(() => (g.group ? rows.filter((r) => g.groupOf(r) === g.group) : rows), [rows, g]);
@@ -106,7 +115,7 @@ export function StockPage() {
       <PageHeader
         title={menuLabel(settings, 'stock')}
         subtitle={punto ? `Stock en ${outlets.find((o) => o.id === punto)?.name ?? 'el punto'} según los remitos recibidos` : `${rows.length} productos`}
-        actions={<><ScanButton />{can('catalog.manage') && <Link to="/productos?nuevo=1" className="btn btn-primary"><Plus size={18} aria-hidden /> Producto</Link>}</>}
+        actions={<><ScanButton /><Link to="/stock/consumo" className="btn"><TrendingDown size={18} aria-hidden /> Consumo y mermas</Link>{can('catalog.manage') && <Link to="/productos?nuevo=1" className="btn btn-primary"><Plus size={18} aria-hidden /> Producto</Link>}</>}
       />
       {outlets.length > 0 && (can('transfers') || can('stock.view')) && (
         <div style={{ marginBottom: 12, overflowX: 'auto' }}>
@@ -126,7 +135,7 @@ export function StockPage() {
           {f.familia && <button type="button" className="filter-chip" onClick={() => setF('familia', '')} aria-label={`Quitar filtro familia ${lk.category(f.familia)}`}>Familia: <b>{lk.category(f.familia) || '—'}</b> <X size={14} aria-hidden /></button>}
           {f.ubicacion && <button type="button" className="filter-chip" onClick={() => setF('ubicacion', '')} aria-label={`Quitar filtro ubicación ${lk.location(f.ubicacion)}`}>Ubicación: <b>{lk.location(f.ubicacion) || '—'}</b> <X size={14} aria-hidden /></button>}
           {f.proveedor && <button type="button" className="filter-chip" onClick={() => setF('proveedor', '')} aria-label={`Quitar filtro proveedor ${lk.supplier(f.proveedor)}`}>Proveedor: <b>{lk.supplier(f.proveedor) || '—'}</b> <X size={14} aria-hidden /></button>}
-          {f.estado && <button type="button" className="filter-chip" onClick={() => setF('estado', '')} aria-label="Quitar filtro estado">Estado: <b>{f.estado === 'negativo' ? 'En negativo' : f.estado === 'reponer' ? 'Para reponer (bajo, crítico y sin stock)' : f.estado === 'bajo' ? 'Bajo y crítico' : STATUS_LABEL[f.estado as StockStatus]}</b> <X size={14} aria-hidden /></button>}
+          {f.estado && <button type="button" className="filter-chip" onClick={() => setF('estado', '')} aria-label="Quitar filtro estado">Estado: <b>{f.estado === 'negativo' ? 'En negativo' : f.estado === 'pronto' ? `Se terminan en ${SOON_DAYS} días o menos` : f.estado === 'reponer' ? 'Para reponer (bajo, crítico y sin stock)' : f.estado === 'bajo' ? 'Bajo y crítico' : STATUS_LABEL[f.estado as StockStatus]}</b> <X size={14} aria-hidden /></button>}
         </div>
       )}
       {/* Recuadros de alerta: tocá uno para ver sólo esos (y otra vez para quitar el filtro). */}
@@ -136,6 +145,7 @@ export function StockPage() {
             ['negativo', alerts.negativo, 'en negativo', 'is-neg'],
             ['bajo', alerts.reponer, 'para reponer', ''],
             ['sin_stock', alerts.sin_stock, 'sin stock', ''],
+            ...(alerts.pronto ? [['pronto', alerts.pronto, `se terminan en ${SOON_DAYS} días o menos`, 'is-soon'] as const] : []),
           ] as const).map(([key, n, label, cls]) => (
             <button key={key} type="button" className={`stock-tile ${n > 0 ? cls : ''} ${f.estado === key ? 'on' : ''}`} aria-pressed={f.estado === key}
               onClick={() => setF('estado', f.estado === key ? '' : key)}>
@@ -169,6 +179,7 @@ export function StockPage() {
         <Select aria-label="Filtrar por estado" value={f.estado} onChange={(e) => setF('estado', e.target.value)}>
           <option value="">Todos los estados</option>
           <option value="negativo">En negativo</option>
+          <option value="pronto">Se terminan en {SOON_DAYS} días o menos</option>
           {(['normal', 'bajo', 'critico', 'sin_stock'] as StockStatus[]).map((s) => <option key={s} value={s}>{s === 'bajo' ? 'Bajo y crítico' : STATUS_LABEL[s]}</option>)}
         </Select>
         <Select aria-label="Ordenar" value={sort} onChange={(e) => setSort(e.target.value as SortKey)}>
@@ -176,6 +187,7 @@ export function StockPage() {
           <option value="qty">Ordenar: cantidad</option>
           <option value="category">Ordenar: familia</option>
           <option value="location">Ordenar: ubicación</option>
+          <option value="runout">Ordenar: se termina antes</option>
         </Select>
       </div>
 
@@ -213,6 +225,11 @@ export function StockPage() {
                   <div className="small muted num">mín {fmtNumber(p.minStock)} · máx {fmtNumber(p.maxStock)}</div>
                 </div>
                 {pct !== undefined && <div className="bar" aria-hidden><i style={{ width: `${pct}%` }} /></div>}
+                {usage.get(p.id)?.perDay ? (
+                  <div className={`small pcard-usage${soon(p.id) && p.stock > 0 ? ' is-soon' : ''}`}>
+                    <Hourglass size={13} aria-hidden /> Usás {fmtNumber(usage.get(p.id)!.perDay)} {unit}/día · alcanza {daysLabel(usage.get(p.id)!.daysLeft)}
+                  </div>
+                ) : null}
                 {ext !== undefined && (
                   <div className="small muted">Stock Maxirest: <strong className="num">{fmtNumber(ext)}</strong> · diferencia <strong className="num">{fmtNumber(p.stock - ext)}</strong></div>
                 )}

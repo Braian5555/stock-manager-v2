@@ -1,6 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
-  ArrowRightLeft, Ban, BellRing, Check, ChefHat, CircleDollarSign, Gift, Minus, Pencil, Percent, Plus, Printer, Receipt, Search, Send, UserRound, Users,
+  ArrowRightLeft, Ban, BellRing, Check, ChefHat, CircleDollarSign, Gift, Minus, Pencil, Percent, Plus, Printer, Receipt, Search, Send, Star, UserRound, Users,
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { db } from '../../database/db';
@@ -17,7 +17,7 @@ import { useSettings } from '../../store/settings';
 import { fmtMoney, fmtTime, matches } from '../../utils/format';
 import { Field, Input, NumberInput, Segmented } from '../ui';
 import { Modal } from '../ui/Modal';
-import { useMenu } from './hooks';
+import { useMenu, useTopItems } from './hooks';
 
 const LINE_LABEL: Record<TicketLine['status'], string> = { nuevo: 'Sin mandar', cocina: 'En cocina', listo: 'Listo para llevar', entregado: 'Entregado' };
 const LINE_ORDER: TicketLine['status'][] = ['nuevo', 'listo', 'cocina', 'entregado'];
@@ -300,12 +300,21 @@ function CustomerModal({ ticket, onClose }: { ticket: TableTicket; onClose: () =
   );
 }
 
+const TOP = '\u0000top';
+
 export function MenuPicker({ onPick }: { onPick: (m: MenuItem) => void }) {
   const menu = useMenu().filter((m) => m.active);
   const sections = useMemo(() => [...new Set(menu.map((m) => m.section))].sort((a, b) => a.localeCompare(b, 'es')), [menu]);
-  const [sec, setSec] = useState('');
+  const top = useTopItems();
+  const topItems = useMemo(() => top.map((id) => menu.find((m) => m.id === id)).filter((m): m is MenuItem => !!m), [top, menu]);
+  // "Más pedidos" arranca elegido cuando ya hay historial suficiente (es lo que más se toca).
+  const hasTop = topItems.length >= 4 && menu.length > topItems.length;
+  const [secState, setSec] = useState<string | null>(null);
+  const sec = secState ?? (hasTop ? TOP : '');
   const [q, setQ] = useState('');
-  const list = q.trim() ? menu.filter((m) => matches(m.name, q)) : sec && sections.includes(sec) ? menu.filter((m) => m.section === sec) : menu;
+  const list = q.trim() ? menu.filter((m) => matches(m.name, q) || matches(m.section, q))
+    : sec === TOP && hasTop ? topItems
+      : sec && sections.includes(sec) ? menu.filter((m) => m.section === sec) : menu;
 
   if (!menu.length) return <p className="muted">La carta está vacía. Cargala en la pestaña <b>Carta</b>.</p>;
   return (
@@ -314,8 +323,9 @@ export function MenuPicker({ onPick }: { onPick: (m: MenuItem) => void }) {
         <Search size={20} aria-hidden />
         <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar en la carta" aria-label="Buscar en la carta" />
       </label>
-      {!q.trim() && sections.length > 1 && (
+      {!q.trim() && (sections.length > 1 || hasTop) && (
         <div className="group-chips" role="group" aria-label="Sección de la carta">
+          {hasTop && <button type="button" className="group-chip" aria-pressed={sec === TOP} onClick={() => setSec(TOP)}><Star size={14} aria-hidden /> Más pedidos</button>}
           <button type="button" className="group-chip" aria-pressed={!sec} onClick={() => setSec('')}>Todo</button>
           {sections.map((s) => <button key={s} type="button" className="group-chip" aria-pressed={sec === s} onClick={() => setSec(s)}>{s}</button>)}
         </div>

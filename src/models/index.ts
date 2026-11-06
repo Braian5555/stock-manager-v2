@@ -208,7 +208,7 @@ export interface MenuItemSetting {
   visible: boolean;
 }
 
-export type SuggestionMode = 'toMax' | 'toMin';
+export type SuggestionMode = 'toMax' | 'toMin' | 'byUse';
 
 export interface Settings extends BaseEntity {
   businessName: string;
@@ -221,6 +221,8 @@ export interface Settings extends BaseEntity {
   /** Por debajo de min * criticalRatio el estado es "Crítico". */
   criticalRatio: number;
   suggestionMode: SuggestionMode;
+  /** Pedido según consumo: para cuántos días pedir (si falta: 7). */
+  suggestionDays?: number;
   /** Minutos sin uso tras los que se pide el PIN otra vez (0 = nunca). */
   autoLockMinutes: number;
   /** Módulos fijos en la barra superior de la computadora (el resto va en "Más"). */
@@ -524,8 +526,13 @@ export interface MenuItem extends BaseEntity {
    * porción (`yield` porciones por tanda; en la carta casi siempre 1).
    */
   recipe?: Recipe;
+  /** Dónde se prepara (si va a la pantalla): cocina (por defecto) o barra. */
+  station?: Station;
   active: boolean;
 }
+
+/** Puesto que prepara el plato: cada uno ve sus comandas en su pantalla. */
+export type Station = 'cocina' | 'barra';
 
 export type TicketStatus = 'abierta' | 'cuenta' | 'cerrada' | 'anulada';
 /** nuevo → (enviar) cocina → listo → entregado. Lo que no va a cocina pasa directo a entregado. */
@@ -549,6 +556,8 @@ export interface TicketLine {
   comp?: boolean;
   /** Ítem libre (envío, varios): no es de la carta. */
   custom?: boolean;
+  /** Dónde se prepara (si falta: cocina). */
+  station?: Station;
 }
 
 /** De dónde viene el pedido. */

@@ -9,6 +9,8 @@ import { useSettings } from '../store/settings';
 import { Modal } from './ui/Modal';
 import { EmptyState, NumberInput, Segmented } from './ui';
 import { fmtNumber } from '../utils/format';
+import { useUsage } from '../hooks/useUsage';
+import { daysLabel } from '../services/consumptionService';
 
 export function SuggestedOrdersModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const settings = useSettings();
@@ -16,7 +18,10 @@ export function SuggestedOrdersModal({ open, onClose }: { open: boolean; onClose
   const lk = useLookups();
   const navigate = useNavigate();
   const { run, notify } = useFeedback();
-  const base = useMemo(() => suggestOrders(products, settings), [products, settings]);
+  const usage = useUsage(30);
+  const base = useMemo(() => suggestOrders(products, settings, usage), [products, settings, usage]);
+  const byUse = settings.suggestionMode === 'byUse';
+  const days = settings.suggestionDays && settings.suggestionDays > 0 ? settings.suggestionDays : 7;
   const [qty, setQty] = useState<Record<string, number | undefined>>({});
   const [excluded, setExcluded] = useState<Set<string>>(new Set());
 
@@ -52,10 +57,19 @@ export function SuggestedOrdersModal({ open, onClose }: { open: boolean; onClose
       footer={<><button type="button" className="btn" onClick={onClose}>Cancelar</button><button type="button" className="btn btn-primary" onClick={create} disabled={!base.length}>Crear pedidos</button></>}>
       <div className="stack">
         <div className="row wrap between">
-          <p className="small muted">Productos en o por debajo del mínimo, agrupados por proveedor principal.</p>
+          <p className="small muted">{byUse
+            ? `Lo que no alcanza para ${days} días según el consumo real del último mes (si un producto no tiene consumo, se usa su mínimo).`
+            : 'Productos en o por debajo del mínimo, agrupados por proveedor principal.'}</p>
           <Segmented<SuggestionMode> label="Cantidad sugerida" value={settings.suggestionMode} onChange={(v) => void updateSettings({ suggestionMode: v })}
-            options={[{ value: 'toMax', label: 'Hasta el máximo' }, { value: 'toMin', label: 'Hasta el mínimo' }]} />
+            options={[{ value: 'byUse', label: 'Según consumo' }, { value: 'toMax', label: 'Hasta el máximo' }, { value: 'toMin', label: 'Hasta el mínimo' }]} />
         </div>
+        {byUse && (
+          <div className="row" style={{ gap: 8 }}>
+            <span className="small">Pedir para</span>
+            <span style={{ width: 90 }}><NumberInput aria-label="Días a cubrir" value={days} min={1} max={90} onChange={(v) => v && v > 0 && void updateSettings({ suggestionDays: Math.round(v) })} /></span>
+            <span className="small">días</span>
+          </div>
+        )}
         {base.length === 0 ? (
           <EmptyState title="No hace falta pedir nada">Ningún producto está por debajo de su stock mínimo.</EmptyState>
         ) : (
@@ -71,7 +85,7 @@ export function SuggestedOrdersModal({ open, onClose }: { open: boolean; onClose
                       <input type="checkbox" checked={!excluded.has(p.id)} onChange={(e) => setExcluded((s) => { const n = new Set(s); if (e.target.checked) n.delete(p.id); else n.add(p.id); return n; })} />
                       <span>
                         <span className="list-title">{p.name}</span>
-                        <span className="list-sub" style={{ display: 'block' }}>Stock {fmtNumber(p.stock)} · mín {fmtNumber(p.minStock)} · máx {fmtNumber(p.maxStock)} · faltan {fmtNumber(l.needed)} {lk.unit(p.unitId)}{p.purchaseFactor !== 1 && ` (1 ${pu} = ${p.purchaseFactor})`}</span>
+                        <span className="list-sub" style={{ display: 'block' }}>Stock {fmtNumber(p.stock)} · {usage.get(p.id)?.perDay ? `usás ${fmtNumber(usage.get(p.id)!.perDay)}/día · alcanza ${daysLabel(usage.get(p.id)!.daysLeft)}` : `mín ${fmtNumber(p.minStock)} · máx ${fmtNumber(p.maxStock)}`} · faltan {fmtNumber(l.needed)} {lk.unit(p.unitId)}{p.purchaseFactor !== 1 && ` (1 ${pu} = ${p.purchaseFactor})`}</span>
                       </span>
                     </label>
                     <div className="row" style={{ width: 160 }}>

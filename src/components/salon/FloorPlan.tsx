@@ -1,8 +1,8 @@
 import { Circle, Move, RectangleHorizontal, Square } from 'lucide-react';
 import { useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
-import { sinceLabel } from '../../hooks/useNow';
+import { minutesSince, sinceLabel } from '../../hooks/useNow';
 import type { DiningTable, TableShape, TableTicket } from '../../models';
-import { placeTable } from '../../services/salonService';
+import { KITCHEN_WARN_MIN, placeTable, waitingSince } from '../../services/salonService';
 import { useFeedback } from '../../store/feedback';
 import { fmtMoney } from '../../utils/format';
 
@@ -85,11 +85,13 @@ export function FloorPlan({ tables, byTable, now, editing, onTap }: {
             const k = byTable.get(t.id);
             const state = tableState(k);
             const p = pos(t, i);
+            const wait = k ? minutesSince(waitingSince(k), now) : 0;
+            const late = wait >= KITCHEN_WARN_MIN;
             return (
               <button key={t.id} type="button"
-                className={`salon-ptable is-${state} shape-${t.shape ?? 'cuadrada'} size-${t.size ?? 2}${selected === t.id && editing ? ' is-selected' : ''}`}
+                className={`salon-ptable is-${state} shape-${t.shape ?? 'cuadrada'} size-${t.size ?? 2}${selected === t.id && editing ? ' is-selected' : ''}${late && !editing ? ' is-late' : ''}`}
                 style={{ left: `${p.x}%`, top: `${p.y}%` }}
-                aria-label={`Mesa ${t.name}: ${STATE_LABEL[state]}`}
+                aria-label={`Mesa ${t.name}: ${STATE_LABEL[state]}${late ? `, cocina demora ${Math.floor(wait)} min` : ''}`}
                 onPointerDown={(e) => down(e, t)}
                 onKeyDown={(e) => key(e, t, i)}
                 onClick={() => (editing ? setSelected(t.id) : onTap(t))}>

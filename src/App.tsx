@@ -39,6 +39,7 @@ const ReportsPage = lazyPage(() => import('./pages/ReportsPage'), 'ReportsPage')
 const HelpPage = lazyPage(() => import('./pages/HelpPages'), 'HelpPage');
 const AboutPage = lazyPage(() => import('./pages/HelpPages'), 'AboutPage');
 const MovementsPage = lazyPage(() => import('./pages/MovementsPage'), 'MovementsPage');
+const ConsumptionPage = lazyPage(() => import('./pages/ConsumptionPage'), 'ConsumptionPage');
 const AssistantPage = lazyPage(() => import('./pages/AssistantPage'), 'AssistantPage');
 
 /**
@@ -85,6 +86,7 @@ export function App() {
               <Route element={<AppLayout />}>
                 <Route index element={<Guard module="dashboard"><DashboardPage /></Guard>} />
                 <Route path="stock" element={<Guard module="stock"><StockPage /></Guard>} />
+                <Route path="stock/consumo" element={<Guard module="stock"><ConsumptionPage /></Guard>} />
                 <Route path="productos" element={<Guard module="products"><ProductsPage /></Guard>} />
                 <Route path="familias" element={<Guard module="categories"><CatalogPage key="category" kind="category" /></Guard>} />
                 <Route path="unidades" element={<Guard module="units"><CatalogPage key="unit" kind="unit" /></Guard>} />

@@ -7,7 +7,7 @@
  * recetas de los platos (saleStockService), si está activado.
  */
 import { db } from '../database/db';
-import type { DiningTable, IvaRate, MenuExtra, MenuItem, Recipe, TableShape, TableTicket, TicketChannel, TicketDiscount, TicketLine } from '../models';
+import type { DiningTable, IvaRate, MenuExtra, MenuItem, Recipe, Station, TableShape, TableTicket, TicketChannel, TicketDiscount, TicketLine } from '../models';
 import { nowIso, uuid } from '../utils/id';
 import { saveEntity, type Draft } from './entityService';
 import { consumeTicketStock } from './saleStockService';
@@ -91,6 +91,19 @@ export async function retireTable(id: string): Promise<void> {
   await saveEntity(db.diningTables, { ...(await db.diningTables.get(id))!, active: false });
 }
 
+// ───────────── Cocina y barra ─────────────
+
+/** A partir de cuántos minutos una comanda está demorada (aviso) y muy demorada. */
+export const KITCHEN_WARN_MIN = 15;
+export const KITCHEN_LATE_MIN = 25;
+export const STATION_LABEL: Record<Station, string> = { cocina: 'Cocina', barra: 'Barra' };
+export const stationOf = (l: Pick<TicketLine, 'station'>): Station => l.station ?? 'cocina';
+
+/** Desde cuándo espera el plato más viejo que todavía está en preparación (o nada). */
+export function waitingSince(t: Pick<TableTicket, 'lines' | 'openedAt'>, station?: Station): string | undefined {
+  return t.lines.filter((l) => l.status === 'cocina' && l.qty > 0 && (!station || stationOf(l) === station)).map((l) => l.sentAt ?? t.openedAt).sort()[0];
+}
+
 // ───────────── Carta ─────────────
 
 function cleanRecipe(r: Recipe | undefined): Recipe | undefined {
@@ -99,7 +112,7 @@ function cleanRecipe(r: Recipe | undefined): Recipe | undefined {
   return items.length ? { yield: r!.yield > 0 ? r!.yield : 1, items } : undefined;
 }
 
-export async function saveMenuItem(d: { id?: string; name: string; section: string; price: number; kitchen: boolean; active?: boolean; iva?: IvaRate; extras?: MenuExtra[]; recipe?: Recipe }): Promise<MenuItem> {
+export async function saveMenuItem(d: { id?: string; name: string; section: string; price: number; kitchen: boolean; active?: boolean; iva?: IvaRate; extras?: MenuExtra[]; recipe?: Recipe; station?: Station }): Promise<MenuItem> {
   const name = d.name.trim();
   if (!name) throw new Error('Poné el nombre del plato o la bebida.');
   if (!Number.isFinite(d.price) || d.price < 0) throw new Error('El precio no es válido.');
@@ -116,6 +129,7 @@ export async function saveMenuItem(d: { id?: string; name: string; section: stri
     price: round2(d.price),
     maxirestCode: undefined,
     kitchen: d.kitchen,
+    station: d.kitchen && d.station === 'barra' ? 'barra' : undefined,
     iva: d.iva,
     extras: extras.length ? extras : undefined,
     recipe: cleanRecipe(d.recipe),
@@ -227,7 +241,7 @@ export async function addLine(ticketId: string, item: MenuItem, qty = 1, notes?:
     if (same) same.qty += qty;
     else {
       const by = actor();
-      t.lines.push({ id: uuid(), menuItemId: item.id, name, price, qty, kitchen: item.kitchen, status: 'nuevo', ...(chosen.length ? { extras: chosen } : {}), ...(note ? { notes: note } : {}), ...(by ? { by } : {}) });
+      t.lines.push({ id: uuid(), menuItemId: item.id, name, price, qty, kitchen: item.kitchen, status: 'nuevo', ...(item.kitchen && item.station === 'barra' ? { station: 'barra' as const } : {}), ...(chosen.length ? { extras: chosen } : {}), ...(note ? { notes: note } : {}), ...(by ? { by } : {}) });
     }
     if (t.status === 'cuenta') t.status = 'abierta';
   });
@@ -317,6 +331,15 @@ export async function markLineReady(ticketId: string, lineId: string): Promise<T
   return mutate(ticketId, (t) => {
     const l = t.lines.find((x) => x.id === lineId);
     if (l && l.status === 'cocina') { l.status = 'listo'; l.readyAt = nowIso(); }
+  });
+}
+
+/** Un puesto (cocina o barra) marca listos sus platos de ese pedido. */
+export async function markLinesReady(ticketId: string, lineIds: string[]): Promise<TableTicket> {
+  const ids = new Set(lineIds);
+  return mutate(ticketId, (t) => {
+    const at = nowIso();
+    for (const l of t.lines) if (ids.has(l.id) && l.status === 'cocina') { l.status = 'listo'; l.readyAt = at; }
   });
 }
 

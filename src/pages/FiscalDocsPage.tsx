@@ -1,6 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks';
-import { FileText, Printer, Receipt, RotateCcw, Search, ShieldCheck, TriangleAlert } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { FileSpreadsheet, FileText, Printer, Receipt, RotateCcw, Search, ShieldCheck, TriangleAlert } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { ivaBook } from '../services/closingService';
 import { Link } from 'react-router';
 import { db } from '../database/db';
 import { EMPTY } from '../hooks/useData';
@@ -19,7 +20,7 @@ import { ReceptorForm } from '../components/salon/ChargeModal';
 import { CloudRulesNote } from '../components/salon/CloudRulesNote';
 import { fmtDateTime, fmtMoney, matches } from '../utils/format';
 
-type Tab = 'emitidos' | 'resolver' | 'sinfactura' | 'registro';
+type Tab = 'emitidos' | 'resolver' | 'sinfactura' | 'libro' | 'registro';
 type Period = '1' | '7' | '30' | 'todo';
 const STATUS_LABEL: Record<FiscalStatus, string> = { borrador: 'Sin enviar', enviando: 'Enviando', autorizada: 'Autorizada', rechazada: 'Rechazada', incierta: 'Sin confirmar', error: 'Con error' };
 const STATUS_TONE: Record<FiscalStatus, string> = { borrador: '', enviando: 'info', autorizada: 'ok', rechazada: 'danger', incierta: 'warn', error: 'danger' };
@@ -49,6 +50,7 @@ export function FiscalDocsPage() {
     { value: 'emitidos', label: 'Emitidos' },
     { value: 'resolver', label: `Para resolver${pending.length ? ` (${pending.length})` : ''}` },
     { value: 'sinfactura', label: `Sin facturar${unbilled.length ? ` (${unbilled.length})` : ''}` },
+    ...(can('admin') || can('billing') ? [{ value: 'libro' as Tab, label: 'Libro IVA' }] : []),
     ...(can('admin') ? [{ value: 'registro' as Tab, label: 'Registro ARCA' }] : []),
   ];
 
@@ -66,6 +68,7 @@ export function FiscalDocsPage() {
       {tab === 'emitidos' && <Issued docs={docs} onOpen={setOpen} />}
       {tab === 'resolver' && <PendingList docs={pending} onOpen={setOpen} />}
       {tab === 'sinfactura' && <Unbilled tickets={unbilled} />}
+      {tab === 'libro' && <IvaBookTab docs={docs} test={f.ambiente === 'homologacion'} />}
       {tab === 'registro' && <ArcaLog />}
       {open && <DocDetail id={open} onClose={() => setOpen(null)} onOpen={setOpen} />}
     </div>
@@ -333,4 +336,64 @@ function ArcaLog() {
   const entries = (useLiveQuery(() => db.fiscalLog.orderBy('at').reverse().limit(200).toArray(), []) ?? EMPTY) as FiscalLogEntry[];
   if (!entries.length) return <div className="card"><EmptyState icon={<FileText size={40} />} title="Sin registros">Cada pedido a ARCA (con su respuesta) queda anotado acá, sin el token ni la firma.</EmptyState></div>;
   return <section className="card" aria-label="Registro de ARCA"><LogList entries={entries} /></section>;
+}
+
+// ───────────────────────── Libro IVA ventas ─────────────────────────
+
+const thisMonth = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; };
+const lastMonth = () => { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; };
+
+/** Libro IVA ventas del mes (para el contador): resumen por tipo de comprobante y Excel. */
+function IvaBookTab({ docs, test }: { docs: FiscalDoc[]; test: boolean }) {
+  const { run, notify } = useFeedback();
+  const settings = useSettings();
+  const [month, setMonth] = useState(thisMonth);
+  const [withTest, setWithTest] = useState(test);
+  const book = useMemo(() => ivaBook(docs, month, withTest), [docs, month, withTest]);
+  const download = () => void run(async () => {
+    const [{ toXlsx }, { downloadBlob }] = await Promise.all([import('../exports/writers'), import('../exports/download')]);
+    const f = fiscalOf(settings);
+    const blob = await toXlsx(`Libro IVA ventas ${month}${f.razonSocial ? ` · ${f.razonSocial}` : ''}${f.cuit ? ` · CUIT ${f.cuit}` : ''}`, [
+      { title: 'Libro IVA ventas', columns: book.columns, rows: book.rows },
+      { title: 'Resumen', columns: ['Comprobante', 'Cantidad', 'Desde', 'Hasta', 'Neto', 'IVA', 'Total'], rows: book.byType.map((t) => [t.name, t.count, t.first ?? '', t.last ?? '', t.neto, t.iva, t.total]) },
+      { title: 'Por alícuota', columns: ['Alícuota', 'Neto gravado', 'IVA'], rows: [...book.totals.byRate].map(([r, v]) => [`${String(r).replace('.', ',')}%`, v.base, v.iva]) },
+    ]);
+    downloadBlob(blob, `libro-iva-ventas_${month}.xlsx`);
+    notify('Libro IVA ventas descargado');
+  });
+  return (<>
+    <div className="sales-period">
+      <Field label="Mes"><Input type="month" value={month} max={thisMonth()} onChange={(e) => e.target.value && setMonth(e.target.value)} /></Field>
+      <button type="button" className="btn btn-sm" onClick={() => setMonth(thisMonth())}>Este mes</button>
+      <button type="button" className="btn btn-sm" onClick={() => setMonth(lastMonth())}>Mes anterior</button>
+      <button type="button" className="btn btn-primary" onClick={download} disabled={!book.count}><FileSpreadsheet size={18} aria-hidden /> Descargar Excel</button>
+    </div>
+    {test && <label className="check small"><input type="checkbox" checked={withTest} onChange={(e) => setWithTest(e.target.checked)} /> Incluir comprobantes de prueba (homologación)</label>}
+    <div className="salon-stats" aria-label="Totales del libro">
+      <div className="salon-stat"><span className="num">{fmtMoney(book.totals.total)}</span><span>total facturado</span></div>
+      <div className="salon-stat"><span className="num">{fmtMoney(book.totals.neto)}</span><span>neto gravado</span></div>
+      <div className="salon-stat"><span className="num">{fmtMoney(book.totals.iva)}</span><span>IVA débito fiscal</span></div>
+      <div className="salon-stat"><span className="num">{book.count}</span><span>comprobantes</span></div>
+    </div>
+    {book.count === 0 ? (
+      <div className="card"><EmptyState icon={<Receipt size={40} />} title="Sin comprobantes autorizados en este mes">El libro toma las facturas y notas autorizadas por ARCA, según la fecha del comprobante.</EmptyState></div>
+    ) : (
+      <section className="card" aria-labelledby="iva-resumen">
+        <div className="card-head"><h2 id="iva-resumen">Resumen por comprobante</h2><span className="small muted">notas de crédito en negativo</span></div>
+        <div className="table-wrap">
+          <table className="table sales-table">
+            <thead><tr><th>Comprobante</th><th className="num">Cant.</th><th>Números</th><th className="num">Neto</th><th className="num">IVA</th><th className="num">Total</th></tr></thead>
+            <tbody>
+              {book.byType.map((t) => (
+                <tr key={t.cbteTipo}><td>{t.name}</td><td className="num">{t.count}</td><td className="num small">{t.first} a {t.last}</td><td className="num">{fmtMoney(t.neto)}</td><td className="num">{fmtMoney(t.iva)}</td><td className="num">{fmtMoney(t.total)}</td></tr>
+              ))}
+              {[...book.totals.byRate].map(([r, v]) => (
+                <tr key={r} className="muted"><td colSpan={3}>IVA {String(r).replace('.', ',')}%</td><td className="num">{fmtMoney(v.base)}</td><td className="num">{fmtMoney(v.iva)}</td><td /></tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    )}
+  </>);
 }

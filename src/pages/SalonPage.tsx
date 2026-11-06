@@ -1,5 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks';
-import { BellRing, Map as MapIcon, Pencil, Plus, Receipt, Search, Trash2, UtensilsCrossed } from 'lucide-react';
+import { BellRing, Clock, Map as MapIcon, Pencil, Plus, Receipt, Search, Trash2, UtensilsCrossed } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { db } from '../database/db';
@@ -7,11 +7,11 @@ import { EMPTY, useLookups, useProducts } from '../hooks/useData';
 import { useCosts } from '../hooks/useCosts';
 import { dishCost, type DishCost } from '../services/menuCostService';
 import { RecipeEditor } from '../components/RecipeEditor';
-import { sinceLabel, useNow } from '../hooks/useNow';
+import { minutesSince, sinceLabel, useNow } from '../hooks/useNow';
 import { useToday, startOfDayIso } from '../hooks/useToday';
-import type { DiningTable, FiscalDoc, IvaRate, MenuExtra, MenuItem, Recipe, TableTicket } from '../models';
+import type { DiningTable, FiscalDoc, IvaRate, MenuExtra, MenuItem, Recipe, Station, TableTicket } from '../models';
 import { CBTE_NAME, IVA_RATES, PAYMENT_LABEL, docNumber, fiscalOf } from '../services/fiscalService';
-import { addNumberedTables, channelOf, discountAmount, openTicket, retireTable, saveMenuItem, saveTable, ticketLabel } from '../services/salonService';
+import { KITCHEN_WARN_MIN, addNumberedTables, channelOf, discountAmount, openTicket, retireTable, saveMenuItem, saveTable, ticketLabel, waitingSince } from '../services/salonService';
 import { useFeedback } from '../store/feedback';
 import { useSession } from '../store/session';
 import { Badge, EmptyState, Field, Input, NumberInput, PageHeader, Segmented, Select } from '../components/ui';
@@ -23,6 +23,7 @@ import { FloorPlan, STATE_LABEL, tableState } from '../components/salon/FloorPla
 import { CounterTab } from '../components/salon/CounterTab';
 import { CashTab } from '../components/salon/CashTab';
 import { SalesReports } from '../components/salon/SalesReports';
+import { DayCloseModal } from '../components/salon/DayCloseModal';
 import { useMenu, useOpenCash, useOpenTickets, useTables } from '../components/salon/hooks';
 import { SALON_VIEWS, type SalonView } from '../layouts/modules';
 import { useSettings } from '../store/settings';
@@ -98,6 +99,7 @@ function TablesBoard({ tables, byTable, onOpen, onGoMenu }: { tables: DiningTabl
   const curZone = zone && zones.includes(zone) ? zone : view === 'plano' ? zones[0] ?? '' : '';
   const shown = curZone ? tables.filter((t) => t.zone === curZone) : tables;
   const ready = [...byTable.values()].filter((t) => t.lines.some((l) => l.status === 'listo' && l.qty > 0));
+  const late = [...byTable.values()].map((t) => ({ t, min: Math.floor(minutesSince(waitingSince(t), now)) })).filter((x) => x.min >= KITCHEN_WARN_MIN).sort((a, b) => b.min - a.min);
 
   if (!tables.length) return <FirstTables />;
 
@@ -120,6 +122,12 @@ function TablesBoard({ tables, byTable, onOpen, onGoMenu }: { tables: DiningTabl
         <div className="salon-ready" role="status">
           <BellRing size={18} aria-hidden />
           <span>Para llevar: {ready.map((t) => `mesa ${t.tableName}`).join(', ')}</span>
+        </div>
+      )}
+      {late.length > 0 && (
+        <div className="salon-ready salon-late" role="status">
+          <Clock size={18} aria-hidden />
+          <span>Demora en cocina: {late.map((x) => `mesa ${x.t.tableName} (${x.min} min)`).join(', ')}</span>
         </div>
       )}
       <div className="salon-bar">
@@ -240,7 +248,7 @@ function TablesModal({ onClose, tables, busy }: { onClose: () => void; tables: D
 
 // ───────────────────────── Carta ─────────────────────────
 
-type ItemDraft = { id?: string; name: string; section: string; price?: number; kitchen: boolean; active: boolean; iva?: IvaRate; extras: MenuExtra[]; recipe?: Recipe };
+type ItemDraft = { id?: string; name: string; section: string; price?: number; kitchen: boolean; active: boolean; iva?: IvaRate; extras: MenuExtra[]; recipe?: Recipe; station?: Station };
 
 function MenuTab() {
   const menu = useMenu();
@@ -287,7 +295,7 @@ function MenuTab() {
                     <CostTag c={costOfItem(m)} />
                   </span>
                   <button type="button" className="btn btn-ghost icon-btn" aria-label={`Editar ${m.name}`}
-                    onClick={() => setEdit({ id: m.id, name: m.name, section: m.section, price: m.price, kitchen: m.kitchen, active: m.active, iva: m.iva, extras: m.extras ?? [], recipe: m.recipe })}><Pencil size={18} /></button>
+                    onClick={() => setEdit({ id: m.id, name: m.name, section: m.section, price: m.price, kitchen: m.kitchen, active: m.active, iva: m.iva, extras: m.extras ?? [], recipe: m.recipe, station: m.station })}><Pencil size={18} /></button>
                 </li>
               ))}
             </ul>
@@ -343,6 +351,7 @@ function MenuItemModal({ draft, sections, onClose }: { draft: ItemDraft; section
           )}
         </div>
         <label className="check"><input type="checkbox" checked={d.kitchen} onChange={(e) => setD({ ...d, kitchen: e.target.checked })} /> Va a la pantalla de cocina</label>
+        {d.kitchen && <Segmented<Station> label="Lo prepara" value={d.station ?? 'cocina'} onChange={(v) => setD({ ...d, station: v })} options={[{ value: 'cocina', label: 'Cocina' }, { value: 'barra', label: 'Barra (cafés, tragos)' }]} />}
         <fieldset className="salon-extras-edit">
           <legend>Adicionales (opcional)</legend>
           {d.extras.map((e, i) => (
@@ -378,6 +387,8 @@ function TodayTab() {
   const since = startOfDayIso(today);
   const tickets = (useLiveQuery(() => db.tickets.where('openedAt').aboveOrEqual(since).reverse().sortBy('openedAt'), [since]) ?? EMPTY) as TableTicket[];
   const [detail, setDetail] = useState<TableTicket | null>(null);
+  const [closing, setClosing] = useState(false);
+  const { can } = useSession();
   const closed = tickets.filter((t) => t.status === 'cerrada');
   const discounts = closed.reduce((s, t) => s + discountAmount(t.subtotal ?? t.total, t.discount), 0);
   const tips = closed.reduce((s, t) => s + (t.charges ?? []).reduce((x, c) => x + (c.tip?.amount ?? 0), 0), 0);
@@ -396,6 +407,12 @@ function TodayTab() {
 
   return (
     <>
+      {(can('billing') || can('admin')) && (
+        <div className="salon-bar" style={{ justifyContent: 'flex-end' }}>
+          <button type="button" className="btn" onClick={() => setClosing(true)}><Receipt size={18} aria-hidden /> Cierre del día</button>
+        </div>
+      )}
+      {closing && <DayCloseModal onClose={() => setClosing(false)} />}
       <div className="salon-stats">
         <div className="salon-stat"><span className="num">{fmtMoney(sold)}</span><span>vendido</span></div>
         <div className="salon-stat"><span className="num">{closed.length}</span><span>{closed.length === 1 ? 'pedido cerrado' : 'pedidos cerrados'}</span></div>

@@ -6,6 +6,7 @@
  *  - Comanda: para cocina, sin precios. NO VÁLIDO COMO FACTURA.
  */
 import QRCode from 'qrcode';
+import type { DailyClose } from './closingService';
 import type { CashSession, FiscalDoc, SalePaymentMethod, TableTicket, TicketLine } from '../models';
 import type { CashSummary } from './cashService';
 import { CBTE_NAME, COND_IVA, DOC_TIPO_LABEL, EMISOR_COND_LABEL, PAYMENT_LABEL, docNumber, docPlace, fmtCuit, pad, qrUrl, ymdToDate } from './fiscalService';
@@ -144,15 +145,23 @@ export function precuentaHtml(t: TableTicket, business: string): string {
 
 /** Comanda para cocina: sin precios. */
 export function comandaHtml(t: TableTicket, lines: TicketLine[]): string {
-  const body = `
-    <div class="warn">COMANDA — NO VÁLIDO COMO FACTURA</div>
+  // Si hay platos de cocina y de barra, sale una comanda por puesto (cada una en su hoja).
+  const groups = (['cocina', 'barra'] as const).map((s) => ({ s, lines: lines.filter((l) => (l.station ?? 'cocina') === s) })).filter((g) => g.lines.length);
+  if (groups.length > 1) {
+    return page(`Comanda ${ticketLabel(t)}`, groups.map((g, i) => `<div${i ? ' style="page-break-before:always;break-before:page"' : ''}>${comandaBody(t, g.lines, g.s === 'barra' ? 'BARRA' : 'COCINA')}</div>`).join(''));
+  }
+  return page(`Comanda ${ticketLabel(t)}`, comandaBody(t, lines, groups[0]?.s === 'barra' ? 'BARRA' : undefined));
+}
+
+function comandaBody(t: TableTicket, lines: TicketLine[], station?: string): string {
+  return `
+    <div class="warn">COMANDA${station ? ` ${station}` : ''} — NO VÁLIDO COMO FACTURA</div>
     <p class="huge">${esc(ticketLabel(t).toUpperCase())}</p>
     ${t.customer?.address ? `<p>${esc(t.customer.address)}${t.customer.phone ? ` · ${esc(t.customer.phone)}` : ''}</p>` : ''}
     <div class="row"><span>#${t.number}${t.openedBy ? ` · ${esc(t.openedBy.name)}` : ''}</span><span>${time(new Date().toISOString())}</span></div>
     <div class="hr"></div>
     ${lines.map((l) => `<p class="big">${l.qty === 0 ? 'ANULADO ' : `${qtyFmt(l.qty)} x `}${esc(l.name)}</p>${l.notes ? `<p>&nbsp;&nbsp;» ${esc(l.notes)}</p>` : ''}`).join('')}
     <div class="hr"></div>`;
-  return page(`Comanda ${ticketLabel(t)}`, body);
 }
 
 /** Arqueo de caja (parcial o al cierre). */
@@ -195,4 +204,39 @@ export function testTicketHtml(business: string): string {
     <div class="hr"></div>
     <div class="row big"><span>TOTAL</span><span>$ 4.800,00</span></div>
     <p class="c note">${dateTime(new Date().toISOString())}</p>`);
+}
+
+/** Cierre del día ("Z"): ventas, medios de pago, canales y lo facturado en ARCA. */
+export function cierreHtml(z: DailyClose, business: string): string {
+  const [y, m, d] = z.date.split('-');
+  const s = z.sales;
+  const rows = (list: { label: string; total: number; count: number }[], unit = '') => list.map((b) => `<div class="row"><span>${esc(b.label)}${unit ? ` (${b.count}${unit})` : ''}</span><span>${money(b.total)}</span></div>`).join('');
+  const body = `
+    <p class="c big">${esc(business)}</p>
+    <div class="warn">CIERRE DEL DÍA ${d}/${m}/${y}<br>NO VÁLIDO COMO FACTURA</div>
+    <p class="note">Impreso ${dateTime(new Date().toISOString())}</p>
+    <div class="hr"></div>
+    <div class="row big"><span>VENDIDO</span><span>$ ${money(s.sold)}</span></div>
+    <div class="row"><span>Pedidos</span><span>${s.orders}</span></div>
+    <div class="row"><span>Ticket promedio</span><span>${money(s.avg)}</span></div>
+    ${s.guests ? `<div class="row"><span>Comensales</span><span>${s.guests}</span></div>` : ''}
+    <div class="row"><span>Descuentos</span><span>${money(s.discounts)}</span></div>
+    <div class="row"><span>Cortesías</span><span>${money(s.compValue)}</span></div>
+    <div class="row"><span>Propinas</span><span>${money(s.tips)}</span></div>
+    ${s.cancelled ? `<div class="row"><span>Pedidos anulados</span><span>${s.cancelled}</span></div>` : ''}
+    <div class="hr"></div>
+    <p class="b">Medios de pago</p>
+    ${rows(s.byPayment) || '<p class="note">Sin cobros</p>'}
+    <div class="hr"></div>
+    <p class="b">Canales</p>
+    ${rows(s.byChannel, ' ped.')}
+    <div class="hr"></div>
+    <p class="b">Facturación electrónica${z.test ? ' (PRUEBA)' : ''}</p>
+    ${z.fiscal.length ? z.fiscal.map((f) => `<div class="row"><span>${esc(f.name)} (${f.count})</span><span>${money(f.total)}</span></div>
+      <div class="row note"><span>Del ${String(f.first).padStart(8, '0')} al ${String(f.last).padStart(8, '0')}</span><span>IVA ${money(f.iva)}</span></div>`).join('') : '<p class="note">Sin comprobantes</p>'}
+    <div class="row b"><span>Total facturado</span><span>${money(z.invoiced)}</span></div>
+    <div class="row"><span>Cobrado sin factura</span><span>${money(z.unbilled)}</span></div>
+    <div class="hr"></div>
+    ${s.items.length ? `<p class="b">Más vendido</p>${s.items.slice(0, 10).map((i) => `<div class="row"><span>${qtyFmt(i.qty)} x ${esc(i.name)}</span><span>${money(i.revenue)}</span></div>`).join('')}<div class="hr"></div>` : ''}`;
+  return page(`Cierre del día ${d}/${m}/${y}`, body);
 }
