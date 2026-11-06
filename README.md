@@ -1,6 +1,8 @@
-# Stock Manager
+# Orillas
 
-Aplicación de **inventario, stock, conteos, proveedores, pedidos y movimientos**. PWA instalable, mobile-first, funciona **sin conexión** y guarda los datos en el dispositivo. Genérica y configurable para cualquier tipo de negocio. Incluye una capa de integraciones preparada para **Maxirest** (ver [docs/maxirest.md](docs/maxirest.md) para el estado real).
+**Software gastronómico**: salón (mesas, mostrador, delivery), cocina y barra, caja, facturación electrónica ARCA, reportes, stock, recetas, panadería, compras y proveedores. PWA instalable, mobile-first, funciona **sin conexión** y guarda los datos en el dispositivo. Independiente: la conexión con **Maxirest** es opcional (ver [docs/maxirest.md](docs/maxirest.md)).
+
+> Antes se llamaba *Stock Manager*. Los identificadores internos (repositorio, base de datos local `stock-manager`, proyecto de Firebase) no cambiaron, así no se pierde nada.
 
 **Producción:** https://stock-manager-a7cf7.web.app (Firebase Hosting, publicado por GitHub Actions en cada push a `main`).
 

@@ -181,7 +181,7 @@ export async function testReader(url: string): Promise<{ configured: boolean; pr
     throw new Error('No se pudo conectar. Revisá que la dirección esté bien copiada.', { cause: e });
   }
   const b = (await r.json().catch(() => null)) as { service?: string; configured?: boolean; provider?: string | null; model?: string } | null;
-  if (!r.ok || b?.service !== 'stock-manager-invoice-reader') throw new Error('Esa dirección no es el servidor de lectura de Stock Manager.');
+  if (!r.ok || b?.service !== 'stock-manager-invoice-reader') throw new Error('Esa dirección no es el servidor de lectura de Orillas.');
   // Servidores viejos (sólo Claude) no informan `provider`.
   const provider = b.provider === 'gemini' ? 'gemini' : b.provider === 'anthropic' || (b.configured && !('provider' in b)) ? 'anthropic' : undefined;
   return { configured: !!b.configured, provider, model: b.model };

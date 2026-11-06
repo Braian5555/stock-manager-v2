@@ -1,13 +1,13 @@
-# Facturación electrónica ARCA en Stock Manager
+# Facturación electrónica ARCA en Orillas
 
-Stock Manager emite **facturas, notas de crédito y notas de débito electrónicas (A, B, C y M)** al cobrar las mesas del Salón, con CAE de ARCA (ex AFIP), y las imprime en tickets de 80 mm con el QR oficial.
+Orillas emite **facturas, notas de crédito y notas de débito electrónicas (A, B, C y M)** al cobrar las mesas del Salón, con CAE de ARCA (ex AFIP), y las imprime en tickets de 80 mm con el QR oficial.
 
 ## Cómo funciona, en una línea
 
 La app arma el comprobante → el **servicio de ARCA** (un Worker de Cloudflare, gratis) lo firma y lo manda a ARCA → ARCA devuelve el **CAE** → la app lo guarda y lo imprime.
 
 ```
-Celular / compu (Stock Manager)          Cloudflare Worker "arca"                ARCA
+Celular / compu (Orillas)          Cloudflare Worker "arca"                ARCA
 ────────────────────────────────         ──────────────────────────               ──────────
 Cobrar mesa → arma la factura   ──HTTPS──▶ verifica sesión y permiso   ──SOAP──▶ WSAA (Token/Sign)
   (importes, IVA, receptor,                firma el TRA con el                     WSFEv1 (CAE)

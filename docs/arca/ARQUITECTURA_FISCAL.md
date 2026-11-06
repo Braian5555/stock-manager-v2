@@ -6,7 +6,7 @@
 
 Archivo único, sin dependencias (para pegarlo en el editor de Cloudflare). Usa WebCrypto nativo para la firma RSA (no consume el límite de CPU del plan gratis).
 
-- **Sesión y permisos:** verifica el ID token de Firebase (RS256, proyecto, vencimiento), que el espacio sea `ARCA_WORKSPACE`, y con la sesión del usuario lee en Firestore su rol (dueño/administrador del espacio) o su usuario de Stock Manager (Administrador, Encargado o permiso `billing`).
+- **Sesión y permisos:** verifica el ID token de Firebase (RS256, proyecto, vencimiento), que el espacio sea `ARCA_WORKSPACE`, y con la sesión del usuario lee en Firestore su rol (dueño/administrador del espacio) o su usuario de Orillas (Administrador, Encargado o permiso `billing`).
 - **WSAA:** arma el TRA (`loginTicketRequest`, servicio `wsfe`, ±10 min), lo firma en **CMS SignedData** (PKCS#7, SHA-256 + RSA, contenido adjunto, atributos firmados contentType/signingTime/messageDigest) y llama a `LoginCms`. Guarda Token/Sign en KV `ARCA_TA` hasta 5 minutos antes de su vencimiento. Ante 600/601 descarta el Token y reintenta una vez.
 - **WSFEv1 (SOAP 1.1):** `FEDummy`, `FECompUltimoAutorizado`, `FECompConsultar`, `FECAESolicitar`, `FEParamGetCondicionIvaReceptor`, `FEParamGetPtosVenta`.
 - **Validación previa:** totales (neto + IVA + otros = total), alícuotas e importes de IVA, letra vs. receptor (A/M requieren CUIT y condición RI/monotributo), consumidor final ≥ $ 10.000.000 identificado, fechas (±5 días productos, ±10 servicios), CUIT con dígito verificador, comprobante asociado en notas.

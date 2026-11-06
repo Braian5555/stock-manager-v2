@@ -39,7 +39,7 @@ export function ReconciliationPage() {
     if (!r.product || r.external === undefined) return;
     const ok = await confirm({
       title: 'Ajuste local',
-      message: <dl className="kv"><dt>Producto</dt><dd>{r.product.name}</dd><dt>Stock Maxirest</dt><dd>{fmtNumber(r.external)}</dd><dt>Stock Stock Manager</dt><dd>{fmtNumber(r.local)}</dd><dt>Nuevo stock local</dt><dd>{fmtNumber(r.external)}</dd></dl>,
+      message: <dl className="kv"><dt>Producto</dt><dd>{r.product.name}</dd><dt>Stock Maxirest</dt><dd>{fmtNumber(r.external)}</dd><dt>Stock Orillas</dt><dd>{fmtNumber(r.local)}</dd><dt>Nuevo stock local</dt><dd>{fmtNumber(r.external)}</dd></dl>,
       confirmLabel: 'Confirmar ajuste',
     });
     if (!ok) return;
@@ -51,7 +51,7 @@ export function ReconciliationPage() {
     if (!r.product || r.external === undefined) return;
     const ok = await confirm({
       title: '¿Confirmar ajuste en Maxirest?',
-      message: <dl className="kv"><dt>Producto</dt><dd>{r.product.name}</dd><dt>Stock Maxirest</dt><dd>{fmtNumber(r.external)}</dd><dt>Stock Manager / conteo</dt><dd>{fmtNumber(r.local)}</dd><dt>Diferencia</dt><dd>{fmtSigned((r.local ?? 0) - r.external)}</dd></dl>,
+      message: <dl className="kv"><dt>Producto</dt><dd>{r.product.name}</dd><dt>Stock Maxirest</dt><dd>{fmtNumber(r.external)}</dd><dt>Orillas / conteo</dt><dd>{fmtNumber(r.local)}</dd><dt>Diferencia</dt><dd>{fmtSigned((r.local ?? 0) - r.external)}</dd></dl>,
       confirmLabel: 'Confirmar ajuste',
     });
     if (!ok) return;
@@ -61,7 +61,7 @@ export function ReconciliationPage() {
 
   return (
     <>
-      <PageHeader title={menuLabel(settings, 'reconciliation')} subtitle="Stock Manager vs. Maxirest" />
+      <PageHeader title={menuLabel(settings, 'reconciliation')} subtitle="Orillas vs. Maxirest" />
       {integ?.mode === 'mock' && <div className="alert alert-demo" style={{ marginBottom: 12 }}>Modo demostración — Maxirest simulado.</div>}
       {refs.length === 0 ? (
         <div className="card">
@@ -88,13 +88,13 @@ export function ReconciliationPage() {
           </div>
           <div className="card table-wrap">
             <table className="table responsive">
-              <thead><tr><th>Producto</th><th className="num">Stock Maxirest</th><th className="num">Stock Stock Manager</th><th className="num">Diferencia</th><th>Estado</th><th><span className="sr-only">Acciones</span></th></tr></thead>
+              <thead><tr><th>Producto</th><th className="num">Stock Maxirest</th><th className="num">Stock Orillas</th><th className="num">Diferencia</th><th>Estado</th><th><span className="sr-only">Acciones</span></th></tr></thead>
               <tbody>
                 {shown.map((r) => (
                   <tr key={r.key}>
                     <td className="cell-title">{r.product?.name ?? r.ref?.name}{r.ref?.code && <div className="small muted" style={{ fontWeight: 400 }}>Maxirest {r.ref.code}{r.ref.source === 'excel' ? ' · Excel' : ''}</div>}</td>
                     <td data-label="Stock Maxirest" className="num">{fmtNumber(r.external)}</td>
-                    <td data-label="Stock Stock Manager" className="num">{fmtNumber(r.local)}</td>
+                    <td data-label="Stock Orillas" className="num">{fmtNumber(r.local)}</td>
                     <td data-label="Diferencia" className={`num ${(r.difference ?? 0) < 0 ? 'neg' : (r.difference ?? 0) > 0 ? 'pos' : ''}`}><b>{r.difference === undefined ? '—' : fmtSigned(r.difference)}</b></td>
                     <td data-label="Estado"><Badge tone={TONE[r.state]}>{RECON_LABEL[r.state]}</Badge>{r.error && <div className="small" style={{ color: 'var(--out)' }}>{r.error}</div>}</td>
                     <td data-label="Acciones">
@@ -109,7 +109,7 @@ export function ReconciliationPage() {
               </tbody>
             </table>
           </div>
-          <p className="small muted" style={{ marginTop: 8 }}>Diferencia = Stock Manager − Maxirest. Ningún ajuste se aplica sin tu confirmación.</p>
+          <p className="small muted" style={{ marginTop: 8 }}>Diferencia = Orillas − Maxirest. Ningún ajuste se aplica sin tu confirmación.</p>
         </>
       )}
     </>

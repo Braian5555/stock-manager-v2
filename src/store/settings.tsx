@@ -26,7 +26,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     root.style.setProperty('--primary', primary);
     root.style.setProperty('--primary-ink', readableInk(primary));
     if (isHexColor(settings.secondaryColor)) root.style.setProperty('--secondary', settings.secondaryColor);
-    document.title = settings.businessName || 'Stock Manager';
+    document.title = settings.businessName || 'Orillas';
     const mq = window.matchMedia('(prefers-color-scheme: dark)');
     mq.addEventListener('change', apply);
     return () => mq.removeEventListener('change', apply);

@@ -8,7 +8,7 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, { error: E
     return { error };
   }
   componentDidCatch(error: Error) {
-    console.error('[Stock Manager]', error);
+    console.error('[Orillas]', error);
     logError(error);
   }
   render() {

@@ -23,7 +23,7 @@ export function defaultIntegration(): Integration {
     system: 'maxirest',
     mode: 'disabled',
     status: 'no_configurado',
-    // Se cuenta en Stock Manager y Maxirest copia (no al revés).
+    // Se cuenta en Orillas y Maxirest copia (no al revés).
     stockAuthority: 'stockmanager',
     syncInterval: 'manual',
   };

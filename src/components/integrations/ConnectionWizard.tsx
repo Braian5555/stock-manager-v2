@@ -16,7 +16,7 @@ const STEPS = ['Configurar', 'Probar', 'Importar', 'Resumen', 'Mapear', 'Confirm
 
 export const AUTHORITY_LABEL: Record<StockAuthority, string> = {
   maxirest: 'Maxirest es la fuente principal',
-  stockmanager: 'Stock Manager es la fuente principal (recomendado: se cuenta en la app y Maxirest copia)',
+  stockmanager: 'Orillas es la fuente principal (recomendado: se cuenta en la app y Maxirest copia)',
   manual: 'Manual: sólo comparar, nunca ajustar solo',
 };
 

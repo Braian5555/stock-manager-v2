@@ -9,7 +9,7 @@
 > | **Preparado** | Integration Layer, `MaxirestGatewayAdapter`, contrato del gateway, gateway de referencia, cola idempotente, conciliación, mapeos. |
 > | **Real (API)** | **No existe.** No se conectó contra ninguna instancia real de Maxirest. No hay API pública documentada que permita hacerlo. |
 >
-> Stock Manager **no dice estar “integrado con Maxirest”**. Dice exactamente lo de arriba.
+> Orillas **no dice estar “integrado con Maxirest”**. Dice exactamente lo de arriba.
 >
 > **Actualización 02/11/2026.** Se volvió a buscar documentación pública de una API de Maxirest para stock: sigue sin existir
 > (sólo integraciones de delivery, salón y cobros). Para dejar todo listo:
@@ -20,7 +20,7 @@
 > - **Integraciones → Preparación** revisa lo que la sincronización necesita: código de insumo en cada producto, sin repetidos,
 >   que cada código exista en Maxirest (contra el último Excel importado), el depósito de Maxirest de cada punto y los remitos
 >   pendientes.
-> - Fuente principal de stock por defecto: **Stock Manager** (se cuenta en la app y Maxirest copia).
+> - Fuente principal de stock por defecto: **Orillas** (se cuenta en la app y Maxirest copia).
 
 ---
 
@@ -59,7 +59,7 @@ Fuentes revisadas (todas oficiales):
 
 ### Conceptos de Maxirest y su equivalente
 
-| Maxirest | Stock Manager | Notas |
+| Maxirest | Orillas | Notas |
 |---|---|---|
 | Insumo (código, descripción, rubro, unidad de medida, depósito, envases, contenido neto) | `Product` | Vínculo en `product.externalSystems.maxirest = { id, code, lastSyncedAt }`. |
 | Rubro | `Category` | Nunca se crean rubros en Maxirest. |
@@ -93,7 +93,7 @@ Lectura de stock: **manual vía Excel**. Ajuste de stock automático: **pendient
 ## 3. Arquitectura
 
 ```
-Stock Manager (UI)
+Orillas (UI)
       ↓
 integrationService.ts          ← casos de uso: configurar, probar, sincronizar, ajustes, cola
       ↓
@@ -125,7 +125,7 @@ PWA  →  Backend / API Gateway (Vercel · Cloudflare Workers · Render · Railw
 
 Ver `server/gateway-reference/` (handler estándar `Request → Response`, sin dependencia de plataforma).
 
-### Contrato del gateway (propio de Stock Manager, **no** es la API de Maxirest)
+### Contrato del gateway (propio de Orillas, **no** es la API de Maxirest)
 
 | Método | Ruta | Respuesta |
 |---|---|---|
@@ -160,8 +160,8 @@ Estados: `No configurado` · `Configurado` · `Conectado` · `Error` · `Descone
 
 | Opción | Efecto al sincronizar |
 |---|---|
-| Maxirest (recomendado) | El stock local de productos vinculados se alinea al de Maxirest (queda como movimiento `ajuste`, origen `sincronizacion`). Stock Manager funciona como herramienta de control/conteo. |
-| Stock Manager | Los movimientos de Maxirest se aplican localmente, idempotentes por `externalMovementId`. |
+| Maxirest (recomendado) | El stock local de productos vinculados se alinea al de Maxirest (queda como movimiento `ajuste`, origen `sincronizacion`). Orillas funciona como herramienta de control/conteo. |
+| Orillas | Los movimientos de Maxirest se aplican localmente, idempotentes por `externalMovementId`. |
 | Manual | No se toca ningún stock: sólo se guardan los datos para *Conciliación*. |
 
 **Desconectar** detiene la sincronización. No borra productos, proveedores, movimientos, pedidos ni vínculos.
@@ -187,23 +187,23 @@ Estados: `No configurado` · `Configurado` · `Conectado` · `Error` · `Descone
 
 ## 7. Ajustes y conciliación
 
-- **Ajuste local**: sólo Stock Manager.
-- **Ajuste sincronizado**: Stock Manager → Maxirest, siempre con confirmación previa (*Stock Maxirest · Conteo · Diferencia · ¿Confirmar ajuste?*). Disponible sólo si la conexión declara `createStockAdjustment: supported` (hoy: sólo el mock).
-- **Conciliación**: Producto · Stock Maxirest · Stock Stock Manager · Diferencia · Estado, con filtros *iguales, diferencias positivas, negativas, no vinculados, errores*.
-- Flujo de inventario: `Maxirest → Stock Manager → Conteo físico → Comparación → Diferencia → Confirmación → Maxirest` (el último paso, por Excel manual hasta que Maxirest habilite escritura).
+- **Ajuste local**: sólo Orillas.
+- **Ajuste sincronizado**: Orillas → Maxirest, siempre con confirmación previa (*Stock Maxirest · Conteo · Diferencia · ¿Confirmar ajuste?*). Disponible sólo si la conexión declara `createStockAdjustment: supported` (hoy: sólo el mock).
+- **Conciliación**: Producto · Stock Maxirest · Stock Orillas · Diferencia · Estado, con filtros *iguales, diferencias positivas, negativas, no vinculados, errores*.
+- Flujo de inventario: `Maxirest → Orillas → Conteo físico → Comparación → Diferencia → Confirmación → Maxirest` (el último paso, por Excel manual hasta que Maxirest habilite escritura).
 
 ## 8. Excel Bridge
 
-### Maxirest → Excel → Stock Manager
+### Maxirest → Excel → Orillas
 
 1. **(Maxirest, manual)** Menú → Stock → Inventarios → Nuevo → fecha, turno y depósito → *Preparar inventario* → exportar a Excel.
 2. **(Manual)** Si el archivo es `.xls`, abrirlo en Excel y guardarlo como `.xlsx` (o `.csv`).
-3. **(Stock Manager)** Integraciones → Excel Bridge → *Importar Excel de Maxirest*. Se detectan columnas (código, nombre/insumo, unidad, stock actual, conteo, depósito, rubro) y **el usuario confirma o corrige** el mapeo con vista previa.
+3. **(Orillas)** Integraciones → Excel Bridge → *Importar Excel de Maxirest*. Se detectan columnas (código, nombre/insumo, unidad, stock actual, conteo, depósito, rubro) y **el usuario confirma o corrige** el mapeo con vista previa.
 4. Se guardan como copia externa (código de insumo = identificador). Luego *Vínculos* y *Conciliación*.
 
-### Stock Manager → Excel → Maxirest
+### Orillas → Excel → Maxirest
 
-1. **(Stock Manager)** En un conteo: *Excel para Maxirest* (o *Exportar stock para Maxirest*). Columnas: Código · Insumo · Unidad · Stock Maxirest · Conteo · Diferencia, más una hoja *Instrucciones*.
+1. **(Orillas)** En un conteo: *Excel para Maxirest* (o *Exportar stock para Maxirest*). Columnas: Código · Insumo · Unidad · Stock Maxirest · Conteo · Diferencia, más una hoja *Instrucciones*.
 2. **(Maxirest, manual)** Inventarios → Nuevo → *Preparar inventario* → cargar la columna “conteo” según el Excel.
 3. **(Maxirest, manual)** Revisar diferencias, tildar *Ajuste automático de stock*, elegir concepto y guardar.
 

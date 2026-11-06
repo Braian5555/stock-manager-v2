@@ -139,7 +139,7 @@ export function ExportPage() {
         <h2 id="mx" className="row"><FileSpreadsheet size={18} aria-hidden /> Stock para Maxirest (.xls)</h2>
         <p className="small muted">
           Para que Maxirest tenga el mismo stock que acá. Lo más seguro: en Maxirest exportá a Excel el inventario del Depósito Central y tocá
-          “Completar Excel de Maxirest”: se rellena la columna Conteo con el stock de Stock Manager (por código de insumo) y nada más.
+          “Completar Excel de Maxirest”: se rellena la columna Conteo con el stock de Orillas (por código de insumo) y nada más.
           Después, en Maxirest: Inventario → Depósito Central → “Importar Inventario”, revisá las diferencias, tildá “Ajuste automático de stock” y guardá.
           “.xls para Maxirest” arma un archivo nuevo si no tenés el de Maxirest. Para un conteo puntual, usá los mismos botones desde el conteo.
         </p>

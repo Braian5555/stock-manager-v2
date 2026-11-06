@@ -5,10 +5,10 @@ Sólo después de completar **todas** las pruebas de [HOMOLOGACION.md](HOMOLOGAC
 ## Checklist
 
 1. **Contador:** confirmar condición frente al IVA, concepto (productos / servicios), alícuotas de la carta y si corresponde Factura A o M.
-2. **Punto de venta** de producción dado de alta como “RECE para aplicativo y web services”, **sólo para Stock Manager** (Maxirest no lo usa).
+2. **Punto de venta** de producción dado de alta como “RECE para aplicativo y web services”, **sólo para Orillas** (Maxirest no lo usa).
 3. **Certificado de producción** generado y **relación** “Facturación Electrónica” asignada al computador (ver [CERTIFICADOS.md](CERTIFICADOS.md), punto 3).
 4. Cloudflare → secretos `ARCA_PROD_CERT`, `ARCA_PROD_KEY` y `ARCA_PROD_ENABLED = si`.
-5. Stock Manager → Configuración fiscal:
+5. Orillas → Configuración fiscal:
    - Ambiente **Producción (facturas reales)** → Guardar (pide confirmación).
    - Punto de venta de producción.
    - **Probar conexión con ARCA**: certificado, CUIT, servidores, autenticación y **punto de venta habilitado** en verde.

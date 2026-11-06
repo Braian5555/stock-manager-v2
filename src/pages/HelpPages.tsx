@@ -106,7 +106,7 @@ export function AboutPage() {
       <PageHeader title="Información de la aplicación" />
       <section className="card card-pad stack">
         <dl className="kv">
-          <dt>Aplicación</dt><dd>Stock Manager v{__APP_VERSION__}</dd>
+          <dt>Aplicación</dt><dd>Orillas v{__APP_VERSION__}</dd>
           <dt>Negocio</dt><dd>{settings.businessName}</dd>
           <dt>Instalada como app</dt><dd>{installed ? 'Sí' : 'No (se usa desde el navegador)'}</dd>
           <dt>Conexión y nube</dt><dd>{sync.label}</dd>

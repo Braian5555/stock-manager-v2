@@ -136,12 +136,12 @@ export async function buildExportLines(countId?: string): Promise<BridgeExportLi
 }
 
 export const BRIDGE_INSTRUCTIONS = [
-  'Archivo generado por Stock Manager para cargar un conteo en Maxirest.',
+  'Archivo generado por Orillas para cargar un conteo en Maxirest.',
   'Proceso MANUAL (requiere intervención del usuario):',
   '1. En Maxirest: Menú → Stock → Inventarios → Nuevo. Elegir fecha, turno y depósito.',
   '2. Presionar "Preparar inventario" (opcional: filtrar por rubro).',
   '3. Copiar la columna "Conteo" de este archivo en la columna "conteo" de Maxirest, buscando cada insumo por su código.',
-  '   (Más fácil: en Stock Manager, "Completar Excel de Maxirest" rellena el .xls de Maxirest para usar "Importar Inventario".)',
+  '   (Más fácil: en Orillas, "Completar Excel de Maxirest" rellena el .xls de Maxirest para usar "Importar Inventario".)',
   '4. Revisar las diferencias en Maxirest. Si corresponde, tildar "Ajuste automático de stock" y elegir el concepto.',
   '5. Guardar el inventario en Maxirest.',
   'Nota: Maxirest no documenta una plantilla de importación de Excel. Si tu versión permite importar',

@@ -400,7 +400,7 @@ export function reportToText(r: DiagnosticReport): string {
   const sorted = [...r.checks].sort((a, b) => order.indexOf(a.level) - order.indexOf(b.level));
   const n = (l: Level) => r.checks.filter((c) => c.level === l).length;
   const lines = [
-    `# Diagnóstico de Stock Manager v${r.version}`,
+    `# Diagnóstico de Orillas v${r.version}`,
     `Fecha: ${fmtDateTime(r.at)} · ${n('error')} errores · ${n('warn')} avisos · ${n('info')} notas · ${n('ok')} en orden`,
     '',
     'Claude: revisá este informe y corregí en el código (repo Braian5555/stock-manager-v2) lo que corresponda.',

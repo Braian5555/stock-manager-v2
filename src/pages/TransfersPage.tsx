@@ -74,7 +74,7 @@ function TransferList({ viewId, setView }: { viewId?: string; setView: (id?: str
         'Remitos internos pendientes de cargar en Maxirest, una fila por insumo.',
         '"Transferencia": sale del depósito origen y entra al depósito destino.',
         '"Anulación": un remito que ya se había cargado y se anuló; hay que revertirlo en Maxirest.',
-        'Cuando termines de cargarlos, volvé a Stock Manager y marcalos como "cargados en Maxirest".',
+        'Cuando termines de cargarlos, volvé a Orillas y marcalos como "cargados en Maxirest".',
         'Formato genérico: se ajusta al formato de importación de Maxirest cuando se tenga un ejemplo real.',
       ] },
     ]);

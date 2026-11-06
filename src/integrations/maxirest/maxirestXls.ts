@@ -3,11 +3,11 @@
  *
  * Maxirest no publica el formato que acepta su importación, así que hay dos caminos:
  *  - completeMaxirestXls: se toma el Excel que exportó el propio Maxirest (Inventario del depósito)
- *    y sólo se completa la columna "Conteo" con lo de Stock Manager. Todo lo demás queda igual,
+ *    y sólo se completa la columna "Conteo" con lo de Orillas. Todo lo demás queda igual,
  *    así que el archivo vuelve con el formato exacto que Maxirest conoce. Es el camino recomendado.
  *  - buildMaxirestXls: un .xls nuevo con las columnas de la grilla de Inventario de Maxirest.
  *
- * El código de insumo de Maxirest es el SKU del producto en Stock Manager.
+ * El código de insumo de Maxirest es el SKU del producto en Orillas.
  *
  * Formato real (visto en un Excel exportado por Maxirest, que está hecho en Visual FoxPro):
  * Excel 2.1 (BIFF2), hoja "Sheet1", primera fila con los nombres de campo
@@ -48,11 +48,11 @@ export interface XlsResult {
   filename: string;
   /** Renglones con conteo. */
   filled: number;
-  /** Productos de Stock Manager sin código (no se pueden mandar a Maxirest). */
+  /** Productos de Orillas sin código (no se pueden mandar a Maxirest). */
   withoutCode: number;
-  /** Renglones del Excel de Maxirest que no están en Stock Manager (quedan como venían). */
+  /** Renglones del Excel de Maxirest que no están en Orillas (quedan como venían). */
   notInStockManager: number;
-  /** Productos de Stock Manager que no aparecen en el Excel de Maxirest. */
+  /** Productos de Orillas que no aparecen en el Excel de Maxirest. */
   missingInFile: number;
 }
 
@@ -78,7 +78,7 @@ export async function buildMaxirestXls(lines: BridgeExportLine[], name: string):
 
 /**
  * Completa la columna "Conteo" del Excel que exportó Maxirest. No toca ninguna otra celda;
- * los insumos que Stock Manager no tiene (o que no se contaron) quedan como venían.
+ * los insumos que Orillas no tiene (o que no se contaron) quedan como venían.
  */
 export async function completeMaxirestXls(file: ArrayBuffer, fileName: string, lines: BridgeExportLine[]): Promise<XlsResult> {
   const XLSX = await import('@e965/xlsx');
@@ -171,8 +171,8 @@ export async function completeMaxirestXls(file: ArrayBuffer, fileName: string, l
 /** Resumen corto para el aviso después de descargar. */
 export function xlsSummary(r: XlsResult): string {
   const parts = [`${r.filled} insumos con conteo`];
-  if (r.notInStockManager) parts.push(`${r.notInStockManager} de Maxirest no están en Stock Manager (quedan como estaban)`);
-  if (r.missingInFile) parts.push(`${r.missingInFile} de Stock Manager no figuran en el Excel`);
+  if (r.notInStockManager) parts.push(`${r.notInStockManager} de Maxirest no están en Orillas (quedan como estaban)`);
+  if (r.missingInFile) parts.push(`${r.missingInFile} de Orillas no figuran en el Excel`);
   if (r.withoutCode) parts.push(`${r.withoutCode} sin código no se mandan`);
   return `${parts.join(' · ')}.`;
 }

@@ -6,7 +6,7 @@ import { fmtDateTime } from '../utils/format';
 export async function toXlsx(title: string, datasets: Dataset[], extraSheets: { name: string; lines: string[] }[] = []): Promise<Blob> {
   const { default: ExcelJS } = await import('exceljs');
   const wb = new ExcelJS.Workbook();
-  wb.creator = 'Stock Manager';
+  wb.creator = 'Orillas';
   wb.title = title;
   for (const ds of datasets) {
     const ws = wb.addWorksheet(ds.title.slice(0, 31));
@@ -84,7 +84,7 @@ export async function toDocx(title: string, datasets: Dataset[]): Promise<Blob> 
     );
   }
   const doc = new d.Document({
-    creator: 'Stock Manager',
+    creator: 'Orillas',
     title,
     sections: [{ properties: { page: { size: { orientation: d.PageOrientation.LANDSCAPE } } }, children }],
   });

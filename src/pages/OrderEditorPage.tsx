@@ -227,7 +227,7 @@ export function OrderEditorPage() {
             </button>
           </div>
         )}
-        <p className="small muted">Los pedidos se gestionan en Stock Manager. No se envían a Maxirest: no hay una interfaz oficial documentada para órdenes de compra.</p>
+        <p className="small muted">Los pedidos se gestionan en Orillas. No se envían a Maxirest: no hay una interfaz oficial documentada para órdenes de compra.</p>
       </div>
 
       {!isNew && can('invoices') && (

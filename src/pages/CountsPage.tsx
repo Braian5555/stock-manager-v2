@@ -118,7 +118,7 @@ export function CountsPage() {
           {maxirestOn(settings) && hasExternal && !form.outletId && (
             <Field label="Comparar contra">
               <Select value={form.baseline} onChange={(e) => setForm({ ...form, baseline: e.target.value as CountBaseline })}>
-                <option value="local">Stock de Stock Manager</option>
+                <option value="local">Stock de Orillas</option>
                 <option value="maxirest">Stock informado por Maxirest</option>
               </Select>
             </Field>

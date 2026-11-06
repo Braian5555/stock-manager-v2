@@ -8,7 +8,7 @@ export interface ReconRow {
   ref?: ExternalReference;
   local?: number;
   external?: number;
-  /** local − externo (positivo: hay más en Stock Manager que en Maxirest). */
+  /** local − externo (positivo: hay más en Orillas que en Maxirest). */
   difference?: number;
   state: ReconState;
   error?: string;

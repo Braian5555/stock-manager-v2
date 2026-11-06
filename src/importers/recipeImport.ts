@@ -86,7 +86,7 @@ export async function planRecipeImport(tab: Tabular): Promise<RecipeImportPlan> 
     const name = str(first, c.name) || str(first, c.code);
     const product = find(first[c.code], first[c.name]);
     if (!product) {
-      issues.push({ product: name, detail: 'no existe en Stock Manager (se omite la receta)' });
+      issues.push({ product: name, detail: 'no existe en Orillas (se omite la receta)' });
       continue;
     }
     const rawYield = parseNumber(first[c.yield], 1) || 1;
@@ -101,7 +101,7 @@ export async function planRecipeImport(tab: Tabular): Promise<RecipeImportPlan> 
       const insName = str(r, c.insName) || str(r, c.insCode);
       const ing = find(r[c.insCode], r[c.insName]);
       if (!ing) {
-        issues.push({ product: product.name, detail: `el insumo "${insName}" no existe en Stock Manager` });
+        issues.push({ product: product.name, detail: `el insumo "${insName}" no existe en Orillas` });
         ok = false;
         continue;
       }

@@ -1,7 +1,7 @@
 /**
- * Integration Layer — contrato neutral entre Stock Manager y sistemas externos.
+ * Integration Layer — contrato neutral entre Orillas y sistemas externos.
  *
- *   Stock Manager  →  Integration Layer  →  Adapter (Mock | Maxirest Gateway | …)
+ *   Orillas  →  Integration Layer  →  Adapter (Mock | Maxirest Gateway | …)
  *
  * Cada adaptador declara qué operaciones soporta. Las que no soporta lanzan
  * IntegrationError("NOT_SUPPORTED"): nunca se simula que funcionan.

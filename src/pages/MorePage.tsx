@@ -120,7 +120,7 @@ export function MorePage() {
       <button type="button" className="btn btn-block more-logout" onClick={() => void lock()}>
         {cloudMode ? <><LogOut size={18} aria-hidden /> Cerrar sesión</> : <><Lock size={18} aria-hidden /> Bloquear / cambiar usuario</>}
       </button>
-      <p className="small muted" style={{ marginTop: 16, textAlign: 'center' }}>Stock Manager v{__APP_VERSION__}</p>
+      <p className="small muted" style={{ marginTop: 16, textAlign: 'center' }}>Orillas v{__APP_VERSION__}</p>
     </>
   );
 }

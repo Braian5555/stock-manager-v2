@@ -69,7 +69,7 @@ export function SetupScreen() {
         <button type="submit" className="btn btn-primary btn-block">Crear y entrar</button>
       </form>
       <hr className="sep" />
-      <button type="button" className="btn btn-block" onClick={() => setCloud(true)}><Cloud size={18} aria-hidden /> Ya usamos Stock Manager en la nube</button>
+      <button type="button" className="btn btn-block" onClick={() => setCloud(true)}><Cloud size={18} aria-hidden /> Ya usamos Orillas en la nube</button>
       <p className="small muted" style={{ textAlign: 'center', marginTop: 8 }}>Iniciá sesión con tu cuenta para traer los datos y los usuarios.</p>
     </Shell>
   );

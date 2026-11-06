@@ -41,7 +41,7 @@ test('facturación electrónica: configurar, cobrar la mesa y emitir Factura B c
   // Configuración fiscal
   await go(page, '/salon/configuracion/facturacion');
   await expect(page.getByRole('heading', { name: 'Configuración fiscal', level: 1 })).toBeVisible();
-  await page.getByLabel('Facturar desde Stock Manager al cobrar las mesas').check();
+  await page.getByLabel('Facturar desde Orillas al cobrar las mesas').check();
   await page.getByLabel('Dirección del servicio de ARCA').fill(SERVICE);
   await page.getByLabel('CUIT').fill('30-71234567-1');
   await page.getByLabel('Razón social').fill('Epicurae SA');

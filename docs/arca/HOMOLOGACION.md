@@ -5,7 +5,7 @@ Homologación es el ambiente de prueba de ARCA: los comprobantes **no tienen val
 ## Preparación
 
 1. Certificado de homologación cargado en Cloudflare (`ARCA_HOMO_CERT`, `ARCA_HOMO_KEY`). Ver [CERTIFICADOS.md](CERTIFICADOS.md).
-2. Stock Manager → Configuración fiscal → Ambiente **Homologación** → **Probar conexión con ARCA**.
+2. Orillas → Configuración fiscal → Ambiente **Homologación** → **Probar conexión con ARCA**.
 
 En homologación ARCA **no lista los puntos de venta** (FEParamGetPtosVenta no devuelve nada): se puede usar cualquier número, por ejemplo 5.
 

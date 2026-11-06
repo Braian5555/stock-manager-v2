@@ -44,7 +44,7 @@ describe('diagnóstico', () => {
     const r = await runDiagnostics(cloud);
     expect(byId(r, 'app-errors').level).toBe('warn');
     const text = reportToText(r);
-    expect(text).toMatch(/^# Diagnóstico de Stock Manager v/);
+    expect(text).toMatch(/^# Diagnóstico de Orillas v/);
     expect(text).toContain('Explotó algo');
     expect(text).toContain('Claude: revisá este informe');
     clearErrorLog();

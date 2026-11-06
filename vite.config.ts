@@ -29,9 +29,9 @@ export default defineConfig({
       manifestFilename: 'manifest.webmanifest',
       manifest: {
         id: BASE,
-        name: 'Stock Manager',
-        short_name: 'Stock',
-        description: 'Inventario, stock, conteos, proveedores y pedidos. Funciona sin conexión.',
+        name: 'Orillas',
+        short_name: 'Orillas',
+        description: 'Software gastronómico: salón, cocina, caja, facturación, stock y compras. Funciona sin conexión.',
         lang: 'es',
         dir: 'ltr',
         start_url: BASE,

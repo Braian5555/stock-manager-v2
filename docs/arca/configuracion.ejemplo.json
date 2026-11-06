@@ -1,5 +1,5 @@
 {
-  "_nota": "Ejemplo SIN credenciales reales. La parte 'app' se carga en Stock Manager → Configuración fiscal. La parte 'cloudflare' son los nombres de los secretos del Worker: los valores reales (certificado y clave) se pegan SOLO en Cloudflare.",
+  "_nota": "Ejemplo SIN credenciales reales. La parte 'app' se carga en Orillas → Configuración del salón → Facturación electrónica. La parte 'cloudflare' son los nombres de los secretos del Worker: los valores reales (certificado y clave) se pegan SOLO en Cloudflare.",
   "app": {
     "enabled": true,
     "serviceUrl": "https://stock-manager-arca.TU-USUARIO.workers.dev",

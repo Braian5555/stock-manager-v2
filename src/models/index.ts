@@ -1,5 +1,5 @@
 /**
- * Modelo de datos de Stock Manager.
+ * Modelo de datos de Orillas.
  * Todas las entidades persistidas tienen id (UUID), createdAt y updatedAt (ISO 8601).
  */
 
@@ -241,7 +241,7 @@ export interface Settings extends BaseEntity {
   /** Facturación electrónica ARCA (los certificados NO están acá: están en el servidor). */
   fiscal?: FiscalSettings;
   /**
-   * Stock Manager es independiente: Maxirest no aparece en ningún lado salvo que se active
+   * Orillas es independiente: Maxirest no aparece en ningún lado salvo que se active
    * la conexión opcional en Configuración → Integraciones.
    */
   maxirest?: boolean;
@@ -605,7 +605,7 @@ export interface TableTicket extends BaseEntity {
   /** Cobro de la mesa. */
   payments?: Payment[];
   paidAt?: ISODate;
-  /** Comprobante fiscal de la mesa (si se facturó en Stock Manager). */
+  /** Comprobante fiscal de la mesa (si se facturó en Orillas). */
   fiscalDocId?: string;
   /** Se cerró sin factura todavía (p. ej. ARCA caída): queda para facturar después. */
   fiscalPending?: boolean;
@@ -666,7 +666,7 @@ export interface FiscalSettings {
   nombreFantasia?: string;
   domicilio: string;
   condicionIva: EmisorCondicion;
-  /** Punto de venta "Web Services" dado de alta en ARCA sólo para Stock Manager. */
+  /** Punto de venta "Web Services" dado de alta en ARCA sólo para Orillas. */
   ptoVta: number;
   iibb?: string;
   /** Inicio de actividades, AAAA-MM-DD. */

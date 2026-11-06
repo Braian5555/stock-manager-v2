@@ -1,5 +1,5 @@
 /**
- * Facturación electrónica ARCA desde Stock Manager.
+ * Facturación electrónica ARCA desde Orillas.
  *
  * La app arma el comprobante (importes, IVA, receptor) y lo manda al servicio de ARCA (Cloudflare
  * Worker), que es el único que tiene el certificado. Reglas que se respetan acá:

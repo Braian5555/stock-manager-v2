@@ -114,10 +114,10 @@ export function MovementModal({ product, onClose, initialType = 'ingreso' }: { p
         {isAdjust && integrated && (
           <fieldset className="stack-sm" style={{ border: 0, padding: 0, margin: 0 }}>
             <legend className="small muted" style={{ marginBottom: 6 }}>Tipo de ajuste</legend>
-            <label className="check"><input type="radio" name="adj" checked={mode === 'local'} onChange={() => setMode('local')} /> Ajuste local (sólo Stock Manager)</label>
+            <label className="check"><input type="radio" name="adj" checked={mode === 'local'} onChange={() => setMode('local')} /> Ajuste local (sólo Orillas)</label>
             <label className="check">
               <input type="radio" name="adj" checked={mode === 'sync'} disabled={!canSync} onChange={() => setMode('sync')} />
-              Ajuste sincronizado (Stock Manager → Maxirest)
+              Ajuste sincronizado (Orillas → Maxirest)
             </label>
             {!canSync && <p className="small muted">La integración actual no permite enviar ajustes a Maxirest.</p>}
             {mode === 'local' && integration?.stockAuthority === 'maxirest' && (

@@ -43,7 +43,7 @@ export async function createBackup(opts: { includeUsers?: boolean } = {}): Promi
     formatVersion: BACKUP_FORMAT_VERSION,
     dbVersion: CURRENT_DB_VERSION,
     exportedAt: nowIso(),
-    app: { name: 'Stock Manager', version: __APP_VERSION__ },
+    app: { name: 'Orillas', version: __APP_VERSION__ },
     tables,
   };
 }
@@ -79,7 +79,7 @@ export function validateBackup(data: unknown): ValidationResult {
   const counts: ValidationResult['counts'] = {};
   if (!data || typeof data !== 'object') return { ok: false, errors: ['El archivo no contiene un JSON válido.'], counts };
   const b = data as Partial<BackupFile>;
-  if (b.format !== BACKUP_FORMAT) errors.push('El archivo no es una copia de seguridad de Stock Manager.');
+  if (b.format !== BACKUP_FORMAT) errors.push('El archivo no es una copia de seguridad de Orillas.');
   if (typeof b.dbVersion === 'number' && b.dbVersion > CURRENT_DB_VERSION)
     errors.push('La copia fue creada con una versión más nueva de la app. Actualizá la app antes de restaurarla.');
   if (!b.tables || typeof b.tables !== 'object') errors.push('Falta la sección de datos.');

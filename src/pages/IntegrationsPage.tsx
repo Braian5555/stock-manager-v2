@@ -52,7 +52,7 @@ export function IntegrationsPage() {
       <>
         <PageHeader title={menuLabel(settings, 'integrations')} subtitle="Conexiones opcionales con otros sistemas." />
         <section className="card card-pad stack">
-          <p style={{ margin: 0 }}><b>Stock Manager funciona solo.</b> Salón, cocina, caja, facturación electrónica, stock, conteos y producción no dependen de ningún otro sistema.</p>
+          <p style={{ margin: 0 }}><b>Orillas funciona solo.</b> Salón, cocina, caja, facturación electrónica, stock, conteos y producción no dependen de ningún otro sistema.</p>
           <p className="small muted" style={{ margin: 0 }}>Si en algún momento necesitás pasarle el stock o los conteos a Maxirest (por ejemplo, mientras dejan de usarlo), podés activar la conexión. Mientras esté apagada, Maxirest no aparece en ningún lado de la app.</p>
           <div><button type="button" className="btn" onClick={() => void run(() => updateSettings({ maxirest: true }), 'Conexión con Maxirest activada')}><Plug size={18} aria-hidden /> Activar la conexión con Maxirest</button></div>
         </section>
@@ -82,7 +82,7 @@ export function IntegrationsPage() {
 
   return (
     <>
-      <PageHeader title={menuLabel(settings, 'integrations')} subtitle="Stock Manager funciona completo sin integraciones. Conectar Maxirest es opcional."
+      <PageHeader title={menuLabel(settings, 'integrations')} subtitle="Orillas funciona completo sin integraciones. Conectar Maxirest es opcional."
         actions={<button type="button" className="btn" onClick={() => void run(() => updateSettings({ maxirest: false }), 'Maxirest ya no aparece en la app')}><Unplug size={18} aria-hidden /> Dejar de usar Maxirest</button>} />
       {integ.mode !== 'mock' && (
         <MaxirestConnectCard integ={integ} caps={caps} onCaps={() => void getCapabilities().then(setCaps)} onReview={() => setTab('preparacion')} onResults={setResults} />

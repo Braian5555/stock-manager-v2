@@ -78,7 +78,7 @@ export function FiscalSettingsSection() {
 
       <section className="card card-pad stack">
         <h2 className="row"><Receipt size={18} aria-hidden /> Facturación</h2>
-        <label className="check"><input type="checkbox" checked={f.enabled} onChange={(e) => set('enabled', e.target.checked)} /> Facturar desde Stock Manager al cobrar las mesas</label>
+        <label className="check"><input type="checkbox" checked={f.enabled} onChange={(e) => set('enabled', e.target.checked)} /> Facturar desde Orillas al cobrar las mesas</label>
         <p className="small muted" style={{ margin: 0 }}>Con esto activado, al cobrar un pedido se emite la factura electrónica de ARCA acá mismo. Apagado, se registra el cobro sin factura.</p>
         <Segmented<FiscalSettings['ambiente']> label="Ambiente" value={f.ambiente} onChange={(v) => set('ambiente', v)}
           options={[{ value: 'homologacion', label: 'Homologación (pruebas)' }, { value: 'produccion', label: 'Producción (facturas reales)' }]} />
@@ -114,7 +114,7 @@ export function FiscalSettingsSection() {
       <section className="card card-pad stack">
         <h2>Punto de venta y comprobantes</h2>
         <div className="form-grid cols-2">
-          <Field label="Punto de venta" hint="uno nuevo de tipo “Web Services”, sólo para Stock Manager"><NumberInput value={f.ptoVta || undefined} onChange={(v) => set('ptoVta', Math.trunc(v ?? 0))} min={1} /></Field>
+          <Field label="Punto de venta" hint="uno nuevo de tipo “Web Services”, sólo para Orillas"><NumberInput value={f.ptoVta || undefined} onChange={(v) => set('ptoVta', Math.trunc(v ?? 0))} min={1} /></Field>
           <Field label="Concepto">
             <Select value={f.concepto} onChange={(e) => set('concepto', Number(e.target.value) as 1 | 2 | 3)}>
               <option value={1}>Productos</option><option value={2}>Servicios</option><option value={3}>Productos y servicios</option>

@@ -12,5 +12,5 @@ test('diagnóstico: la app se revisa y arma el informe para Claude', async ({ pa
   await expect(page.getByText(/^Revisión hecha/)).toBeVisible();
   await expect(page.getByRole('button', { name: 'Revisar de nuevo' })).toBeEnabled();
   await page.getByText('Ver el informe completo').click();
-  await expect(page.getByLabel('Informe de diagnóstico')).toHaveValue(/^# Diagnóstico de Stock Manager v/);
+  await expect(page.getByLabel('Informe de diagnóstico')).toHaveValue(/^# Diagnóstico de Orillas v/);
 });

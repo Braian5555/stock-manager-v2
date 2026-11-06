@@ -73,7 +73,7 @@ export function AIReaderSection() {
         <ol className="small" style={{ margin: 0, paddingLeft: 20, display: 'grid', gap: 6 }}>
           <li>En <b>aistudio.google.com</b>, con tu cuenta de Google, tocá <b>Get API key → Create API key</b> (gratis, sin tarjeta) y copiala.</li>
           <li>En <b>dash.cloudflare.com</b> (cuenta gratis): <b>Workers & Pages → Create → Worker</b>, ponele de nombre <i>stock-manager-ia</i> y tocá <b>Deploy</b>.</li>
-          <li><b>Edit code</b>: borrá todo, pegá el archivo <i>worker.js</i> de Stock Manager y tocá <b>Deploy</b>.</li>
+          <li><b>Edit code</b>: borrá todo, pegá el archivo <i>worker.js</i> de Orillas y tocá <b>Deploy</b>.</li>
           <li><b>Settings → Variables and Secrets → Add</b>: tipo <b>Secret</b>, nombre <code>GEMINI_API_KEY</code>, valor la clave. Guardá.</li>
           <li>Copiá la dirección del worker (termina en <i>.workers.dev</i>), pegala arriba y tocá <b>Guardar</b>.</li>
         </ol>

@@ -75,7 +75,7 @@ export async function testConnection(): Promise<ConnectionResult> {
 
 /**
  * Conectar Maxirest en un paso: usa el servidor de Cloudflare (el mismo de la IA, salvo que se
- * indique otra dirección), deja a Stock Manager como fuente principal y prueba la conexión.
+ * indique otra dirección), deja a Orillas como fuente principal y prueba la conexión.
  */
 export async function connectMaxirest(url: string | undefined): Promise<ConnectionResult> {
   if (!url?.trim()) throw new Error('Falta el servidor: primero activá la IA en Configuración → Lectura con IA (Maxirest usa el mismo).');

@@ -15,11 +15,11 @@ import { Input } from '../ui';
 export const MAXIREST_SECRET_NAMES = ['MAXIREST_API_URL', 'MAXIREST_API_KEY', 'MAXIREST_USER', 'MAXIREST_PASSWORD'];
 
 const KEYS_HELP = `Cómo cargar los datos de acceso de Maxirest (cuando te los den):
-1. Entrá a dash.cloudflare.com → Workers & Pages → tu servidor de Stock Manager.
+1. Entrá a dash.cloudflare.com → Workers & Pages → tu servidor de Orillas.
 2. Settings → Variables and Secrets → Add.
 3. Tipo "Secret". Cargá cada dato con estos nombres (los que te hayan dado):
    ${MAXIREST_SECRET_NAMES.join('\n   ')}
-4. Deploy. Después tocá "Probar de nuevo" en Stock Manager.
+4. Deploy. Después tocá "Probar de nuevo" en Orillas.
 Nunca pegues esos datos en la app ni en un chat.`;
 
 type State = 'done' | 'waiting' | 'error' | 'todo';
@@ -72,7 +72,7 @@ export function MaxirestConnectCard({ integ, caps, onCaps, onReview, onResults }
     <section className="card card-pad stack mx-connect" aria-labelledby="mx-connect">
       <div className="stack" style={{ gap: 4 }}>
         <h2 id="mx-connect" className="row"><PlugZap size={20} aria-hidden /> Conectar Maxirest</h2>
-        <p className="small muted" style={{ margin: 0 }}>Tres pasos. Cuando estén los tres en verde, el stock de Maxirest se actualiza solo con el de Stock Manager.</p>
+        <p className="small muted" style={{ margin: 0 }}>Tres pasos. Cuando estén los tres en verde, el stock de Maxirest se actualiza solo con el de Orillas.</p>
       </div>
       <ol className="mx-steps">
         <Step n={1} state={s1} icon={<Server size={18} aria-hidden />} title="Servidor de conexión"

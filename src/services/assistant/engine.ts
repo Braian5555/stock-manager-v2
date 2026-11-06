@@ -561,7 +561,7 @@ async function systemPrompt(deps: EngineDeps, ctx: ToolContext, tools: ToolDef[]
     : famNames('production') || famNames('pastry')
       ? ` (lo de panadería va en ${famNames('production') || 'su familia'}; lo de pastelería en ${famNames('pastry') || 'su familia'})`
       : '';
-  return `Sos el asistente de "${deps.settings.businessName}" dentro de Stock Manager, la app de stock del negocio (depósito, panadería y facturas).
+  return `Sos el asistente de "${deps.settings.businessName}" dentro de Orillas, el software gastronómico del negocio (salón, cocina, caja, stock, panadería, compras y facturas).
 Hoy es ${day} (${ctx.today}). Estás hablando con ${deps.user.name} (perfil: ${ROLE_LABEL[deps.user.role]}).
 Lo que esta persona puede hacer en la app: ${deps.permissions.map((p) => PERMISSION_LABEL[p]).join('; ')}.
 

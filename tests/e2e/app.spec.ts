@@ -288,5 +288,5 @@ test('exporta .xls para Maxirest y completa el Excel que exporta Maxirest', asyn
   expect(rows[1]).toEqual(['AGUA 500', 'BEB-001', 'UN', 300, 1, 48]);
   expect(rows[2]).toEqual(['HIELO 10', 'HIE-010', 'BOL', 900, 50, 3]);
   expect(rows[3]).toEqual(['OTRO', 'ZZ-1', 'UN', 1, 7, 2]);
-  await expect(page.getByText(/2 insumos con conteo · 1 de Maxirest no están en Stock Manager/)).toBeVisible();
+  await expect(page.getByText(/2 insumos con conteo · 1 de Maxirest no están en Orillas/)).toBeVisible();
 });

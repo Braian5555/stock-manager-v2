@@ -1,3 +1,4 @@
+import { APP_NAME } from '../config/app';
 import { db } from '../database/db';
 import type { MenuItemSetting, ModuleKey, Settings } from '../models';
 import { nowIso } from '../utils/id';
@@ -62,8 +63,8 @@ export function defaultSettings(): Settings {
     id: SETTINGS_ID,
     createdAt: t,
     updatedAt: t,
-    businessName: 'Stock Manager',
-    subtitle: 'Control de inventario',
+    businessName: APP_NAME,
+    subtitle: 'Software gastronómico',
     logo: { kind: 'default' },
     primaryColor: DEFAULT_PRIMARY,
     secondaryColor: '#3a2315',
@@ -97,6 +98,9 @@ export function normalizeSettings(s: Partial<Settings> | undefined): Settings {
     const at = ordered.findIndex((x) => x.key === prevKey);
     ordered.splice(at >= 0 ? at + 1 : ordered.length, 0, m);
   });
+  // La app pasó a llamarse Orillas: si el nombre seguía siendo el de fábrica, se actualiza.
+  if (merged.businessName === 'Stock Manager') merged.businessName = APP_NAME;
+  if (merged.subtitle === 'Control de inventario') merged.subtitle = base.subtitle;
   if (LEGACY_PRIMARY.includes(String(merged.primaryColor).toLowerCase())) merged.primaryColor = DEFAULT_PRIMARY;
   if (LEGACY_SECONDARY.includes(String(merged.secondaryColor).toLowerCase())) merged.secondaryColor = base.secondaryColor;
   // La "Vitrina" pasó a ser la cámara de congelados (no hay vitrina: se congela, se hornea y va a desayunos).

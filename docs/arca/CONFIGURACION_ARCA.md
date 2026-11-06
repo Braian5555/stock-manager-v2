@@ -1,6 +1,6 @@
 # Configuración paso a paso
 
-Hay tres lugares: **ARCA** (con la clave fiscal del titular), **Cloudflare** (el servicio) y **Stock Manager** (los datos del emisor). Todo lo hace el titular o quien él autorice. Nadie más necesita la clave fiscal.
+Hay tres lugares: **ARCA** (con la clave fiscal del titular), **Cloudflare** (el servicio) y **Orillas** (los datos del emisor). Todo lo hace el titular o quien él autorice. Nadie más necesita la clave fiscal.
 
 ## 0. Antes de empezar
 
@@ -8,14 +8,14 @@ Hay tres lugares: **ARCA** (con la clave fiscal del titular), **Cloudflare** (el
 - Una computadora con OpenSSL (en Windows viene con Git for Windows, en Mac y Linux ya está).
 - Cuenta de Cloudflare (la misma del servicio de IA sirve).
 
-## 1. ARCA: punto de venta para Stock Manager
+## 1. ARCA: punto de venta para Orillas
 
 1. Entrar a arca.gob.ar con clave fiscal → **Administración de puntos de venta y domicilios**.
 2. Elegir la empresa → **A/B/M de Puntos de venta** → **Agregar**.
 3. Número: uno que no se use (por ejemplo 5). Sistema: **RECE para aplicativo y web services** (monotributistas: “Factura Electrónica - Monotributo - Web Services”).
 4. Domicilio: el del local. Guardar.
 
-> **Importante:** este punto de venta es **sólo para Stock Manager**. Maxirest no tiene que usarlo nunca, porque compartir un punto de venta mezcla la numeración y ARCA rechaza los comprobantes.
+> **Importante:** este punto de venta es **sólo para Orillas**. Maxirest no tiene que usarlo nunca, porque compartir un punto de venta mezcla la numeración y ARCA rechaza los comprobantes.
 
 ## 2. ARCA: certificados
 
@@ -34,7 +34,7 @@ Ver [CERTIFICADOS.md](CERTIFICADOS.md). Se generan dos:
 | Nombre | Valor |
 |---|---|
 | `ARCA_CUIT` | CUIT del emisor, 11 números sin guiones |
-| `ARCA_WORKSPACE` | Id del espacio de trabajo: se ve y se copia en Stock Manager → Configuración fiscal |
+| `ARCA_WORKSPACE` | Id del espacio de trabajo: se ve y se copia en Orillas → Configuración fiscal |
 | `ARCA_HOMO_CERT` | Contenido completo del `.crt` de homologación (desde `-----BEGIN CERTIFICATE-----` hasta `-----END CERTIFICATE-----`) |
 | `ARCA_HOMO_KEY` | Contenido completo del `.key` (clave privada, sin contraseña) |
 | `ARCA_PROD_CERT` / `ARCA_PROD_KEY` | Lo mismo para producción (después de homologar) |
@@ -47,11 +47,11 @@ Ver [CERTIFICADOS.md](CERTIFICADOS.md). Se generan dos:
 
 Publicar el `firestore.rules` actualizado (Firebase → Firestore Database → Reglas → Publicar). Agrega los comprobantes (`fiscalDocs`) y el registro de ARCA (`fiscalLog`), y hace que un comprobante autorizado **no se pueda modificar ni borrar**.
 
-## 5. Stock Manager: Configuración fiscal
+## 5. Orillas: Configuración fiscal
 
 Configuración → **Configuración fiscal**:
 
-1. Tildar **Facturar desde Stock Manager al cobrar las mesas**.
+1. Tildar **Facturar desde Orillas al cobrar las mesas**.
 2. Ambiente: **Homologación (pruebas)**.
 3. Dirección del servicio de ARCA: la del paso 3.5.
 4. Emisor: CUIT, condición frente al IVA, razón social, domicilio fiscal; opcional: nombre de fantasía, Ingresos Brutos, inicio de actividades.

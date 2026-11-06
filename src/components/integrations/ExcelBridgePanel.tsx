@@ -8,7 +8,7 @@ import { MaxirestXlsActions } from './MaxirestXlsActions';
 import { Field, Select } from '../ui';
 import { fmtNumber } from '../../utils/format';
 
-/** Puente manual por Excel: Maxirest → Excel → Stock Manager, y Stock Manager → Excel → Maxirest. */
+/** Puente manual por Excel: Maxirest → Excel → Orillas, y Orillas → Excel → Maxirest. */
 export function ExcelBridgePanel({ onImported }: { onImported?: () => void }) {
   const { run, notify, confirm } = useFeedback();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -46,9 +46,9 @@ export function ExcelBridgePanel({ onImported }: { onImported?: () => void }) {
     <div className="stack">
       <div className="alert alert-info small">
         <span>
-          <b>De Maxirest a Stock Manager:</b> en Maxirest, Stock → Inventarios → Nuevo → “Preparar inventario” → exportar a Excel, e importalo acá (.xls, .xlsx o .csv).
+          <b>De Maxirest a Orillas:</b> en Maxirest, Stock → Inventarios → Nuevo → “Preparar inventario” → exportar a Excel, e importalo acá (.xls, .xlsx o .csv).
           <br />
-          <b>De Stock Manager a Maxirest:</b> “Completar Excel de Maxirest” rellena la columna Conteo del Excel que exportó Maxirest con el stock de acá, y lo devuelve con el mismo formato.
+          <b>De Orillas a Maxirest:</b> “Completar Excel de Maxirest” rellena la columna Conteo del Excel que exportó Maxirest con el stock de acá, y lo devuelve con el mismo formato.
           Después, en Maxirest: Inventario → Depósito Central → “Importar Inventario”, revisá las diferencias, tildá “Ajuste automático de stock” y guardá.
           Si no tenés el Excel de Maxirest, “.xls para Maxirest” arma uno nuevo con las columnas de Maxirest. Probalo primero con un inventario de prueba.
         </span>

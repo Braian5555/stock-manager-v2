@@ -17,7 +17,7 @@ import { isOnline } from '../core/errors';
  *  - El gateway declara qué puede hacer en GET /v1/maxirest/capabilities. Sin gateway,
  *    o si el gateway no declara una operación, la operación es NOT_SUPPORTED.
  *  - El frontend nunca envía ni guarda credenciales de Maxirest. Al gateway le manda la sesión de
- *    Stock Manager (token de Firebase + espacio), igual que a la IA: el gateway verifica que sea
+ *    Orillas (token de Firebase + espacio), igual que a la IA: el gateway verifica que sea
  *    miembro del espacio y recién ahí usa las credenciales de Maxirest (secretos del gateway).
  */
 export type GatewaySession = () => Promise<{ token: string; wsId: string } | undefined>;

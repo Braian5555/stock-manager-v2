@@ -5,7 +5,7 @@ import { BRIDGE_INSTRUCTIONS, buildExportLines } from './excelBridge';
 /** Genera y descarga el Excel para carga manual en Maxirest (conteo o stock actual). */
 export async function exportBridgeWorkbook(countId?: string, name = 'stock'): Promise<void> {
   const lines = await buildExportLines(countId);
-  const blob = await toXlsx('Stock Manager → Maxirest', [
+  const blob = await toXlsx('Orillas → Maxirest', [
     {
       title: 'Inventario',
       columns: ['Código', 'Insumo', 'Unidad', 'Stock Maxirest', 'Conteo', 'Diferencia'],

@@ -43,7 +43,7 @@ Worker `stock-manager-arca` → Settings → Variables and Secrets → Add → *
 
 Se pega el texto entero, con las líneas `-----BEGIN …-----` y `-----END …-----`. Si Cloudflare junta todo en una línea no pasa nada: el servicio lo lee igual.
 
-Después, en Stock Manager → Configuración fiscal → **Probar conexión con ARCA** se ve el CUIT del certificado y su vencimiento.
+Después, en Orillas → Configuración fiscal → **Probar conexión con ARCA** se ve el CUIT del certificado y su vencimiento.
 
 ## 5. Renovar
 
@@ -55,4 +55,4 @@ Después, en Stock Manager → Configuración fiscal → **Probar conexión con 
 
 1. Revocar el certificado en ARCA (mismo servicio donde se creó).
 2. Generar clave y certificado nuevos y reemplazar los secretos.
-3. Revisar en Stock Manager → Comprobantes → **Registro ARCA** si hubo pedidos que no reconocés.
+3. Revisar en Orillas → Comprobantes → **Registro ARCA** si hubo pedidos que no reconocés.

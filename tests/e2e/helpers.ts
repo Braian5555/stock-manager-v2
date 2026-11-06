@@ -65,7 +65,7 @@ export async function go(page: Page, hash: string) {
 
 export const dialog = (page: Page) => page.getByRole('dialog');
 
-/** Stock Manager no depende de Maxirest: para probar la conexión opcional, primero se activa. */
+/** Orillas no depende de Maxirest: para probar la conexión opcional, primero se activa. */
 export async function enableMaxirest(page: Page) {
   await go(page, '/integraciones');
   await page.getByRole('button', { name: 'Activar la conexión con Maxirest' }).click();

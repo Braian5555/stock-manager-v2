@@ -34,7 +34,7 @@ El mensaje de ARCA siempre se muestra en el comprobante y queda en Comprobantes 
 | 10016 | El número o la fecha no corresponden al próximo a autorizar | El sistema renumera solo. Si persiste: otro sistema usa el mismo punto de venta (no compartirlo con Maxirest) |
 | Condición frente al IVA del receptor (RG 5616) | No informada o inválida | Elegir la condición correcta del cliente (siempre se informa) |
 
-## Servicio de Stock Manager (Cloudflare)
+## Servicio de Orillas (Cloudflare)
 
 | Mensaje | Solución |
 |---|---|

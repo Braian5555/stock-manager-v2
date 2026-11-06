@@ -95,8 +95,8 @@ export function CountDetailPage() {
       title: 'Aplicar conteo al stock',
       message: (
         <>
-          <p>Se ajustará el stock {count.outletId ? 'del punto' : 'de Stock Manager'} a las cantidades contadas ({changes.length} productos con diferencia).</p>
-          {count.baseline === 'maxirest' && <p className="small muted">Esto ajusta sólo Stock Manager. Para Maxirest usá “Enviar a Maxirest” o el Excel.</p>}
+          <p>Se ajustará el stock {count.outletId ? 'del punto' : 'de Orillas'} a las cantidades contadas ({changes.length} productos con diferencia).</p>
+          {count.baseline === 'maxirest' && <p className="small muted">Esto ajusta sólo Orillas. Para Maxirest usá “Enviar a Maxirest” o el Excel.</p>}
           {moved.length > 0 && (
             <div className="alert alert-warn stack-sm" style={{ marginTop: 8 }}>
               <span>{moved.length === 1 ? 'Un producto tuvo' : `${moved.length} productos tuvieron`} movimientos desde que empezó el conteo. Al aplicar quedan en lo contado:</span>

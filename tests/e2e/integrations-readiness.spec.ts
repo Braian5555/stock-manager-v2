@@ -31,9 +31,9 @@ test('independiente: Maxirest no aparece hasta que se activa la conexión', asyn
   await go(page, '/exportar');
   await expect(page.getByRole('heading', { name: /Maxirest/ })).toHaveCount(0);
   await go(page, '/integraciones');
-  await expect(page.getByText('Stock Manager funciona solo.')).toBeVisible();
+  await expect(page.getByText('Orillas funciona solo.')).toBeVisible();
   await page.getByRole('button', { name: 'Activar la conexión con Maxirest' }).click();
   await expect(page.getByRole('region', { name: 'Conectar Maxirest' })).toBeVisible();
   await page.getByRole('button', { name: 'Dejar de usar Maxirest' }).click();
-  await expect(page.getByText('Stock Manager funciona solo.')).toBeVisible();
+  await expect(page.getByText('Orillas funciona solo.')).toBeVisible();
 });

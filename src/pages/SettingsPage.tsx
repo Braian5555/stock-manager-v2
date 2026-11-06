@@ -196,7 +196,7 @@ function PrintSection() {
     <>
       <PageHeader title="Impresión de tickets" subtitle="Tickets de 80 mm desde el diálogo de impresión del dispositivo." />
       <section className="card card-pad stack">
-        <p style={{ margin: 0 }}>Stock Manager imprime cuatro tipos de ticket, todos de 80 mm de ancho:</p>
+        <p style={{ margin: 0 }}>Orillas imprime cuatro tipos de ticket, todos de 80 mm de ancho:</p>
         <ul style={{ margin: 0, paddingLeft: 20 }}>
           <li><b>Factura o nota</b> (con CAE y QR de ARCA): al cobrar, o desde Comprobantes.</li>
           <li><b>Pre-cuenta</b> y <b>comanda</b>: desde el pedido. Dicen “NO VÁLIDO COMO FACTURA”.</li>
@@ -254,7 +254,7 @@ function CompanySection() {
           <h2 id="neg">Empresa</h2>
           <div className="form-grid cols-2">
             <Field label="Nombre del negocio">
-              <CommitInput value={form.businessName} maxLength={60} onCommit={(v) => save({ businessName: v.trim() || 'Stock Manager' })} />
+              <CommitInput value={form.businessName} maxLength={60} onCommit={(v) => save({ businessName: v.trim() || 'Orillas' })} />
             </Field>
             <Field label="Subtítulo">
               <CommitInput value={form.subtitle} maxLength={80} onCommit={(v) => save({ subtitle: v.trim() })} />
@@ -509,7 +509,7 @@ function DiagnosticsSection() {
   }, []);
   const view = syncView(cloud, online);
   const rows: [string, string][] = [
-    ['Versión', `Stock Manager v${__APP_VERSION__}`],
+    ['Versión', `Orillas v${__APP_VERSION__}`],
     ['Base de datos local', `IndexedDB v${CURRENT_DB_VERSION}`],
     ['Conexión a Internet', online ? 'En línea' : 'Sin conexión'],
     ['Nube (Firebase)', cloud.provider === 'firebase' ? 'Configurada' : cloud.provider === 'fake' ? 'Simulada (pruebas)' : cloud.phase === 'loading' ? 'Cargando…' : 'No configurada'],
