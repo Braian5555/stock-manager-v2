@@ -25,7 +25,7 @@ import { AccessibilitySection } from '../components/AccessibilitySection';
 import { AIReaderSection } from '../components/AIReaderSection';
 import { FiscalSettingsSection } from '../components/FiscalSettingsSection';
 import { printHtml, testTicketHtml } from '../services/printService';
-import { MODULE_ICON, MODULE_PATH, moduleEnabled, navLabel } from '../layouts/modules';
+import { MODULE_ICON, MODULE_PATH, maxirestOn, moduleEnabled, navLabel } from '../layouts/modules';
 import { useCloud } from '../cloud/cloudService';
 import { useIntegration, useOnline, usePendingJobs } from '../hooks/useData';
 import { syncView } from '../components/SyncBadge';
@@ -86,7 +86,7 @@ const SECTIONS: Section[] = [
   { key: 'ingresos', group: 'personas', areas: BOTH, title: 'Registro de ingresos', description: 'Quién entró a la app, cuándo y desde qué dispositivo.', icon: LogIn, render: () => <AccessLogSection /> },
   { key: 'nube', group: 'personas', areas: BOTH, title: 'Cuenta y nube', description: 'Sesión, espacios de trabajo, miembros, invitaciones y sincronización.', icon: Cloud, render: () => <CloudPage /> },
   // Sistema
-  { key: 'integraciones', group: 'sistema', areas: ['stock'], title: 'Integraciones', description: 'Maxirest, Excel Bridge, gateway, cola y estado de conexión.', icon: Plug, render: () => <IntegrationsPage /> },
+  { key: 'integraciones', group: 'sistema', areas: ['stock'], title: 'Integraciones', description: 'Conexiones opcionales con otros sistemas (por ejemplo, Maxirest).', icon: Plug, render: () => <IntegrationsPage /> },
   { key: 'datos', group: 'sistema', areas: ['stock'], title: 'Importar y exportar', description: 'Excel, CSV, PDF, Word, JSON, backup completo y restauración.', icon: Download, render: () => <ExportPage /> },
   { key: 'aplicacion', group: 'sistema', areas: BOTH, title: 'Aplicación', description: 'Actualizaciones, datos del dispositivo, restablecer y borrar datos.', icon: Smartphone, render: () => <AppSection /> },
   { key: 'diagnostico', group: 'sistema', areas: BOTH, title: 'Diagnóstico', description: 'Estado del sistema, de Firebase y de la sincronización; versión.', icon: Stethoscope, render: () => <DiagnosticsSection /> },
@@ -160,7 +160,7 @@ function SalonShortcuts() {
       <PageHeader title="Mesas, carta y caja" subtitle="Se configuran desde su propia pantalla del Salón." />
       <LinkCards items={[
         { to: '/salon', title: 'Mesas y plano', description: 'Crear mesas y sectores (botón “Mesas”) y acomodarlas en el plano (“Editar plano”).', icon: Armchair },
-        { to: '/salon?vista=carta', title: 'Carta', description: 'Platos, precios, adicionales, IVA y código de Maxirest.', icon: BookOpen },
+        { to: '/salon?vista=carta', title: 'Carta', description: 'Platos, precios, secciones, adicionales e IVA.', icon: BookOpen },
         { to: '/salon?vista=caja', title: 'Caja', description: 'Abrir y cerrar la caja, ingresos, egresos y arqueos.', icon: Wallet },
       ]} />
     </>
@@ -466,6 +466,7 @@ function AppSection() {
 // ───────────────────────── Diagnóstico ─────────────────────────
 
 function DiagnosticsSection() {
+  const settings = useSettings();
   const cloud = useCloud();
   const online = useOnline();
   const integration = useIntegration();
@@ -496,8 +497,10 @@ function DiagnosticsSection() {
     ['Última sincronización', fmtDateTime(cloud.status.lastSyncAt)],
     ['Cambios por enviar', String(cloud.status.pending)],
     ['Borrados por enviar', String(counts?.tombstones ?? '—')],
-    ['Integración Maxirest', integration ? `${integration.mode} · ${integration.status}` : '—'],
-    ['Movimientos pendientes con Maxirest', String(pendingJobs)],
+    ...(maxirestOn(settings) ? [
+      ['Integración Maxirest', integration ? `${integration.mode} · ${integration.status}` : '—'],
+      ['Movimientos pendientes con Maxirest', String(pendingJobs)],
+    ] as [string, string][] : []),
     ['Usuario actual', user ? `${user.name} (${user.role})` : '—'],
     ['Productos / movimientos / usuarios', counts ? `${counts.products} / ${counts.movements} / ${counts.users}` : '—'],
     ['Service worker', sw],

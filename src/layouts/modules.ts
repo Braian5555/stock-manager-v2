@@ -82,6 +82,8 @@ const SHORT_LABEL: Partial<Record<ModuleKey, string>> = {
  */
 export const RETIRED_MODULES: ReadonlySet<ModuleKey> = new Set<ModuleKey>(['orders', 'suppliers', 'transfers', 'reports', 'reconciliation']);
 export const moduleEnabled = (k: ModuleKey) => !RETIRED_MODULES.has(k);
+/** ¿Está activada la conexión opcional con Maxirest? Apagada, Maxirest no aparece en la app. */
+export const maxirestOn = (s: Pick<Settings, 'maxirest'> | undefined) => s?.maxirest === true;
 /** Permisos que sólo servían a los módulos retirados (se ocultan al editar usuarios). */
 export const RETIRED_PERMISSIONS: ReadonlySet<Permission> = new Set<Permission>(['orders.manage', 'orders.receive', 'transfers']);
 
@@ -136,7 +138,7 @@ export function navLabel(settings: Settings, key: ModuleKey): string {
 
 /** Módulos visibles para esta persona, en el orden del menú configurado. */
 export function visibleModules(settings: Settings, canAny: (p: Permission[]) => boolean): ModuleKey[] {
-  return settings.menu.filter((m) => m.visible && moduleEnabled(m.key) && canAny(MODULE_PERMISSIONS[m.key])).map((m) => m.key);
+  return settings.menu.filter((m) => m.visible && moduleEnabled(m.key) && (m.key !== 'integrations' || maxirestOn(settings)) && canAny(MODULE_PERMISSIONS[m.key])).map((m) => m.key);
 }
 
 const PRODUCTION_LINES: ModuleKey[] = ['production', 'pastry'];

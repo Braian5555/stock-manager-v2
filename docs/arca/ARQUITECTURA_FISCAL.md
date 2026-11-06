@@ -49,7 +49,7 @@ Límite conocido: si dos comprobantes con **el mismo total y el mismo receptor**
 4. Medios de pago (se puede dividir; vuelto en efectivo).
 5. Cliente: consumidor final, con datos (CUIT/DNI/CUIL + condición IVA) o “Sin factura por ahora”.
 6. La app calcula importes e IVA → servicio de ARCA → CAE.
-7. Se guarda el comprobante; la mesa se cierra **sin pasar a Maxirest**.
+7. Se guarda el comprobante y la mesa se cierra.
 8. Imprimir ticket fiscal (80 mm, QR).
 
 Si ARCA no responde, la mesa se cierra igual (ya se cobró) y el comprobante queda en **Para resolver**.

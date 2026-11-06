@@ -3,8 +3,8 @@
  * comandas a cocina, descuentos y cortesías.
  *
  * El cobro (con factura ARCA, división de cuenta y caja) está en fiscalService y cashService.
- * Si la facturación de Stock Manager está apagada, al cerrar el pedido queda "pendiente para
- * Maxirest". No se descuenta stock al vender (el stock sale de producción y de la cámara).
+ * Funciona solo, sin depender de otro sistema. No se descuenta stock al vender (el stock sale de
+ * producción y de la cámara).
  */
 import { db } from '../database/db';
 import type { DiningTable, IvaRate, MenuExtra, MenuItem, TableShape, TableTicket, TicketChannel, TicketDiscount, TicketLine } from '../models';
@@ -92,14 +92,13 @@ export async function retireTable(id: string): Promise<void> {
 
 // ───────────── Carta ─────────────
 
-export async function saveMenuItem(d: { id?: string; name: string; section: string; price: number; maxirestCode?: string; kitchen: boolean; active?: boolean; iva?: IvaRate; extras?: MenuExtra[] }): Promise<MenuItem> {
+export async function saveMenuItem(d: { id?: string; name: string; section: string; price: number; kitchen: boolean; active?: boolean; iva?: IvaRate; extras?: MenuExtra[] }): Promise<MenuItem> {
   const name = d.name.trim();
   if (!name) throw new Error('Poné el nombre del plato o la bebida.');
   if (!Number.isFinite(d.price) || d.price < 0) throw new Error('El precio no es válido.');
   const all = await db.menuItems.toArray();
   if (all.some((m) => m.id !== d.id && m.active && m.name.toLocaleLowerCase('es') === name.toLocaleLowerCase('es')))
     throw new Error(`"${name}" ya está en la carta.`);
-  const code = d.maxirestCode?.trim();
   const extras = (d.extras ?? []).map((e) => ({ name: e.name.trim(), price: round2(Number(e.price) || 0) })).filter((e) => e.name);
   if (extras.some((e) => e.price < 0)) throw new Error('El precio de un adicional no puede ser negativo.');
   if (new Set(extras.map((e) => e.name.toLocaleLowerCase('es'))).size !== extras.length) throw new Error('Hay dos adicionales con el mismo nombre.');
@@ -108,7 +107,7 @@ export async function saveMenuItem(d: { id?: string; name: string; section: stri
     name,
     section: d.section.trim() || 'General',
     price: round2(d.price),
-    ...(code ? { maxirestCode: code } : { maxirestCode: undefined }),
+    maxirestCode: undefined,
     kitchen: d.kitchen,
     iva: d.iva,
     extras: extras.length ? extras : undefined,
@@ -337,19 +336,14 @@ export async function requestBill(ticketId: string): Promise<TableTicket> {
   });
 }
 
-/**
- * Cierra la mesa: queda libre. Si se cobra en Maxirest, el pedido pasa a la cola para Maxirest;
- * si se facturó en Stock Manager (`maxirest: false`), no (si no, se facturaría dos veces).
- */
-export async function closeTicket(ticketId: string, opts: { maxirest?: boolean } = {}): Promise<TableTicket> {
+/** Cierra el pedido: la mesa queda libre. */
+export async function closeTicket(ticketId: string): Promise<TableTicket> {
   return mutate(ticketId, (t) => {
     mustBeOpen(t);
     if (t.lines.some((l) => l.status === 'nuevo')) throw new Error('Hay platos sin mandar: mandalos o sacalos antes de cerrar.');
     if (!t.lines.some((l) => l.qty > 0)) throw new Error('El pedido está vacío: si no se pidió nada, anulalo.');
     t.status = 'cerrada';
     t.closedAt = nowIso();
-    if (opts.maxirest !== false) t.maxirest = { status: 'pendiente' };
-    else delete t.maxirest;
   });
 }
 
@@ -374,35 +368,4 @@ export async function moveTicket(ticketId: string, tableId: string): Promise<Tab
     t.tableId = table.id;
     t.tableName = table.name;
   });
-}
-
-// ───────────── Maxirest (la API va aparte) ─────────────
-
-/**
- * Lo que se le mandaría a Maxirest por cada pedido cerrado. El envío lo hace un servicio aparte
- * cuando Maxirest habilite la API; los artículos sin código quedan marcados para revisarlos.
- */
-export function maxirestPayload(t: TableTicket, items: Map<string, MenuItem>) {
-  const lines = t.lines.filter((l) => l.qty > 0 && !l.comp);
-  return {
-    externalId: t.id,
-    canal: channelOf(t),
-    mesa: channelOf(t) === 'mesa' ? t.tableName : undefined,
-    cliente: t.customer,
-    descuento: t.discount ? discountAmount(t.subtotal ?? t.total, t.discount) : 0,
-    numero: t.number,
-    abierto: t.openedAt,
-    cerrado: t.closedAt,
-    comensales: t.guests,
-    mozo: t.openedBy?.name,
-    total: t.total,
-    items: lines.map((l) => ({ codigo: items.get(l.menuItemId)?.maxirestCode ?? null, nombre: l.name, cantidad: l.qty, precio: l.price, nota: l.notes })),
-    sinCodigo: lines.filter((l) => !items.get(l.menuItemId)?.maxirestCode).map((l) => l.name),
-  };
-}
-
-export async function markMaxirest(ticketId: string, status: 'pendiente' | 'enviado' | 'error', error?: string): Promise<void> {
-  const t = await db.tickets.get(ticketId);
-  if (!t) return;
-  await db.tickets.put({ ...t, maxirest: { status, at: nowIso(), ...(error ? { error } : {}) }, updatedAt: nowIso() });
 }

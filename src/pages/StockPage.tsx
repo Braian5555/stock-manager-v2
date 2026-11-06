@@ -10,6 +10,7 @@ import { STATUS_LABEL, statusOf, stockByOutlet } from '../services/stockService'
 import { outletAlerts } from '../services/transferService';
 import { menuLabel } from '../services/settingsService';
 import { useSettings } from '../store/settings';
+import { maxirestOn } from '../layouts/modules';
 import { ScanButton } from '../components/scanner/ScanButton';
 import { GroupBar, useProductGroups } from '../components/GroupBar';
 import { EmptyState, PageHeader, SearchInput, Segmented, Select, StatusBadge } from '../components/ui';
@@ -191,7 +192,7 @@ export function StockPage() {
           {shown.map(({ p, s }) => {
             const unit = lk.unit(p.unitId);
             const pct = p.maxStock > 0 ? Math.min(100, (Math.max(0, p.stock) / p.maxStock) * 100) : undefined;
-            const ext = p.externalSystems?.maxirest ? extStock.get(p.externalSystems.maxirest.id) : undefined;
+            const ext = maxirestOn(settings) && p.externalSystems?.maxirest ? extStock.get(p.externalSystems.maxirest.id) : undefined;
             return (
               <article key={p.id} className={`card pcard s-${s}${p.stock < 0 ? ' is-neg' : ''}`} aria-label={p.name}>
                 <div className="pcard-top">

@@ -12,7 +12,8 @@ import { CAPABILITIES, CAPABILITY_LABEL, type CapabilityMap } from '../integrati
 import type { StepResult } from '../integrations/core/syncEngine';
 import { MAXIREST_OFFICIAL, MAXIREST_SOURCES, OFFICIAL_STATUS_LABEL } from '../integrations/maxirest/officialStatus';
 import { getMockAdapter } from '../integrations/registry';
-import { menuLabel } from '../services/settingsService';
+import { menuLabel, updateSettings } from '../services/settingsService';
+import { maxirestOn } from '../layouts/modules';
 import { useFeedback } from '../store/feedback';
 import { useSettings } from '../store/settings';
 import { AUTHORITY_LABEL, ConnectionWizard, SyncResults } from '../components/integrations/ConnectionWizard';
@@ -46,6 +47,19 @@ export function IntegrationsPage() {
   useEffect(() => void getCapabilities().then(setCaps), [integ?.mode, integ?.status, integ?.gatewayUrl]);
   if (!integ) return null;
 
+  if (!maxirestOn(settings)) {
+    return (
+      <>
+        <PageHeader title={menuLabel(settings, 'integrations')} subtitle="Conexiones opcionales con otros sistemas." />
+        <section className="card card-pad stack">
+          <p style={{ margin: 0 }}><b>Stock Manager funciona solo.</b> Salón, cocina, caja, facturación electrónica, stock, conteos y producción no dependen de ningún otro sistema.</p>
+          <p className="small muted" style={{ margin: 0 }}>Si en algún momento necesitás pasarle el stock o los conteos a Maxirest (por ejemplo, mientras dejan de usarlo), podés activar la conexión. Mientras esté apagada, Maxirest no aparece en ningún lado de la app.</p>
+          <div><button type="button" className="btn" onClick={() => void run(() => updateSettings({ maxirest: true }), 'Conexión con Maxirest activada')}><Plug size={18} aria-hidden /> Activar la conexión con Maxirest</button></div>
+        </section>
+      </>
+    );
+  }
+
   const live = integ.mode === 'mock' || integ.mode === 'gateway';
   const connected = live && integ.status !== 'desconectado' && integ.status !== 'no_configurado';
   const mock = integ.mode === 'mock' ? getMockAdapter() : null;
@@ -68,7 +82,8 @@ export function IntegrationsPage() {
 
   return (
     <>
-      <PageHeader title={menuLabel(settings, 'integrations')} subtitle="Stock Manager funciona completo sin integraciones. Conectar Maxirest es opcional." />
+      <PageHeader title={menuLabel(settings, 'integrations')} subtitle="Stock Manager funciona completo sin integraciones. Conectar Maxirest es opcional."
+        actions={<button type="button" className="btn" onClick={() => void run(() => updateSettings({ maxirest: false }), 'Maxirest ya no aparece en la app')}><Unplug size={18} aria-hidden /> Dejar de usar Maxirest</button>} />
       {integ.mode !== 'mock' && (
         <MaxirestConnectCard integ={integ} caps={caps} onCaps={() => void getCapabilities().then(setCaps)} onReview={() => setTab('preparacion')} onResults={setResults} />
       )}

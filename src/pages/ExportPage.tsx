@@ -12,6 +12,7 @@ import { planProductImport, type ProductImportPlan } from '../importers/productI
 import { planRecipeImport } from '../importers/recipeImport';
 import { useFeedback } from '../store/feedback';
 import { useSettings } from '../store/settings';
+import { maxirestOn } from '../layouts/modules';
 import { PageHeader, Segmented } from '../components/ui';
 import { MaxirestXlsActions } from '../components/integrations/MaxirestXlsActions';
 
@@ -134,7 +135,7 @@ export function ExportPage() {
         </div>
       </section>
 
-      <section className="card card-pad stack" style={{ marginTop: 16 }} aria-labelledby="mx">
+      {maxirestOn(settings) && <section className="card card-pad stack" style={{ marginTop: 16 }} aria-labelledby="mx">
         <h2 id="mx" className="row"><FileSpreadsheet size={18} aria-hidden /> Stock para Maxirest (.xls)</h2>
         <p className="small muted">
           Para que Maxirest tenga el mismo stock que acá. Lo más seguro: en Maxirest exportá a Excel el inventario del Depósito Central y tocá
@@ -143,7 +144,7 @@ export function ExportPage() {
           “.xls para Maxirest” arma un archivo nuevo si no tenés el de Maxirest. Para un conteo puntual, usá los mismos botones desde el conteo.
         </p>
         <div className="row wrap"><MaxirestXlsActions name="stock_actual" /></div>
-      </section>
+      </section>}
 
       <section className="card card-pad stack" style={{ marginTop: 16 }} aria-labelledby="bk">
         <h2 id="bk" className="row"><DatabaseBackup size={18} aria-hidden /> Copia de seguridad</h2>
@@ -167,7 +168,7 @@ export function ExportPage() {
 
       <section className="card card-pad stack" style={{ marginTop: 16 }} aria-labelledby="imp-rec">
         <h2 id="imp-rec" className="row"><FileSpreadsheet size={18} aria-hidden /> Importar recetas</h2>
-        <p className="muted small">El Excel de recetas de Maxirest (guardado como .xlsx o .csv). Cada receta se vincula por código con su producto y cada insumo con el suyo; las cantidades se pasan a la unidad de stock (gr → kg, ml → l). Al anotar una producción se descuentan los insumos.</p>
+        <p className="muted small">Un Excel de recetas (.xlsx o .csv; sirve el que exporta Maxirest u otro sistema). Cada receta se vincula por código con su producto y cada insumo con el suyo; las cantidades se pasan a la unidad de stock (gr → kg, ml → l). Al anotar una producción se descuentan los insumos.</p>
         <div className="row wrap">
           {can('catalog.manage') ? <button type="button" className="btn" onClick={() => recipeRef.current?.click()}><Upload size={18} aria-hidden /> Elegir archivo de recetas</button> : <span className="small muted">Necesitás permiso para administrar productos.</span>}
           <input ref={recipeRef} type="file" accept=".xlsx,.xls,.csv,text/csv" hidden aria-label="Archivo de recetas" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void onRecipeFile(f); }} />

@@ -21,7 +21,7 @@ export const PERMISSION_LABEL: Record<Permission, string> = {
   'movements.view': 'Ver historial de movimientos',
   export: 'Exportar datos',
   invoices: 'Cargar, ver y descargar facturas',
-  transfers: 'Hacer remitos internos a los puntos y marcarlos en Maxirest',
+  transfers: 'Hacer remitos internos a los puntos',
   admin: 'Administración (usuarios, configuración, integraciones, nube y backups)',
   production: 'Producción: anotar lo que se produce (panadería, cocina)',
   pastry: 'Pastelería: anotar lo que se produce en pastelería',

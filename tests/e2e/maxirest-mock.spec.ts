@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { dialog, go, loadDemo } from './helpers';
+import { dialog, go, loadDemo, enableMaxirest } from './helpers';
 
 // Sección retirada de la app (queda stock, panadería y facturas). El código se conserva: estas
 // pruebas se reactivan si se vuelve a habilitar el módulo (layouts/modules.ts → RETIRED_MODULES).
@@ -10,7 +10,7 @@ test.skip(true, 'Módulo retirado de la app');
  * No prueban la API real de Maxirest (no existe una API pública documentada).
  */
 async function connectMock(page: Page) {
-  await go(page, '/integraciones');
+  await enableMaxirest(page);
   await page.getByText('Opciones avanzadas').click();
   await page.getByRole('button', { name: 'Configurar' }).click();
   const d = dialog(page);

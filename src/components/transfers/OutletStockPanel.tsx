@@ -118,7 +118,7 @@ export function OutletStockPanel({ outletId: fixedId }: { outletId?: string } = 
       <p className="small muted" style={{ margin: '0 0 8px' }}>
         Familias que se cuentan acá: <b>{lk.categories.filter((c) => cats.has(c.id)).map((c) => c.name).join(', ') || 'ninguna'}</b>.
       </p>
-      <p className="small muted" style={{ margin: '0 0 8px' }}>Stock según los remitos recibidos y los conteos del punto. Lo que se vende en el punto se descuenta en Maxirest, no acá: hacé conteos periódicos para mantenerlo al día.</p>
+      <p className="small muted" style={{ margin: '0 0 8px' }}>Stock según los remitos recibidos y los conteos del punto. Lo que se vende en el punto no se descuenta solo: hacé conteos periódicos para mantenerlo al día.</p>
       <div className="card">
         {rows.length === 0 ? (
           <EmptyState icon={<Store size={40} />} title={q ? 'Sin resultados' : 'Este punto todavía no tiene productos'}>{q ? undefined : 'Elegí qué familias maneja en “Familias del punto”, o mandale mercadería por remito.'}</EmptyState>

@@ -79,7 +79,7 @@ export function FiscalSettingsSection() {
       <section className="card card-pad stack">
         <h2 className="row"><Receipt size={18} aria-hidden /> Facturación</h2>
         <label className="check"><input type="checkbox" checked={f.enabled} onChange={(e) => set('enabled', e.target.checked)} /> Facturar desde Stock Manager al cobrar las mesas</label>
-        <p className="small muted" style={{ margin: 0 }}>Con esto activado, al cerrar una mesa se cobra y se emite la factura acá, y la mesa ya no se manda a Maxirest para cobrar (así no se factura dos veces).</p>
+        <p className="small muted" style={{ margin: 0 }}>Con esto activado, al cobrar un pedido se emite la factura electrónica de ARCA acá mismo. Apagado, se registra el cobro sin factura.</p>
         <Segmented<FiscalSettings['ambiente']> label="Ambiente" value={f.ambiente} onChange={(v) => set('ambiente', v)}
           options={[{ value: 'homologacion', label: 'Homologación (pruebas)' }, { value: 'produccion', label: 'Producción (facturas reales)' }]} />
         {cloud.workspace?.id && (

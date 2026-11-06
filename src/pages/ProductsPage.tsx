@@ -7,6 +7,7 @@ import { menuLabel } from '../services/settingsService';
 import { statusOf } from '../services/stockService';
 import { useFeedback } from '../store/feedback';
 import { useSettings } from '../store/settings';
+import { maxirestOn } from '../layouts/modules';
 import { ScanButton } from '../components/scanner/ScanButton';
 import { LabelsModal } from '../components/scanner/LabelsModal';
 import { Badge, EmptyState, PageHeader, SearchInput, StatusBadge } from '../components/ui';
@@ -106,7 +107,7 @@ export function ProductsPage() {
                   <tr className={selected.has(p.id) ? 'row-selected' : undefined}>
                     {selecting && <td className="col-check"><input type="checkbox" checked={selected.has(p.id)} onChange={(e) => toggle(p.id, e.target.checked)} aria-label={`Elegir ${p.name}`} /></td>}
                     <td className="cell-title">
-                      {p.name} {!p.active && <Badge>Inactivo</Badge>} {p.externalSystems?.maxirest && <Badge tone="info">Maxirest</Badge>}
+                      {p.name} {!p.active && <Badge>Inactivo</Badge>} {maxirestOn(settings) && p.externalSystems?.maxirest && <Badge tone="info">Maxirest</Badge>}
                       <span className="cell-sub only-mobile">{[p.sku, lk.category(p.categoryId), lk.location(p.locationId), lk.supplier(p.supplierId)].filter(Boolean).join(' · ')}</span>
                     </td>
                     <td data-label="Código" className="hide-mobile nowrap">{p.sku || '—'}</td>

@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { dialog, go, loadDemo, open } from './helpers';
+import { dialog, go, loadDemo, open, enableMaxirest } from './helpers';
 
 const BASE = process.env.VITE_BASE_PATH ?? '/';
 
@@ -260,6 +260,7 @@ test('navegar no falla aunque scrollTo devuelva una Promise (Chrome reciente)', 
 test('exporta .xls para Maxirest y completa el Excel que exporta Maxirest', async ({ page }, info) => {
   const XLSX = await import('@e965/xlsx');
   await loadDemo(page);
+  await enableMaxirest(page);
   await go(page, '/exportar');
   const [dl] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: '.xls para Maxirest' }).click()]);
   expect(dl.suggestedFilename()).toMatch(/^maxirest_stock_actual_.*\.xls$/);

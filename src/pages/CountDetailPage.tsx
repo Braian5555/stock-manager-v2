@@ -8,6 +8,8 @@ import { applyCount, discardCount, finishCount, movedSinceStart, reopenCount, se
 import { downloadCountReport } from '../exports/countReport';
 import { canSyncAdjustments, sendCountToExternal } from '../integrations/integrationService';
 import { MaxirestXlsActions } from '../components/integrations/MaxirestXlsActions';
+import { useSettings } from '../store/settings';
+import { maxirestOn } from '../layouts/modules';
 import { useLookups, useProducts, EMPTY } from '../hooks/useData';
 import { useFeedback } from '../store/feedback';
 import { ScanButton } from '../components/scanner/ScanButton';
@@ -37,6 +39,7 @@ export function CountDetailPage() {
   const [show, setShow] = useState<Show>('all');
   const [showExpected, setShowExpected] = useState(true);
   const [canSync, setCanSync] = useState(false);
+  const mx = maxirestOn(useSettings());
   const byId = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
   const [hit, setHit] = useState<string | null>(null);
 
@@ -170,9 +173,9 @@ export function CountDetailPage() {
           <div className="row wrap">
             {count.status === 'finalizado' && can('count.apply') && <button type="button" className="btn btn-primary" onClick={apply}>Aplicar al stock</button>}
             {count.status === 'finalizado' && <button type="button" className="btn" onClick={() => run(() => reopenCount(id))}>Seguir contando</button>}
-            {canSync && !count.outletId && can('admin') && linkedDiffs.length > 0 && count.status !== 'descartado' && <button type="button" className="btn" onClick={send}><Send size={16} aria-hidden /> Enviar a Maxirest</button>}
+            {mx && canSync && !count.outletId && can('admin') && linkedDiffs.length > 0 && count.status !== 'descartado' && <button type="button" className="btn" onClick={send}><Send size={16} aria-hidden /> Enviar a Maxirest</button>}
             {can('export') && <button type="button" className="btn" onClick={() => run(() => downloadCountReport(id), 'Excel de diferencias generado')}><FileSpreadsheet size={16} aria-hidden /> Excel de diferencias</button>}
-            {can('export') && !count.outletId && <MaxirestXlsActions countId={id} name={count.name} small />}
+            {mx && can('export') && !count.outletId && <MaxirestXlsActions countId={id} name={count.name} small />}
             {count.status === 'finalizado' && can('count.apply') && (
               <button type="button" className="btn btn-danger" onClick={async () => (await confirm({ title: 'Descartar conteo', message: 'El conteo quedará guardado como descartado y no modificará el stock.', danger: true, confirmLabel: 'Descartar' })) && run(() => discardCount(id))}>Descartar</button>
             )}

@@ -9,6 +9,7 @@ import { menuLabel } from '../services/settingsService';
 import { useIntegration, useLookups, useOutlets, EMPTY } from '../hooks/useData';
 import { useFeedback } from '../store/feedback';
 import { useSettings } from '../store/settings';
+import { maxirestOn } from '../layouts/modules';
 import { Modal } from '../components/ui/Modal';
 import { Badge, EmptyState, Field, Input, PageHeader, Select } from '../components/ui';
 import { fmtDateTime } from '../utils/format';
@@ -59,7 +60,7 @@ export function CountsPage() {
       <PageHeader
         title={menuLabel(settings, 'count')}
         subtitle="Contá físicamente, compará y ajustá"
-        actions={<button type="button" className="btn btn-primary" onClick={() => { setForm({ name: '', locationId: '', categoryId: '', outletId: '', baseline: integration && integration.mode !== 'disabled' && integration.stockAuthority === 'maxirest' && hasExternal ? 'maxirest' : 'local' }); setOpen(true); }}><Plus size={18} aria-hidden /> Nuevo conteo</button>}
+        actions={<button type="button" className="btn btn-primary" onClick={() => { setForm({ name: '', locationId: '', categoryId: '', outletId: '', baseline: maxirestOn(settings) && integration && integration.mode !== 'disabled' && integration.stockAuthority === 'maxirest' && hasExternal ? 'maxirest' : 'local' }); setOpen(true); }}><Plus size={18} aria-hidden /> Nuevo conteo</button>}
       />
       <div className="card">
         {counts.length === 0 ? (
@@ -114,7 +115,7 @@ export function CountsPage() {
               {lk.categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </Select>
           </Field>
-          {hasExternal && !form.outletId && (
+          {maxirestOn(settings) && hasExternal && !form.outletId && (
             <Field label="Comparar contra">
               <Select value={form.baseline} onChange={(e) => setForm({ ...form, baseline: e.target.value as CountBaseline })}>
                 <option value="local">Stock de Stock Manager</option>

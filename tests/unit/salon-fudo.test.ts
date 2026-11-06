@@ -107,7 +107,7 @@ describe('salón tipo Fudo: dividir la cuenta', () => {
       else expect(r.remaining).toBe(0);
     }
     expect(parts.reduce((a, b) => a + b, 0)).toBe(12000);
-    const done = await closeTicket(t.id, { maxirest: false });
+    const done = await closeTicket(t.id);
     expect(done.charges!.map((c) => c.label)).toEqual(['1 de 3', '2 de 3', 'Resto']);
     expect(arca.state.docs.size).toBe(3);
   });

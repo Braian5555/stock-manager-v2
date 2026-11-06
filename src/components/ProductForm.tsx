@@ -5,6 +5,8 @@ import type { Draft } from '../services/entityService';
 import { unlink } from '../integrations/core/linking';
 import { useLookups, useProducts } from '../hooks/useData';
 import { RecipeEditor } from './RecipeEditor';
+import { useSettings } from '../store/settings';
+import { maxirestOn } from '../layouts/modules';
 import { useFeedback } from '../store/feedback';
 import { Modal } from './ui/Modal';
 import { Field, Input, NumberInput, Select, Textarea } from './ui';
@@ -49,7 +51,8 @@ export function ProductForm({ product, open, onClose, preset }: { product?: Prod
     if (owner) return { error: true, text: `Ya lo tiene “${owner.name}”.` };
     return check.warning ? { error: false, text: check.warning } : null;
   })();
-  const link = product?.externalSystems?.maxirest;
+  const mxOn = maxirestOn(useSettings());
+  const link = mxOn ? product?.externalSystems?.maxirest : undefined;
 
   return (
     <Modal

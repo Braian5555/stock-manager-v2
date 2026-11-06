@@ -29,7 +29,7 @@ const TITLE: Record<Tab, { title: string; sub: string }> = {
   mesas: { title: 'Mesas', sub: 'Plano del salón: tocá una mesa para abrirla o ver su pedido.' },
   mostrador: { title: 'Mostrador', sub: 'Pedidos de mostrador, para llevar y delivery.' },
   caja: { title: 'Caja', sub: 'Apertura, ingresos y egresos, propinas y arqueo.' },
-  carta: { title: 'Carta', sub: 'Lo que se vende en el salón: precios, adicionales y código de Maxirest.' },
+  carta: { title: 'Carta', sub: 'Lo que se vende en el salón: precios, secciones y adicionales.' },
   hoy: { title: 'Ventas de hoy', sub: 'Pedidos del día, lo cobrado y lo más pedido.' },
 };
 type View = 'plano' | 'lista';
@@ -234,7 +234,7 @@ function TablesModal({ onClose, tables, busy }: { onClose: () => void; tables: D
 
 // ───────────────────────── Carta ─────────────────────────
 
-type ItemDraft = { id?: string; name: string; section: string; price?: number; maxirestCode: string; kitchen: boolean; active: boolean; iva?: IvaRate; extras: MenuExtra[] };
+type ItemDraft = { id?: string; name: string; section: string; price?: number; kitchen: boolean; active: boolean; iva?: IvaRate; extras: MenuExtra[] };
 
 function MenuTab() {
   const menu = useMenu();
@@ -242,8 +242,7 @@ function MenuTab() {
   const [q, setQ] = useState('');
   const sections = useMemo(() => [...new Set(menu.map((m) => m.section))].sort((a, b) => a.localeCompare(b, 'es')), [menu]);
   const list = q.trim() ? menu.filter((m) => matches(m.name, q) || matches(m.section, q)) : menu;
-  const noCode = menu.filter((m) => m.active && !m.maxirestCode).length;
-  const blank = (): ItemDraft => ({ name: '', section: sections[0] ?? 'Desayunos', maxirestCode: '', kitchen: true, active: true, extras: [] });
+  const blank = (): ItemDraft => ({ name: '', section: sections[0] ?? 'Desayunos', kitchen: true, active: true, extras: [] });
 
   return (
     <>
@@ -254,11 +253,10 @@ function MenuTab() {
         </label>
         <button type="button" className="btn btn-primary" onClick={() => setEdit(blank())}><Plus size={18} aria-hidden /> Agregar a la carta</button>
       </div>
-      {noCode > 0 && <p className="small muted">{noCode} {noCode === 1 ? 'plato no tiene' : 'platos no tienen'} código de Maxirest: cuando esté la API hace falta para pasarle los pedidos.</p>}
 
       {menu.length === 0 ? (
         <div className="card"><EmptyState icon={<UtensilsCrossed size={40} />} title="La carta está vacía" action={<button type="button" className="btn btn-primary" onClick={() => setEdit(blank())}><Plus size={18} aria-hidden /> Agregar el primero</button>}>
-          Cargá lo que se vende en el salón: nombre, sección, precio y el código del artículo en Maxirest.
+          Cargá lo que se vende en el salón: nombre, sección, precio y, si querés, adicionales.
         </EmptyState></div>
       ) : (
         [...new Set(list.map((m) => m.section))].sort((a, b) => a.localeCompare(b, 'es')).map((s) => (
@@ -269,11 +267,11 @@ function MenuTab() {
                 <li key={m.id} className={`list-item${m.active ? '' : ' is-off'}`}>
                   <div className="grow">
                     <div className="list-title truncate">{m.name}</div>
-                    <div className="list-sub">{m.kitchen ? 'Va a cocina' : 'Sale directo'}{m.extras?.length ? ` · ${m.extras.length} adicional${m.extras.length === 1 ? '' : 'es'}` : ''}{m.maxirestCode ? ` · Maxirest ${m.maxirestCode}` : ' · sin código Maxirest'}{m.active ? '' : ' · pausado'}</div>
+                    <div className="list-sub">{m.kitchen ? 'Va a cocina' : 'Sale directo'}{m.extras?.length ? ` · ${m.extras.length} adicional${m.extras.length === 1 ? '' : 'es'}` : ''}{m.active ? '' : ' · pausado'}</div>
                   </div>
                   <b className="num">{fmtMoney(m.price)}</b>
                   <button type="button" className="btn btn-ghost icon-btn" aria-label={`Editar ${m.name}`}
-                    onClick={() => setEdit({ id: m.id, name: m.name, section: m.section, price: m.price, maxirestCode: m.maxirestCode ?? '', kitchen: m.kitchen, active: m.active, iva: m.iva, extras: m.extras ?? [] })}><Pencil size={18} /></button>
+                    onClick={() => setEdit({ id: m.id, name: m.name, section: m.section, price: m.price, kitchen: m.kitchen, active: m.active, iva: m.iva, extras: m.extras ?? [] })}><Pencil size={18} /></button>
                 </li>
               ))}
             </ul>
@@ -291,7 +289,7 @@ function MenuItemModal({ draft, sections, onClose }: { draft: ItemDraft; section
   const [d, setD] = useState(draft);
   const save = (again: boolean) => void run(async () => {
     await saveMenuItem({ ...d, price: d.price ?? NaN });
-    if (again) setD({ ...d, id: undefined, name: '', price: undefined, maxirestCode: '', extras: [] });
+    if (again) setD({ ...d, id: undefined, name: '', price: undefined, extras: [] });
     else onClose();
   }, d.id ? 'Guardado en la carta' : 'Agregado a la carta');
   return (
@@ -306,7 +304,6 @@ function MenuItemModal({ draft, sections, onClose }: { draft: ItemDraft; section
         <div className="form-grid cols-3">
           <Field label="Sección"><Input list="salon-sections" value={d.section} onChange={(e) => setD({ ...d, section: e.target.value })} /></Field>
           <Field label="Precio"><NumberInput value={d.price} onChange={(v) => setD({ ...d, price: v })} min={0} placeholder="0" /></Field>
-          <Field label="Código en Maxirest" hint="El número del artículo en Maxirest, para pasarle el pedido."><Input value={d.maxirestCode} onChange={(e) => setD({ ...d, maxirestCode: e.target.value })} inputMode="numeric" /></Field>
           {fiscal.enabled && fiscal.condicionIva === 'RI' && (
             <Field label="IVA incluido en el precio">
               <Select value={d.iva ?? ''} onChange={(e) => setD({ ...d, iva: e.target.value === '' ? undefined : (Number(e.target.value) as IvaRate) })}>
@@ -337,9 +334,6 @@ function MenuItemModal({ draft, sections, onClose }: { draft: ItemDraft; section
 
 // ───────────────────────── Hoy ─────────────────────────
 
-const MAXIREST_LABEL = { pendiente: 'Esperando Maxirest', enviado: 'Pasado a Maxirest', error: 'Error con Maxirest' } as const;
-const MAXIREST_TONE = { pendiente: 'warn', enviado: 'ok', error: 'danger' } as const;
-
 function TodayTab() {
   const today = useToday();
   const since = startOfDayIso(today);
@@ -350,7 +344,6 @@ function TodayTab() {
   const tips = closed.reduce((s, t) => s + (t.charges ?? []).reduce((x, c) => x + (c.tip?.amount ?? 0), 0), 0);
   const sold = closed.reduce((s, t) => s + t.total, 0);
   const guests = closed.reduce((s, t) => s + (t.guests ?? 0), 0);
-  const waiting = closed.filter((t) => t.maxirest?.status !== 'enviado').length;
   const top = useMemo(() => {
     const m = new Map<string, number>();
     for (const t of closed) for (const l of t.lines) if (l.qty > 0) m.set(l.name, (m.get(l.name) ?? 0) + l.qty);
@@ -373,7 +366,6 @@ function TodayTab() {
       {byMethod.size > 0 && (
         <p className="small salon-caja"><b>Cobrado:</b> {[...byMethod.entries()].map(([m, v]) => `${PAYMENT_LABEL[m as keyof typeof PAYMENT_LABEL]} ${fmtMoney(v)}`).join(' · ')}{tips ? ` · propinas ${fmtMoney(tips)}` : ''}{discounts ? ` · descuentos ${fmtMoney(discounts)}` : ''}</p>
       )}
-      {waiting > 0 && <p className="small muted">{waiting} {waiting === 1 ? 'pedido espera' : 'pedidos esperan'} para pasar a Maxirest: se mandan cuando esté habilitada la API. Mientras tanto, se cobran en Maxirest como siempre.</p>}
 
       {tickets.length === 0 ? (
         <div className="card"><EmptyState icon={<Receipt size={40} />} title="Todavía no hubo mesas hoy">Cuando se abra la primera mesa aparece acá.</EmptyState></div>
@@ -393,7 +385,7 @@ function TodayTab() {
                     {t.status === 'cerrada' && (t.charges ?? []).filter((c) => c.fiscalDocId).length > 1 ? <Badge tone="ok">{(t.charges ?? []).filter((c) => c.fiscalDocId && docOf.get(c.fiscalDocId)?.status === 'autorizada').length} facturas</Badge>
                       : t.status === 'cerrada' && t.fiscalDocId && docOf.get(t.fiscalDocId) ? <FiscalBadge d={docOf.get(t.fiscalDocId)!} />
                       : t.status === 'cerrada' && t.fiscalPending ? <Badge tone="warn">Sin facturar</Badge>
-                      : t.status === 'cerrada' && t.maxirest ? <Badge tone={MAXIREST_TONE[t.maxirest.status]}>{MAXIREST_LABEL[t.maxirest.status]}</Badge>
+                      : t.status === 'cerrada' ? <Badge tone="ok">Cobrado</Badge>
                       : <Badge tone={t.status === 'anulada' ? '' : 'info'}>{t.status === 'anulada' ? 'Anulado' : 'Abierta'}</Badge>}
                   </span>
                 </li>
@@ -419,10 +411,6 @@ function FiscalBadge({ d }: { d: FiscalDoc }) {
 }
 
 function TicketDetail({ ticket, onClose }: { ticket: TableTicket; onClose: () => void }) {
-  const menu = useMenu();
-  const codes = new Map(menu.map((m) => [m.id, m.maxirestCode]));
-  const lines = ticket.lines.filter((l) => l.qty > 0);
-  const missing = lines.filter((l) => !codes.get(l.menuItemId));
   return (
     <Modal open title={`${ticketLabel(ticket)} · #${ticket.number}`} onClose={onClose}>
       <p className="small muted" style={{ marginTop: 0 }}>Abierta {fmtTime(ticket.openedAt)}{ticket.closedAt ? `, cerrada ${fmtTime(ticket.closedAt)}` : ''}{ticket.openedBy ? ` · ${ticket.openedBy.name}` : ''}{ticket.guests ? ` · ${ticket.guests} comensales` : ''}</p>
@@ -431,7 +419,6 @@ function TicketDetail({ ticket, onClose }: { ticket: TableTicket; onClose: () =>
           <li key={l.id} className={`salon-line${l.qty === 0 ? ' is-void' : ''}`}>
             <b className="salon-qty-fixed num">{l.qty ? `${l.qty}×` : '—'}</b>
             <span className="grow salon-line-text"><span className="salon-line-name">{l.name}{l.qty === 0 && <span className="small"> · anulado</span>}</span>{l.notes && <span className="salon-line-note">{l.notes}</span>}</span>
-            <span className="small muted">{codes.get(l.menuItemId) ? `Maxirest ${codes.get(l.menuItemId)}` : ''}</span>
             <span className="num salon-line-price">{l.comp ? 'cortesía' : l.qty ? fmtMoney(l.qty * l.price) : ''}</span>
           </li>
         ))}
@@ -443,7 +430,6 @@ function TicketDetail({ ticket, onClose }: { ticket: TableTicket; onClose: () =>
           {ticket.charges!.map((c) => <li key={c.id}>{fmtTime(c.at)} · {c.label ?? 'Cobro'}: {c.payments.map((p) => `${PAYMENT_LABEL[p.method]} ${fmtMoney(p.amount)}`).join(' + ')}{c.tip ? ` · propina ${fmtMoney(c.tip.amount)}` : ''}{c.by ? ` · ${c.by.name}` : ''}</li>)}
         </ul>
       )}
-      {ticket.status === 'cerrada' && missing.length > 0 && <p className="small" style={{ color: 'var(--low)' }}>Sin código de Maxirest: {missing.map((l) => l.name).join(', ')}. Cargalo en la carta antes de que se pase.</p>}
       <p className="small muted">Para ver lo que cocina tiene pendiente, abrí <Link to="/cocina">Cocina</Link>.</p>
     </Modal>
   );

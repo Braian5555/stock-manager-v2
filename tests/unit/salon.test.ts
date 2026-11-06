@@ -1,14 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { db } from '../../src/database/db';
 import {
-  addLine, addNumberedTables, cancelTicket, closeTicket, markDelivered, markLineReady, maxirestPayload, moveTicket, openTicket, requestBill, retireTable,
+  addLine, addNumberedTables, cancelTicket, closeTicket, markDelivered, markLineReady, moveTicket, openTicket, requestBill, retireTable,
   saveMenuItem, sendToKitchen, updateLine, voidLine,
 } from '../../src/services/salonService';
 
 async function setup() {
   await addNumberedTables(1, 3, 'Salón');
   const tables = await db.diningTables.orderBy('order').toArray();
-  const medialunas = await saveMenuItem({ name: 'Desayuno americano', section: 'Desayunos', price: 9500, maxirestCode: '101', kitchen: true });
+  const medialunas = await saveMenuItem({ name: 'Desayuno americano', section: 'Desayunos', price: 9500, kitchen: true });
   const cafe = await saveMenuItem({ name: 'Café con leche', section: 'Cafetería', price: 3200, kitchen: false });
   return { tables, medialunas, cafe };
 }
@@ -69,7 +69,7 @@ describe('salón: mesas y pedidos', () => {
     expect(k.total).toBe(3200);
   });
 
-  it('no cierra con platos sin mandar; al cerrar queda pendiente para Maxirest y la mesa libre', async () => {
+  it('no cierra con platos sin mandar; al cerrar la mesa queda libre y no depende de otro sistema', async () => {
     const { tables, medialunas, cafe } = await setup();
     const t = await openTicket(tables[0].id);
     await addLine(t.id, medialunas);
@@ -80,21 +80,14 @@ describe('salón: mesas y pedidos', () => {
     await requestBill(t.id);
     expect((await db.tickets.get(t.id))!.status).toBe('cuenta');
     const closed = await closeTicket(t.id);
-    expect(closed).toMatchObject({ status: 'cerrada', maxirest: { status: 'pendiente' } });
+    expect(closed.status).toBe('cerrada');
+    expect(closed.maxirest).toBeUndefined();
     expect(closed.closedAt).toBeTruthy();
     // La mesa queda libre: se abre un pedido nuevo.
     const next = await openTicket(tables[0].id);
     expect(next.id).not.toBe(t.id);
     expect(next.number).toBe(2);
-
-    const items = new Map((await db.menuItems.toArray()).map((m) => [m.id, m]));
-    const payload = maxirestPayload(closed, items);
-    expect(payload.items).toEqual([
-      { codigo: '101', nombre: 'Desayuno americano', cantidad: 1, precio: 9500, nota: undefined },
-      { codigo: null, nombre: 'Café con leche', cantidad: 1, precio: 3200, nota: undefined },
-    ]);
-    expect(payload.sinCodigo).toEqual(['Café con leche']);
-    expect(payload.total).toBe(12700);
+    expect(closed.total).toBe(12700);
   });
 
   it('cambia de mesa sólo a una libre y no da de baja una mesa ocupada', async () => {

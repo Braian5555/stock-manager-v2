@@ -18,7 +18,6 @@ test('salón: armar mesas y carta, tomar un pedido, cocina lo marca listo y se c
   await m.getByLabel('Nombre').fill('Desayuno americano');
   await m.getByLabel('Sección').fill('Desayunos');
   await m.getByLabel('Precio').fill('9500');
-  await m.getByLabel('Código en Maxirest').fill('101');
   await m.getByRole('button', { name: 'Guardar y otro' }).click();
   await expect(page.getByText('Agregado a la carta')).toBeVisible();
   await m.getByLabel('Nombre').fill('Café con leche');
@@ -26,7 +25,8 @@ test('salón: armar mesas y carta, tomar un pedido, cocina lo marca listo y se c
   await m.getByLabel('Precio').fill('3200');
   await m.getByLabel('Va a la pantalla de cocina').uncheck();
   await m.getByRole('button', { name: 'Guardar', exact: true }).click();
-  await expect(page.getByText('1 plato no tiene código de Maxirest')).toBeVisible();
+  await expect(page.getByText('Guardado').or(page.getByText('Agregado a la carta')).first()).toBeVisible();
+  await expect(page.getByText(/Maxirest/)).toHaveCount(0);
 
   // Pedido de la mesa 4
   await go(page, '/salon');
@@ -62,12 +62,12 @@ test('salón: armar mesas y carta, tomar un pedido, cocina lo marca listo y se c
   await m.getByRole('button', { name: 'Pidió la cuenta' }).click();
   await m.getByRole('button', { name: 'Cobrar', exact: true }).first().click();
   const pay = page.getByRole('dialog', { name: 'Cobrar · Mesa 4' });
-  await expect(pay.getByText('La factura se hace en Maxirest')).toBeVisible();
+  await expect(pay.getByText(/Se registra el cobro sin factura electrónica/)).toBeVisible();
   await pay.getByRole('button', { name: /^Cobrar .* y cerrar$/ }).click();
   await expect(page.getByText('Mesa 4: cobrado y cerrado')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Mesa 4: Libre' })).toBeVisible();
 
   await go(page, '/salon?vista=hoy');
-  await expect(page.getByText('Esperando Maxirest')).toBeVisible();
-  await expect(page.getByText('1 pedido espera para pasar a Maxirest')).toBeVisible();
+  await expect(page.getByText('Cobrado', { exact: true })).toBeVisible();
+  await expect(page.getByText(/Maxirest/)).toHaveCount(0);
 });

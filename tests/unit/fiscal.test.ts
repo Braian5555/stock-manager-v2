@@ -94,8 +94,8 @@ describe('facturación: cobrar la mesa y pedir el CAE', () => {
     expect(doc).toMatchObject({ status: 'autorizada', letra: 'B', cbteTipo: 6, nro: 1, ptoVta: 5, impTotal: 21100, impNeto: 17438.02, impIva: 3661.98 });
     expect(doc!.cae).toMatch(/^\d{14}$/);
     expect(ticket.fiscalDocId).toBe(doc!.id);
-    const closed = await closeTicket(t.id, { maxirest: false });
-    expect(closed.maxirest).toBeUndefined();
+    const closed = await closeTicket(t.id);
+    expect(closed.status).toBe('cerrada');
     expect((await db.fiscalLog.where('docId').equals(doc!.id).toArray()).map((l) => l.op)).toContain('WSFE.FECAESolicitar');
   });
 

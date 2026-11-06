@@ -74,7 +74,7 @@ export function ChargeModal({ ticket: initial, onClose }: { ticket: TableTicket;
 
   const finishIfPaid = async (rest: number) => {
     if (rest > 0.009) return false;
-    const ok = await run(() => closeTicket(ticket.id, { maxirest: !billing }));
+    const ok = await run(() => closeTicket(ticket.id));
     if (ok) setClosed(true);
     return true;
   };
@@ -250,7 +250,7 @@ export function ChargeModal({ ticket: initial, onClose }: { ticket: TableTicket;
           {cfTooBig && <p className="small" style={{ color: 'var(--crit)', margin: 0 }}>Desde {fmtMoney(CF_ID_THRESHOLD)} hay que identificar al cliente: elegí “Con datos”.</p>}
           {mode === 'datos' && problems.length > 0 && <p className="small" style={{ color: 'var(--crit)', margin: 0 }}>{problems.join(' ')}</p>}
         </>) : (
-          <p className="small muted" style={{ margin: 0 }}>{f.enabled ? 'Falta completar la Configuración fiscal para facturar acá.' : 'La factura se hace en Maxirest (la facturación electrónica de Stock Manager está apagada).'}</p>
+          <p className="small muted" style={{ margin: 0 }}>{f.enabled ? 'Falta completar la Configuración fiscal para facturar acá.' : 'Se registra el cobro sin factura electrónica. Para facturar con ARCA, activala en Configuración del salón → Facturación electrónica.'}</p>
         )}
       </section>
     </Modal>

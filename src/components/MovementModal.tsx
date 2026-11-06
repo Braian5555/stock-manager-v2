@@ -5,6 +5,8 @@ import type { MovementType, Product } from '../models';
 import { MOVEMENT_LABEL, OUTGOING_TYPES, applyMovement, revertMovement } from '../services/stockService';
 import { canSyncAdjustments, syncedAdjustment } from '../integrations/integrationService';
 import { useIntegration, useLookups } from '../hooks/useData';
+import { useSettings } from '../store/settings';
+import { maxirestOn } from '../layouts/modules';
 import { useFeedback } from '../store/feedback';
 import { fmtNumber, fmtSigned, round3 } from '../utils/format';
 import { Modal } from './ui/Modal';
@@ -21,7 +23,8 @@ export function MovementModal({ product, onClose, initialType = 'ingreso' }: { p
   const [reason, setReason] = useState('');
   const [mode, setMode] = useState<'local' | 'sync'>('local');
   const [canSync, setCanSync] = useState(false);
-  const link = product?.externalSystems?.maxirest;
+  const mxOn = maxirestOn(useSettings());
+  const link = mxOn ? product?.externalSystems?.maxirest : undefined;
   const ref = useLiveQuery(
     () => (link ? db.externalReferences.where({ system: 'maxirest', entityType: 'product', externalId: link.id }).first() : undefined),
     [link?.id],
@@ -40,7 +43,7 @@ export function MovementModal({ product, onClose, initialType = 'ingreso' }: { p
   const unit = lk.unit(product.unitId);
   const isAdjust = type === 'ajuste';
   const newQty = qty === undefined ? undefined : isAdjust ? qty : round3(product.stock + (OUTGOING_TYPES.includes(type) ? -qty : qty));
-  const integrated = integration && integration.mode !== 'disabled' && integration.status !== 'desconectado' && !!link;
+  const integrated = mxOn && integration && integration.mode !== 'disabled' && integration.status !== 'desconectado' && !!link;
 
   const submit = async () => {
     if (newQty === undefined || qty === undefined || qty < 0) return notify('Ingresá una cantidad válida.', { tone: 'error' });

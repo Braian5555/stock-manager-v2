@@ -238,6 +238,11 @@ export interface Settings extends BaseEntity {
   aiReaderUrl?: string;
   /** Facturación electrónica ARCA (los certificados NO están acá: están en el servidor). */
   fiscal?: FiscalSettings;
+  /**
+   * Stock Manager es independiente: Maxirest no aparece en ningún lado salvo que se active
+   * la conexión opcional en Configuración → Integraciones.
+   */
+  maxirest?: boolean;
 }
 
 export type IntegrationMode = 'disabled' | 'mock' | 'gateway' | 'excel';
@@ -504,7 +509,7 @@ export interface MenuItem extends BaseEntity {
   /** Sección de la carta: "Desayunos", "Bebidas", "Principales"… */
   section: string;
   price: number;
-  /** Código del artículo en Maxirest, para mandarle el pedido cuando esté la API. */
+  /** @deprecated Ya no se usa (el Salón no depende de Maxirest); queda en datos viejos. */
   maxirestCode?: string;
   /** Va a la pantalla de cocina (las bebidas suelen salir directo). */
   kitchen: boolean;
@@ -579,7 +584,7 @@ export interface TableTicket extends BaseEntity {
   lines: TicketLine[];
   closedAt?: ISODate;
   total: number;
-  /** Envío a Maxirest (por la API, cuando esté habilitada). */
+  /** @deprecated Ya no se usa (el Salón no depende de Maxirest); queda en datos viejos. */
   maxirest?: { status: 'pendiente' | 'enviado' | 'error'; at?: ISODate; error?: string };
   /** Cobro de la mesa. */
   payments?: Payment[];
