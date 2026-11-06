@@ -170,9 +170,19 @@ test('áreas: el Salón y el Stock tienen menús separados', async ({ page }) =>
     await bottom.getByRole('link', { name: 'Más' }).click();
     await page.getByRole('navigation', { name: 'Salón' }).getByRole('link', { name: 'Configuración', exact: true }).click();
   }
+  // Configuración del salón: lo del salón y lo general, sin lo del stock.
+  await expect(page.getByRole('heading', { name: 'Configuración del salón', level: 1 })).toBeVisible();
+  const row = (n: string) => page.locator('main .settings-card-title').getByText(n, { exact: true });
+  for (const n of ['Facturación electrónica', 'Mesas, carta y caja', 'Impresión de tickets', 'Empresa y apariencia', 'Usuarios y permisos']) await expect(row(n)).toBeVisible();
+  for (const n of ['Stock', 'Importar y exportar', 'Integraciones']) await expect(row(n)).toHaveCount(0);
+  await row('Facturación electrónica').click();
   await expect(page.getByRole('heading', { name: 'Configuración fiscal' })).toBeVisible();
-  await expect(page.locator('main').getByRole('link', { name: /Platos, precios, adicionales/ })).toBeVisible();
   // Volver al Stock.
   await page.getByRole('group', { name: 'Área' }).first().getByRole('button', { name: 'Stock' }).click();
   await expect(page).toHaveURL(/#\/$/);
+  // Configuración del Stock: lo del stock y lo general, sin lo del salón.
+  await go(page, '/configuracion');
+  await expect(page.getByRole('heading', { name: 'Configuración', level: 1 })).toBeVisible();
+  for (const n of ['Stock', 'Importar y exportar', 'Empresa y apariencia']) await expect(row(n)).toBeVisible();
+  for (const n of ['Facturación electrónica', 'Mesas, carta y caja', 'Impresión de tickets']) await expect(row(n)).toHaveCount(0);
 });

@@ -59,7 +59,7 @@ export function FiscalDocsPage() {
       <CloudRulesNote />
       {!fiscalReady(f) && (
         <div className="alert alert-warn" role="note"><TriangleAlert size={18} aria-hidden />
-          <span>La facturación electrónica {f.enabled ? 'tiene datos sin completar' : 'está apagada'}. {can('admin') ? <Link to="/salon/configuracion">Abrir la configuración del salón</Link> : 'Pedile a un administrador que la configure.'}</span>
+          <span>La facturación electrónica {f.enabled ? 'tiene datos sin completar' : 'está apagada'}. {can('admin') ? <Link to="/salon/configuracion/facturacion">Abrir la configuración de facturación</Link> : 'Pedile a un administrador que la configure.'}</span>
         </div>
       )}
       {f.enabled && f.ambiente === 'homologacion' && <div className="alert alert-info" role="note"><ShieldCheck size={18} aria-hidden /><span>Homologación: los comprobantes son de prueba y no tienen validez fiscal.</span></div>}

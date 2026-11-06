@@ -3,7 +3,7 @@ import { lazyPage } from '../utils/lazyPage';
 import {
   ArrowDown, ArrowLeft, ArrowUp, Boxes, Building2, ChevronRight, Cloud, Copy, Download, Eye, EyeOff, ImageUp, LayoutGrid, Package, Palette, Plug,
   RefreshCw, RotateCcw, ShieldCheck, Smartphone, Sparkles, Stethoscope, Type, UserCog, type LucideIcon,
-  LogIn,
+  LogIn, ReceiptText, Armchair, Printer, BookOpen, Wallet,
 } from 'lucide-react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Suspense, useEffect, useRef, useState, type ReactNode } from 'react';
@@ -23,6 +23,8 @@ import { WipeDataSection } from '../components/WipeDataSection';
 import { StockResetSection } from '../components/StockResetSection';
 import { AccessibilitySection } from '../components/AccessibilitySection';
 import { AIReaderSection } from '../components/AIReaderSection';
+import { FiscalSettingsSection } from '../components/FiscalSettingsSection';
+import { printHtml, testTicketHtml } from '../services/printService';
 import { MODULE_ICON, MODULE_PATH, moduleEnabled, navLabel } from '../layouts/modules';
 import { useCloud } from '../cloud/cloudService';
 import { useIntegration, useOnline, usePendingJobs } from '../hooks/useData';
@@ -38,6 +40,8 @@ const ExportPage = lazyPage(() => import('./ExportPage'), 'ExportPage');
 const EMOJIS = ['📦', '🏪', '🍽️', '🍔', '🍕', '☕', '🍺', '🥩', '🥬', '🐟', '🧊', '🧴', '🛒', '🏨', '🏭', '🔧'];
 const COLORS = ['#b3261e', '#3d6b35', '#1f4e79', '#8a5a00', '#a3461f', '#7a2e4f', '#3a2315', '#145a7a', '#5a4a8a', '#4b5e2a'];
 
+type Area = 'stock' | 'salon';
+
 interface Section {
   key: string;
   group: GroupKey;
@@ -45,51 +49,71 @@ interface Section {
   description: string;
   icon: LucideIcon;
   render: () => ReactNode;
+  /** En qué configuración aparece: la del Stock, la del Salón o las dos (lo general). */
+  areas: Area[];
 }
 
-type GroupKey = 'negocio' | 'inventario' | 'personas' | 'sistema';
+type GroupKey = 'salon' | 'negocio' | 'inventario' | 'personas' | 'sistema';
 const GROUPS: { key: GroupKey; title: string; description: string }[] = [
-  { key: 'negocio', title: 'Tu negocio', description: 'Identidad y cómo se navega la app.' },
-  { key: 'inventario', title: 'Inventario', description: 'Reglas de stock y catálogo.' },
+  { key: 'salon', title: 'Salón', description: 'Facturación, mesas, carta, caja e impresión de tickets.' },
+  { key: 'negocio', title: 'Tu negocio', description: 'Identidad y cómo se ve la app.' },
+  { key: 'inventario', title: 'Inventario', description: 'Reglas de stock, catálogo y facturas de proveedores.' },
   { key: 'personas', title: 'Personas y acceso', description: 'Quién entra, con qué permisos y desde qué cuenta.' },
   { key: 'sistema', title: 'Datos y sistema', description: 'Conexiones, respaldos y estado técnico.' },
 ];
 
-/** Configuración: el centro de administración, organizado por categorías. */
+const BOTH: Area[] = ['stock', 'salon'];
+
+/**
+ * Configuración, repartida por área: lo de stock en la Configuración del Stock, lo del salón en la
+ * Configuración del Salón, y lo general (empresa, usuarios, cuenta, aplicación) en las dos.
+ */
 const SECTIONS: Section[] = [
-  { key: 'empresa', group: 'negocio', title: 'Empresa y apariencia', description: 'Nombre, subtítulo, logo, colores y tema claro/oscuro.', icon: Building2, render: () => <CompanySection /> },
-  { key: 'accesibilidad', group: 'negocio', title: 'Letra y contraste', description: 'Letra más grande y más contraste en este dispositivo.', icon: Type, render: () => <><PageHeader title="Letra y contraste" subtitle="Para leer y tocar más cómodo en este celular o compu." /><section className="card card-pad"><AccessibilitySection /></section></> },
-  { key: 'navegacion', group: 'negocio', title: 'Menú y navegación', description: 'Qué módulos se ven, su orden y nombre, y qué va en cada barra.', icon: LayoutGrid, render: () => <NavigationSection /> },
-  { key: 'stock', group: 'inventario', title: 'Stock', description: 'Alertas y stock crítico; familias, unidades y ubicaciones.', icon: Boxes, render: () => <StockSection /> },
-  { key: 'productos', group: 'inventario', title: 'Productos', description: 'Productos e importación desde Excel.', icon: Package, render: () => <ProductsSection /> },
-  { key: 'usuarios', group: 'personas', title: 'Usuarios y permisos', description: 'Usuarios, roles, permisos, PIN y bloqueo automático.', icon: UserCog, render: () => <UsersPage /> },
-  { key: 'ingresos', group: 'personas', title: 'Registro de ingresos', description: 'Quién entró a la app, cuándo y desde qué dispositivo.', icon: LogIn, render: () => <AccessLogSection /> },
-  { key: 'nube', group: 'personas', title: 'Cuenta y nube', description: 'Sesión, espacios de trabajo, miembros, invitaciones y sincronización.', icon: Cloud, render: () => <CloudPage /> },
-  { key: 'integraciones', group: 'sistema', title: 'Integraciones', description: 'Maxirest, Excel Bridge, gateway, cola y estado de conexión.', icon: Plug, render: () => <IntegrationsPage /> },
-  { key: 'ia', group: 'sistema', title: 'IA (facturas y asistente)', description: 'Servidor de la IA (Gemini): leer facturas con fotos y el Asistente.', icon: Sparkles, render: () => <AIReaderSection /> },
-  { key: 'datos', group: 'sistema', title: 'Importar y exportar', description: 'Excel, CSV, PDF, Word, JSON, backup completo y restauración.', icon: Download, render: () => <ExportPage /> },
-  { key: 'aplicacion', group: 'sistema', title: 'Aplicación', description: 'Actualizaciones, datos del dispositivo, restablecer y borrar datos.', icon: Smartphone, render: () => <AppSection /> },
-  { key: 'diagnostico', group: 'sistema', title: 'Diagnóstico', description: 'Estado del sistema, de Firebase y de la sincronización; versión.', icon: Stethoscope, render: () => <DiagnosticsSection /> },
+  // Salón
+  { key: 'facturacion', group: 'salon', areas: ['salon'], title: 'Facturación electrónica', description: 'ARCA: emisor, punto de venta, ambiente y conexión.', icon: ReceiptText, render: () => <FiscalSettingsSection /> },
+  { key: 'mesas', group: 'salon', areas: ['salon'], title: 'Mesas, carta y caja', description: 'Mesas y plano, carta con adicionales y caja.', icon: Armchair, render: () => <SalonShortcuts /> },
+  { key: 'impresion', group: 'salon', areas: ['salon'], title: 'Impresión de tickets', description: 'Tickets de 80 mm: factura, pre-cuenta, comanda y arqueo.', icon: Printer, render: () => <PrintSection /> },
+  // Tu negocio (general)
+  { key: 'empresa', group: 'negocio', areas: BOTH, title: 'Empresa y apariencia', description: 'Nombre, subtítulo, logo, colores y tema claro/oscuro.', icon: Building2, render: () => <CompanySection /> },
+  { key: 'accesibilidad', group: 'negocio', areas: BOTH, title: 'Letra y contraste', description: 'Letra más grande y más contraste en este dispositivo.', icon: Type, render: () => <><PageHeader title="Letra y contraste" subtitle="Para leer y tocar más cómodo en este celular o compu." /><section className="card card-pad"><AccessibilitySection /></section></> },
+  { key: 'navegacion', group: 'negocio', areas: ['stock'], title: 'Menú y navegación', description: 'Qué módulos del Stock se ven, su orden y nombre, y qué va en cada barra.', icon: LayoutGrid, render: () => <NavigationSection /> },
+  // Inventario
+  { key: 'stock', group: 'inventario', areas: ['stock'], title: 'Stock', description: 'Alertas y stock crítico; familias, unidades y ubicaciones.', icon: Boxes, render: () => <StockSection /> },
+  { key: 'productos', group: 'inventario', areas: ['stock'], title: 'Productos', description: 'Productos e importación desde Excel.', icon: Package, render: () => <ProductsSection /> },
+  { key: 'ia', group: 'inventario', areas: ['stock'], title: 'IA (facturas y asistente)', description: 'Servidor de la IA (Gemini): leer facturas con fotos y el Asistente.', icon: Sparkles, render: () => <AIReaderSection /> },
+  // Personas (general)
+  { key: 'usuarios', group: 'personas', areas: BOTH, title: 'Usuarios y permisos', description: 'Usuarios, roles (también Mozo), permisos, PIN y bloqueo automático.', icon: UserCog, render: () => <UsersPage /> },
+  { key: 'ingresos', group: 'personas', areas: BOTH, title: 'Registro de ingresos', description: 'Quién entró a la app, cuándo y desde qué dispositivo.', icon: LogIn, render: () => <AccessLogSection /> },
+  { key: 'nube', group: 'personas', areas: BOTH, title: 'Cuenta y nube', description: 'Sesión, espacios de trabajo, miembros, invitaciones y sincronización.', icon: Cloud, render: () => <CloudPage /> },
+  // Sistema
+  { key: 'integraciones', group: 'sistema', areas: ['stock'], title: 'Integraciones', description: 'Maxirest, Excel Bridge, gateway, cola y estado de conexión.', icon: Plug, render: () => <IntegrationsPage /> },
+  { key: 'datos', group: 'sistema', areas: ['stock'], title: 'Importar y exportar', description: 'Excel, CSV, PDF, Word, JSON, backup completo y restauración.', icon: Download, render: () => <ExportPage /> },
+  { key: 'aplicacion', group: 'sistema', areas: BOTH, title: 'Aplicación', description: 'Actualizaciones, datos del dispositivo, restablecer y borrar datos.', icon: Smartphone, render: () => <AppSection /> },
+  { key: 'diagnostico', group: 'sistema', areas: BOTH, title: 'Diagnóstico', description: 'Estado del sistema, de Firebase y de la sincronización; versión.', icon: Stethoscope, render: () => <DiagnosticsSection /> },
 ];
 
-export function SettingsPage() {
+export function SettingsPage({ area = 'stock' }: { area?: Area }) {
   const { section } = useParams();
-  const current = SECTIONS.find((s) => s.key === section);
+  const base = area === 'salon' ? '/salon/configuracion' : '/configuracion';
+  const sections = SECTIONS.filter((s) => s.areas.includes(area));
+  const groups = GROUPS.filter((g) => sections.some((s) => s.group === g.key));
+  const current = sections.find((s) => s.key === section);
+  const title = area === 'salon' ? 'Configuración del salón' : 'Configuración';
 
   if (!current) {
     return (
       <>
-        <PageHeader title="Configuración" subtitle="Todo lo que se configura en la app, en un solo lugar." />
+        <PageHeader title={title} subtitle={area === 'salon' ? 'Lo del salón y lo general de la app. Lo del stock está en la Configuración del Stock.' : 'Lo del stock y lo general de la app. Lo del salón está en la Configuración del Salón.'} />
         <div className="settings-groups">
-          {GROUPS.map((g) => (
+          {groups.map((g) => (
             <section key={g.key} className="settings-group" aria-labelledby={`grupo-${g.key}`}>
               <header className="settings-group-head">
                 <h2 id={`grupo-${g.key}`}>{g.title}</h2>
                 <p>{g.description}</p>
               </header>
               <div className="card settings-group-list">
-                {SECTIONS.filter((s) => s.group === g.key).map((s) => (
-                  <Link key={s.key} to={`/configuracion/${s.key}`} className="settings-row">
+                {sections.filter((s) => s.group === g.key).map((s) => (
+                  <Link key={s.key} to={`${base}/${s.key}`} className="settings-row">
                     <span className="settings-card-icon"><s.icon size={19} aria-hidden /></span>
                     <span className="grow">
                       <span className="settings-card-title">{s.title}</span>
@@ -109,11 +133,11 @@ export function SettingsPage() {
   return (
     <div className="settings-layout">
       <nav className="settings-nav card" aria-label="Secciones de configuración">
-        {GROUPS.map((g) => (
+        {groups.map((g) => (
           <div key={g.key} className="settings-nav-group">
             <div className="settings-nav-title">{g.title}</div>
-            {SECTIONS.filter((s) => s.group === g.key).map((s) => (
-              <NavLink key={s.key} to={`/configuracion/${s.key}`} className="settings-nav-link">
+            {sections.filter((s) => s.group === g.key).map((s) => (
+              <NavLink key={s.key} to={`${base}/${s.key}`} className="settings-nav-link">
                 <s.icon size={17} aria-hidden /> {s.title}
               </NavLink>
             ))}
@@ -121,10 +145,45 @@ export function SettingsPage() {
         ))}
       </nav>
       <div className="settings-content">
-        <Link to="/configuracion" className="btn btn-ghost btn-sm settings-back"><ArrowLeft size={16} aria-hidden /> Configuración</Link>
+        <Link to={base} className="btn btn-ghost btn-sm settings-back"><ArrowLeft size={16} aria-hidden /> {title}</Link>
         <Suspense fallback={<p className="muted" aria-busy="true">Cargando…</p>}>{current.render()}</Suspense>
       </div>
     </div>
+  );
+}
+
+// ───────────────────────── Salón ─────────────────────────
+
+function SalonShortcuts() {
+  return (
+    <>
+      <PageHeader title="Mesas, carta y caja" subtitle="Se configuran desde su propia pantalla del Salón." />
+      <LinkCards items={[
+        { to: '/salon', title: 'Mesas y plano', description: 'Crear mesas y sectores (botón “Mesas”) y acomodarlas en el plano (“Editar plano”).', icon: Armchair },
+        { to: '/salon?vista=carta', title: 'Carta', description: 'Platos, precios, adicionales, IVA y código de Maxirest.', icon: BookOpen },
+        { to: '/salon?vista=caja', title: 'Caja', description: 'Abrir y cerrar la caja, ingresos, egresos y arqueos.', icon: Wallet },
+      ]} />
+    </>
+  );
+}
+
+function PrintSection() {
+  const { run } = useFeedback();
+  const settings = useSettings();
+  return (
+    <>
+      <PageHeader title="Impresión de tickets" subtitle="Tickets de 80 mm desde el diálogo de impresión del dispositivo." />
+      <section className="card card-pad stack">
+        <p style={{ margin: 0 }}>Stock Manager imprime cuatro tipos de ticket, todos de 80 mm de ancho:</p>
+        <ul style={{ margin: 0, paddingLeft: 20 }}>
+          <li><b>Factura o nota</b> (con CAE y QR de ARCA): al cobrar, o desde Comprobantes.</li>
+          <li><b>Pre-cuenta</b> y <b>comanda</b>: desde el pedido. Dicen “NO VÁLIDO COMO FACTURA”.</li>
+          <li><b>Arqueo de caja</b>: al cerrar la caja o desde el historial.</li>
+        </ul>
+        <p className="small muted" style={{ margin: 0 }}>La impresora térmica tiene que estar instalada en el celular, tablet o compu. En el diálogo de impresión elegí esa impresora, papel de 80 mm y márgenes “Ninguno”.</p>
+        <div><button type="button" className="btn" onClick={() => void run(() => printHtml(testTicketHtml(settings.businessName)))}><Printer size={18} aria-hidden /> Imprimir ticket de prueba</button></div>
+      </section>
+    </>
   );
 }
 

@@ -39,7 +39,7 @@ test('facturación electrónica: configurar, cobrar la mesa y emitir Factura B c
   await expect(page.getByText('Sincronizado').first()).toBeVisible();
 
   // Configuración fiscal
-  await go(page, '/salon/configuracion');
+  await go(page, '/salon/configuracion/facturacion');
   await expect(page.getByRole('heading', { name: 'Configuración fiscal', level: 1 })).toBeVisible();
   await page.getByLabel('Facturar desde Stock Manager al cobrar las mesas').check();
   await page.getByLabel('Dirección del servicio de ARCA').fill(SERVICE);

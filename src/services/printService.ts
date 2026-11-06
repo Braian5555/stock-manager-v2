@@ -182,3 +182,17 @@ export function arqueoHtml(s: CashSession, sum: CashSummary, business: string, d
     <p class="note">Impreso ${dateTime(new Date().toISOString())}</p>`;
   return page(`Arqueo ${s.register} #${s.number}`, body);
 }
+
+/** Ticket de prueba para ajustar la impresora. */
+export function testTicketHtml(business: string): string {
+  return page('Ticket de prueba', `
+    <p class="c big">${esc(business)}</p>
+    <div class="warn">TICKET DE PRUEBA<br>NO VÁLIDO COMO FACTURA</div>
+    <p>Si este texto entra completo en el ancho, la impresora está bien configurada.</p>
+    <div class="hr"></div>
+    <div class="row"><span>1 x Café con leche</span><span>3.000,00</span></div>
+    <div class="row"><span>2 x Medialunas</span><span>1.800,00</span></div>
+    <div class="hr"></div>
+    <div class="row big"><span>TOTAL</span><span>$ 4.800,00</span></div>
+    <p class="c note">${dateTime(new Date().toISOString())}</p>`);
+}
