@@ -63,7 +63,7 @@ const GROUPS: { key: GroupKey; title: string; description: string }[] = [
   { key: 'sistema', title: 'Datos y sistema', description: 'Conexiones, respaldos y estado técnico.' },
 ];
 
-const BOTH: Area[] = ['stock', 'salon'];
+const BOTH: Area[] = ['salon', 'stock'];
 
 /**
  * Configuración, repartida por área: lo de stock en la Configuración del Stock, lo del salón en la

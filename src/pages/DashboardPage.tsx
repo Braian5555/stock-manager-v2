@@ -1,25 +1,26 @@
-import { AlertTriangle, UtensilsCrossed, Boxes, Camera, ChefHat, CheckCircle2, ClipboardCheck, Lock, LogOut, MinusCircle, Package, Snowflake, Sparkles, type LucideIcon } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { AlertTriangle, Armchair, Boxes, Camera, ChefHat, CheckCircle2, ClipboardCheck, CookingPot, Lock, LogOut, MinusCircle, Package, Snowflake, Sparkles, Store, UtensilsCrossed, Wallet, type LucideIcon } from 'lucide-react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { Link } from 'react-router';
 import { useProducts } from '../hooks/useData';
 import { DESKTOP_QUERY, useMediaQuery } from '../hooks/useMediaQuery';
-import { MODULE_PATH, MODULE_PERMISSIONS, SALON_MODULES, areaHome, areasFor, moduleEnabled, visibleModules, visibleSections, writeArea } from '../layouts/modules';
+import { MODULE_PATH, MODULE_PERMISSIONS, SALON_MODULES, moduleEnabled, navLabel, salonItems, visibleModules, visibleSections, writeArea } from '../layouts/modules';
+import { useOpenCash, useOpenTickets, useTables } from '../components/salon/hooks';
+import { channelOf } from '../services/salonService';
 import { PERMISSIONS, type ModuleKey, type Permission } from '../models';
 import { useAssistantAvailable } from '../store/assistant';
 import { useSession } from '../store/session';
 import { useSettings } from '../store/settings';
 import { WelcomeCard } from '../components/WelcomeCard';
-import {
-  ActivityCard, BakeryTodayCard, InvoicesWeekCard, PriceIncreasesCard, RestockCard, ShowcaseCard, useHomePanels, type HomePanels, type Tone,
-} from '../components/dashboard/HomePanels';
+import { BakeryTodayCard, RestockCard, useHomePanels, type HomePanels, type Tone } from '../components/dashboard/HomePanels';
 import { AttentionCard } from '../components/dashboard/AttentionCard';
 import { negativeProducts } from '../services/attentionService';
 import { fmtNumber } from '../utils/format';
 
 /**
- * Inicio: el día del negocio de un vistazo, en bloques. Arriba la producción de la semana, los
- * negativos, la vitrina y lo que hay que reponer; después "Para resolver", los accesos rápidos
- * (según los permisos de cada persona) y las secciones del día. Todo con datos reales y en vivo.
+ * Inicio: el tablero para entrar a todo. Arriba cómo está el negocio ahora (mesas, cocina, caja y
+ * stock, cada dato es un botón que lleva ahí), después el menú completo con botones grandes —
+ * primero el Salón y después el Stock—, las acciones rápidas y lo que hay que resolver hoy.
+ * Todo según los permisos de cada persona.
  */
 export function DashboardPage() {
   const desktop = useMediaQuery(DESKTOP_QUERY);
@@ -34,56 +35,43 @@ export function DashboardPage() {
     // Con la lectura con IA configurada, la foto de factura ya abre con la IA.
     .map((a) => (a.to === '/facturas?nueva=1' && settings.aiReaderUrl ? { ...a, to: '/facturas?nueva=1&ia=1', hint: 'La IA lee los productos' } : a));
 
-  const bakery = allowed('production') && <BakeryTodayCard key="b" d={d} limit={desktop ? 7 : 4} />;
-  const activity = allowed('stock') && <ActivityCard key="a" d={d} limit={desktop ? 8 : 4} showLink={allowed('movements')} />;
+  const bakery = allowed('production') && <BakeryTodayCard key="b" d={d} limit={desktop ? 6 : 4} />;
   const restock = allowed('stock') && <RestockCard key="r" d={d} limit={desktop ? 6 : 4} />;
-  const showcase = allowed('showcase') && <ShowcaseCard key="v" d={d} limit={desktop ? 6 : 4} />;
-  const invoices = allowed('invoices') && <InvoicesWeekCard key="f" d={d} limit={desktop ? 5 : 3} />;
-  const prices = allowed('invoices') && <PriceIncreasesCard key="p" limit={desktop ? 5 : 3} />;
   const attention = (allowed('stock') || allowed('invoices') || allowed('count')) && (
     <AttentionCard key="t" hideNegatives={allowed('stock')} negOpen={negOpen} onNegOpen={setNegOpen} />
   );
-  const main = [bakery, activity].filter(Boolean);
-  const side = [restock, showcase, invoices, prices].filter(Boolean);
-  // En el celular, primero lo urgente (para resolver, reponer), después el día y la actividad.
-  const mobileOrder = [restock, bakery, showcase, activity, invoices, prices].filter(Boolean);
+  const day = [bakery, restock].filter(Boolean);
 
   return (
     <div className="hm">
       <Top name={user?.name ?? ''} business={settings.businessName} />
 
-      <Sections />
-
       {products.length === 0 && can('catalog.manage') && <WelcomeCard />}
 
-      <Bento d={d} allowed={allowed} onNegatives={() => setNegOpen(true)} />
+      <NowStrip d={d} allowed={allowed} onNegatives={() => setNegOpen(true)} />
+
+      <MainMenu />
+
+      {actions.length > 0 && (
+        <section className="hm-block" aria-labelledby="hm-actions-title">
+          <h2 id="hm-actions-title" className="hm-block-title">Acciones rápidas</h2>
+          <nav className="hm-actions" aria-label="Acciones rápidas">
+            {actions.map(({ label, hint, to, icon: Icon, tone }) => (
+              <Link key={label} to={to} className="hm-action">
+                <span className={`hm-action-icon tone-${tone}`}><Icon size={22} aria-hidden /></span>
+                <span className="hm-action-text">
+                  <span className="hm-action-label">{label}</span>
+                  <span className="hm-action-hint">{hint}</span>
+                </span>
+              </Link>
+            ))}
+          </nav>
+        </section>
+      )}
 
       {attention}
 
-      {actions.length > 0 && (
-        <nav className="hm-actions" aria-label="Acciones rápidas">
-          {actions.map(({ label, hint, to, icon: Icon, tone }) => (
-            <Link key={label} to={to} className="hm-action">
-              <span className={`hm-action-icon tone-${tone}`}><Icon size={22} aria-hidden /></span>
-              <span className="hm-action-text">
-                <span className="hm-action-label">{label}</span>
-                <span className="hm-action-hint">{hint}</span>
-              </span>
-            </Link>
-          ))}
-        </nav>
-      )}
-
-      {desktop ? (
-        (main.length > 0 || side.length > 0) && (
-          <div className={`hm-grid ${main.length && side.length ? '' : 'is-single'}`}>
-            {main.length > 0 && <div className="hm-col">{main}</div>}
-            {side.length > 0 && <div className="hm-col">{side}</div>}
-          </div>
-        )
-      ) : (
-        mobileOrder.length > 0 && <div className="hm-col">{mobileOrder}</div>
-      )}
+      {day.length > 0 && <div className={`hm-grid ${day.length > 1 && desktop ? '' : 'is-single'}`}>{day}</div>}
 
       {!desktop && (
         <button type="button" className="btn btn-block hm-logout" onClick={() => void lock()}>
@@ -94,34 +82,115 @@ export function DashboardPage() {
   );
 }
 
-// ───────────────────────── Menú de secciones ─────────────────────────
+// ───────────────────────── Ahora ─────────────────────────
 
-/** Las mismas secciones de la barra lateral, para entrar directo desde Inicio (celular y compu). */
-function Sections() {
+/** Cómo está todo en este momento: cada dato lleva a donde se resuelve. */
+function NowStrip({ d, allowed, onNegatives }: { d: HomePanels; allowed: (m: ModuleKey) => boolean; onNegatives: () => void }) {
+  const { canAny } = useSession();
+  const products = useProducts();
+  const negatives = useMemo(() => negativeProducts(products).length, [products]);
+  const salon = allowed('salon');
+  const tables = useTables();
+  const open = useOpenTickets();
+  const cash = useOpenCash();
+  const busy = new Set(open.filter((t) => t.tableId && channelOf(t) === 'mesa').map((t) => t.tableId)).size;
+  const counter = open.filter((t) => channelOf(t) !== 'mesa').length;
+  const cooking = open.reduce((n, t) => n + t.lines.filter((l) => l.status === 'cocina' && l.qty > 0).length, 0);
+  const sinceCash = cash ? (cash.openedAt ? new Date(cash.openedAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }) : '') : '';
+  const items: ReactNode[] = [];
+  if (salon) {
+    items.push(<NowItem key="mesas" to="/salon" icon={Armchair} value={tables.length ? `${busy} de ${tables.length}` : '—'} label={tables.length ? 'mesas ocupadas' : 'Armar las mesas'} />);
+    if (counter) items.push(<NowItem key="most" to="/salon?vista=mostrador" icon={Store} value={String(counter)} label={counter === 1 ? 'pedido de mostrador' : 'pedidos de mostrador'} />);
+  }
+  if (allowed('kitchen')) items.push(<NowItem key="coc" to="/cocina" icon={CookingPot} value={String(cooking)} label={cooking === 1 ? 'plato en cocina' : 'platos en cocina'} tone={cooking ? 'warn' : undefined} />);
+  if (salon && canAny(['billing', 'admin'])) items.push(<NowItem key="caja" to="/salon?vista=caja" icon={Wallet} value={cash ? 'Abierta' : 'Cerrada'} label={cash ? `caja desde las ${sinceCash}` : 'caja · tocá para abrir'} tone={cash ? 'ok' : undefined} />);
+  if (allowed('stock')) {
+    items.push(negatives > 0 ? (
+      <button key="neg" type="button" className="hm-now is-crit" aria-haspopup="dialog" onClick={onNegatives}>
+        <MinusCircle size={24} aria-hidden />
+        <span className="hm-now-text"><span className="hm-now-value num">{fmtNumber(negatives)}</span><span className="hm-now-label">en negativo · ver por qué</span></span>
+      </button>
+    ) : (
+      <NowItem key="neg" to="/stock" icon={CheckCircle2} value="0" label="en negativo" tone="ok" />
+    ));
+    items.push(<NowItem key="rep" to="/stock?estado=bajo" icon={AlertTriangle} value={fmtNumber(d.restock.length)} label="para reponer" tone={d.restock.length ? 'warn' : undefined} />);
+  }
+  if (allowed('showcase')) items.push(<NowItem key="cam" to="/camara" icon={Snowflake} value={fmtNumber(d.available.length)} label="en la cámara" />);
+  if (!items.length) return null;
+  return (
+    <section className="hm-block" aria-labelledby="hm-now-title">
+      <h2 id="hm-now-title" className="hm-block-title">Ahora</h2>
+      <div className="hm-now-grid">{items}</div>
+    </section>
+  );
+}
+
+function NowItem({ to, icon: Icon, value, label, tone }: { to: string; icon: LucideIcon; value: string; label: string; tone?: 'ok' | 'warn' }) {
+  return (
+    <Link to={to} className={`hm-now${tone ? ` is-${tone}` : ''}`}>
+      <Icon size={24} aria-hidden />
+      <span className="hm-now-text"><span className="hm-now-value num">{value}</span><span className="hm-now-label">{label}</span></span>
+    </Link>
+  );
+}
+
+// ───────────────────────── Menú completo ─────────────────────────
+
+const SALON_HINT: Record<string, string> = {
+  mesas: 'Plano, pedidos y cobro', mostrador: 'Mostrador, para llevar y delivery', cocina: 'Comandas de cocina y barra',
+  caja: 'Abrir, cerrar y arqueo', carta: 'Platos, precios y recetas', hoy: 'Lo vendido hoy y el cierre del día',
+  reportes: 'Ventas, platos, horas y mozos', comprobantes: 'Facturas ARCA y libro IVA', config: 'Facturación, mesas, impresión',
+};
+const STOCK_HINT: Record<string, string> = {
+  stock: 'Existencias, conteos y movimientos', produccion: 'Lo que sale del horno', pasteleria: 'Tortas y pastelería',
+  camara: 'Congelados y lo que se saca', productos: 'Catálogo, familias y recetas', compras: 'Facturas, pedidos y proveedores',
+  config: 'Empresa, usuarios, nube y datos',
+};
+
+/** Todas las secciones con botones grandes: primero el Salón, después el Stock. */
+function MainMenu() {
   const settings = useSettings();
   const { canAny } = useSession();
   const visible = visibleModules(settings, canAny);
-  const sections = visibleSections(settings, visible.filter((k) => !SALON_MODULES.has(k))).filter((s) => s.key !== 'inicio');
-  const salon = areasFor(visible).includes('salon');
-  if (!sections.length && !salon) return null;
+  const salon = salonItems(visible, canAny).filter((i) => i.key !== 'inicio');
+  const stock = visibleSections(settings, visible.filter((k) => !SALON_MODULES.has(k))).filter((s) => s.key !== 'inicio');
+  if (!salon.length && !stock.length) return null;
   return (
-    <nav className="hm-sections" aria-label="Secciones">
-      {sections.map((s) => {
-        const Icon = s.icon;
-        return (
-          <Link key={s.key} to={MODULE_PATH[s.tabs[0]]} className="hm-section">
-            <Icon size={22} aria-hidden />
-            <span>{s.label}</span>
-          </Link>
-        );
-      })}
-      {salon && (
-        <Link to={areaHome('salon', visible, canAny)} className="hm-section is-area" onClick={() => writeArea('salon')}>
-          <UtensilsCrossed size={22} aria-hidden />
-          <span>Ir al Salón</span>
-        </Link>
+    <>
+      {salon.length > 0 && (
+        <section className="hm-block" aria-labelledby="hm-menu-salon">
+          <h2 id="hm-menu-salon" className="hm-block-title"><UtensilsCrossed size={20} aria-hidden /> Salón</h2>
+          <nav className="hm-menu" aria-label="Menú del Salón">
+            {salon.map((i) => (
+              <Link key={i.key} to={i.to} className="hm-go" onClick={() => writeArea('salon')}>
+                <span className="hm-go-icon"><i.icon size={26} aria-hidden /></span>
+                <span className="hm-go-text"><span className="hm-go-label">{i.label}</span><span className="hm-go-hint">{SALON_HINT[i.key]}</span></span>
+              </Link>
+            ))}
+          </nav>
+        </section>
       )}
-    </nav>
+      {stock.length > 0 && (
+        <section className="hm-block" aria-labelledby="hm-menu-stock">
+          <h2 id="hm-menu-stock" className="hm-block-title"><Boxes size={20} aria-hidden /> Stock</h2>
+          <nav className="hm-menu" aria-label="Menú del Stock">
+            {stock.map((s) => (
+              <div key={s.key} className="hm-go-wrap">
+                <Link to={MODULE_PATH[s.tabs[0]]} className="hm-go" onClick={() => writeArea('stock')}>
+                  <span className="hm-go-icon"><s.icon size={26} aria-hidden /></span>
+                  <span className="hm-go-text"><span className="hm-go-label">{s.label}</span><span className="hm-go-hint">{STOCK_HINT[s.key]}</span></span>
+                </Link>
+                {s.tabs.length > 1 && (
+                  <span className="hm-go-subs">
+                    {s.tabs.slice(1).map((k) => <Link key={k} to={MODULE_PATH[k]} className="hm-sub" onClick={() => writeArea('stock')}>{navLabel(settings, k)}</Link>)}
+                  </span>
+                )}
+              </div>
+            ))}
+          </nav>
+        </section>
+      )}
+    </>
   );
 }
 
@@ -146,75 +215,6 @@ function Top({ name, business }: { name: string; business: string }) {
         <h1>{greeting()}{first ? `, ${first}` : ''}</h1>
       </div>
     </header>
-  );
-}
-
-// ───────────────────────── Bloques (bento) ─────────────────────────
-
-const DAY_INITIAL = ['D', 'L', 'M', 'M', 'J', 'V', 'S'];
-const dayOf = (ymd: string) => new Date(`${ymd}T12:00:00`);
-
-function Bento({ d, allowed, onNegatives }: { d: HomePanels; allowed: (m: ModuleKey) => boolean; onNegatives: () => void }) {
-  const products = useProducts();
-  const negatives = useMemo(() => negativeProducts(products).length, [products]);
-  const week = allowed('production');
-  const stock = allowed('stock');
-  const vitrina = allowed('showcase');
-  if (!week && !stock && !vitrina) return null;
-  const max = Math.max(1, ...d.weekDays.map((w) => w.qty));
-  const todayBadge = d.planned ? `Hoy ${d.done} de ${d.planned}` : `Hoy ${d.madeProducts} ${d.madeProducts === 1 ? 'anotado' : 'anotados'}`;
-  const pair = [
-    vitrina && (
-      <Link key="v" to="/camara" className="hm-mini">
-        <span className="hm-mini-text"><span className="hm-mini-value num">{fmtNumber(d.available.length)}</span><span className="hm-mini-label">en la cámara</span></span>
-        <Snowflake size={22} aria-hidden />
-      </Link>
-    ),
-    stock && (
-      <Link key="r" to="/stock?estado=bajo" className="hm-mini">
-        <span className="hm-mini-text"><span className="hm-mini-value num">{fmtNumber(d.restock.length)}</span><span className="hm-mini-label">para reponer</span></span>
-        <AlertTriangle size={22} aria-hidden />
-      </Link>
-    ),
-  ].filter(Boolean);
-
-  return (
-    <div className={`hm-bento${stock ? '' : ' no-neg'}`}>
-      {week && (
-        <Link to="/produccion" className="hm-week">
-          <span className="hm-week-head">
-            <span className="hm-week-title">Producción · últimos 7 días</span>
-            <span className="hm-week-badge">{todayBadge}</span>
-          </span>
-          <span className="hm-week-body">
-            <span className="hm-week-total">
-              <span className="hm-week-value num">{fmtNumber(d.weekProduced)}</span>
-              <span className="hm-week-sub">{d.weekProduced ? 'anotado en la semana' : 'Todavía no se anotó producción'}</span>
-            </span>
-            <span className="hm-week-bars" aria-hidden>
-              {d.weekDays.map((w, i) => (
-                <span key={w.ymd} className={`hm-week-day${i === 6 ? ' is-today' : ''}`} title={`${dayOf(w.ymd).toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric' })}: ${fmtNumber(w.qty)}`}>
-                  <span className="hm-week-bar" style={{ height: `${Math.max(6, Math.round((w.qty / max) * 100))}%` }} />
-                  <span className="hm-week-letter">{DAY_INITIAL[dayOf(w.ymd).getDay()]}</span>
-                </span>
-              ))}
-            </span>
-          </span>
-        </Link>
-      )}
-      {stock && (negatives > 0 ? (
-        <button type="button" className="hm-neg" aria-haspopup="dialog" onClick={onNegatives}>
-          <MinusCircle size={26} aria-hidden />
-          <span className="hm-neg-text"><span className="hm-neg-value num">{fmtNumber(negatives)}</span><span className="hm-neg-label">en negativo</span><span className="hm-neg-hint">Tocá para ver por qué</span></span>
-        </button>
-      ) : (
-        <Link to="/stock" className="hm-neg is-clear">
-          <CheckCircle2 size={26} aria-hidden />
-          <span className="hm-neg-text"><span className="hm-neg-value num">0</span><span className="hm-neg-label">en negativo</span><span className="hm-neg-hint">Todo el stock en positivo</span></span>
-        </Link>
-      ))}
-      {pair.length > 0 && <div className={`hm-pair${pair.length === 1 ? ' is-one' : ''}`}>{pair}</div>}
-    </div>
   );
 }
 

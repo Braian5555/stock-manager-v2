@@ -199,7 +199,7 @@ function writeCollapsed(v: boolean) {
 
 /** Barra inferior del Salón: Mesas, Mostrador, Cocina y Caja (o lo que la persona pueda ver). */
 function pickSalonBottom(items: SalonItem[]): SalonItem[] {
-  const prefer = ['mesas', 'mostrador', 'cocina', 'caja', 'comprobantes', 'carta'];
+  const prefer = ['inicio', 'mesas', 'mostrador', 'cocina', 'caja', 'comprobantes', 'carta'];
   return prefer.map((k) => items.find((i) => i.key === k)).filter((i): i is SalonItem => !!i).slice(0, 4);
 }
 
@@ -207,7 +207,7 @@ function pickSalonBottom(items: SalonItem[]): SalonItem[] {
 export function AreaSwitch({ area, onChange, className = '' }: { area: Area; onChange: (a: Area) => void; className?: string }) {
   return (
     <div className={`area-switch ${className}`} role="group" aria-label="Área">
-      {(['stock', 'salon'] as Area[]).map((a) => {
+      {(['salon', 'stock'] as Area[]).map((a) => {
         const Icon = AREA_ICON[a];
         return (
           <button key={a} type="button" className="area-switch-btn" aria-label={AREA_LABEL[a]} aria-pressed={area === a} onClick={() => onChange(a)}>

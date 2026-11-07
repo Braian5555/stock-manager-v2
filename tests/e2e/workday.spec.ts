@@ -105,9 +105,9 @@ test('día de trabajo completo: receta, panadero, Inicio, vitrina, sin conexión
   const bakery = page.getByRole('region', { name: 'Panadería de hoy' });
   await expect(bakery).toContainText('Sal fina');
   await expect(bakery).toContainText('Panadero');
-  const activity = page.getByRole('region', { name: 'Actividad reciente' });
-  await expect(activity).toContainText('Producción');
-  await expect(activity).toContainText('Consumo');
+  await go(page, '/movimientos');
+  await expect(page.getByText(/Producción/).filter({ visible: true }).first()).toBeVisible();
+  await go(page, '/');
 
   // 5. Cámara de congelados: se sacan 3 para hornear.
   await go(page, '/camara');
@@ -184,7 +184,7 @@ test('cada rol en cada pantalla: sin errores, con permisos y sin desbordes en el
       const actions = page.getByRole('navigation', { name: 'Acciones rápidas' });
       await expect(actions).toBeVisible();
       await expect(actions.getByRole('link', { name: /^Cámara/ })).toHaveCount(name === 'Cajero' ? 0 : 1);
-      await expect(page.getByRole('region', { name: 'Facturas de la semana' })).toHaveCount(1);
+      await expect(page.getByRole('navigation', { name: 'Menú del Stock' })).toBeVisible();
     }
   }
   expect(overflow).toEqual([]);

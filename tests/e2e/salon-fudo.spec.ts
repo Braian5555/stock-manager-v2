@@ -26,9 +26,9 @@ async function addMenuItem(page: Page, name: string, section: string, price: str
 
 test('salón tipo Fudo: caja, plano, adicionales, descuento, cuenta dividida, delivery y arqueo', async ({ page }) => {
   await loadDemo(page);
-  // Desde el Inicio (área Stock) se pasa al área Salón.
+  // Desde el Inicio se entra al Salón con el menú grande.
   await go(page, '/');
-  await page.getByRole('link', { name: 'Ir al Salón' }).click();
+  await page.getByRole('navigation', { name: 'Menú del Salón' }).getByRole('link', { name: /^Mesas/ }).click();
   await expect(page.getByRole('heading', { name: 'Mesas', level: 1 })).toBeVisible();
   await expect(page.getByRole('group', { name: 'Área' }).first().getByRole('button', { name: 'Salón' })).toHaveAttribute('aria-pressed', 'true');
   await page.getByLabel('Cantidad de mesas').fill('4');
@@ -161,12 +161,12 @@ test('áreas: el Salón y el Stock tienen menús separados', async ({ page }) =>
   await expect(page.getByRole('heading', { name: 'Mesas', level: 1 })).toBeVisible();
   if (isDesktop) {
     const side = page.getByRole('navigation', { name: 'Navegación: Salón' });
-    for (const n of ['Mesas', 'Mostrador', 'Cocina', 'Caja', 'Carta', 'Ventas de hoy', 'Comprobantes', 'Configuración']) await expect(side.getByRole('link', { name: n, exact: true })).toBeVisible();
+    for (const n of ['Inicio', 'Mesas', 'Mostrador', 'Cocina', 'Caja', 'Carta', 'Ventas de hoy', 'Comprobantes', 'Configuración']) await expect(side.getByRole('link', { name: n, exact: true })).toBeVisible();
     await expect(side.getByRole('link', { name: 'Stock', exact: true })).toHaveCount(0);
     await side.getByRole('link', { name: 'Configuración', exact: true }).click();
   } else {
     const bottom = page.getByRole('navigation', { name: 'Navegación inferior' });
-    for (const n of ['Mesas', 'Mostrador', 'Cocina', 'Caja']) await expect(bottom.getByRole('link', { name: n, exact: true })).toBeVisible();
+    for (const n of ['Inicio', 'Mesas', 'Mostrador', 'Cocina']) await expect(bottom.getByRole('link', { name: n, exact: true })).toBeVisible();
     await bottom.getByRole('link', { name: 'Más' }).click();
     await page.getByRole('navigation', { name: 'Salón' }).getByRole('link', { name: 'Configuración', exact: true }).click();
   }

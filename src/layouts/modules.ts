@@ -244,11 +244,13 @@ export type Area = 'stock' | 'salon';
 export const SALON_MODULES: ReadonlySet<ModuleKey> = new Set<ModuleKey>(['salon', 'kitchen', 'fiscal', 'salonConfig']);
 export const AREA_LABEL: Record<Area, string> = { stock: 'Stock', salon: 'Salón' };
 export const AREA_ICON: Record<Area, LucideIcon> = { stock: Boxes, salon: UtensilsCrossed };
-export const areaOfModule = (k?: ModuleKey): Area | undefined => (!k ? undefined : SALON_MODULES.has(k) ? 'salon' : 'stock');
+/** Área de cada módulo. El Inicio es de las dos (es el tablero para entrar a todo): no cambia el área. */
+export const areaOfModule = (k?: ModuleKey): Area | undefined => (!k || k === 'dashboard' ? undefined : SALON_MODULES.has(k) ? 'salon' : 'stock');
 
 /** Entradas del menú del Salón: cada vista es una sección propia. */
 export interface SalonItem { key: string; label: string; icon: LucideIcon; to: string; module: ModuleKey; perms?: Permission[]; bottom?: boolean }
 export const SALON_NAV: SalonItem[] = [
+  { key: 'inicio', label: 'Inicio', icon: Home, to: '/', module: 'dashboard' },
   { key: 'mesas', label: 'Mesas', icon: Armchair, to: '/salon', module: 'salon' },
   { key: 'mostrador', label: 'Mostrador', icon: Store, to: '/salon?vista=mostrador', module: 'salon' },
   { key: 'cocina', label: 'Cocina', icon: CookingPot, to: '/cocina', module: 'kitchen' },
@@ -269,6 +271,7 @@ export function salonItems(visible: ModuleKey[], canAny: (p: Permission[]) => bo
 
 /** Entrada del Salón que corresponde a la ruta actual. */
 export function activeSalonItem(pathname: string, search: string): string | undefined {
+  if (pathname === '/') return 'inicio';
   if (pathname.startsWith('/salon/configuracion')) return 'config';
   if (pathname.startsWith('/cocina')) return 'cocina';
   if (pathname.startsWith('/comprobantes')) return 'comprobantes';
@@ -281,15 +284,16 @@ export function activeSalonItem(pathname: string, search: string): string | unde
 
 /** Áreas a las que tiene acceso la persona. */
 export function areasFor(visible: ModuleKey[]): Area[] {
+  // Primero el Salón y después el Stock.
   const out: Area[] = [];
-  if (visible.some((k) => !SALON_MODULES.has(k) && k !== 'settings')) out.push('stock');
   if (visible.some((k) => SALON_MODULES.has(k))) out.push('salon');
+  if (visible.some((k) => !SALON_MODULES.has(k) && k !== 'settings' && k !== 'dashboard')) out.push('stock');
   return out;
 }
 
 /** Adónde lleva cada área al elegirla. */
 export function areaHome(area: Area, visible: ModuleKey[], canAny: (p: Permission[]) => boolean): string {
-  if (area === 'salon') return salonItems(visible, canAny)[0]?.to ?? '/salon';
+  if (area === 'salon') return salonItems(visible, canAny).find((i) => i.key !== 'inicio')?.to ?? '/salon';
   if (visible.includes('dashboard')) return '/';
   const first = visible.find((k) => !SALON_MODULES.has(k));
   return first ? MODULE_PATH[first] : '/';

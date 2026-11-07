@@ -176,6 +176,10 @@ test('22-23 · navegación adaptada al dispositivo', async ({ page, isMobile }) 
     const bottom = page.getByRole('navigation', { name: 'Navegación inferior' });
     await expect(bottom).toBeVisible();
     await expect(page.getByRole('navigation', { name: 'Navegación principal' })).toBeHidden();
+    // Primero el Salón: en el Inicio arranca en el área Salón; se pasa al Stock con el selector.
+    await expect(page.getByRole('group', { name: 'Área' }).first().getByRole('button').first()).toHaveAccessibleName('Salón');
+    await page.getByRole('group', { name: 'Área' }).first().getByRole('button', { name: 'Stock' }).click();
+    await page.goto('./#/');
     for (const l of ['Inicio', 'Stock', 'Panadería', 'Facturas', 'Más']) await expect(bottom.getByRole('link', { name: l })).toBeVisible();
     for (const l of ['Pedidos', 'Remitos']) await expect(bottom.getByRole('link', { name: l })).toHaveCount(0);
     await bottom.getByRole('link', { name: 'Más' }).click();
