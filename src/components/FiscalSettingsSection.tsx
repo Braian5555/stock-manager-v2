@@ -189,11 +189,16 @@ function CsrCard({ cuit, razonSocial }: { cuit: string; razonSocial: string }) {
   const [alias, setAlias] = useState('orillas');
   const [csr, setCsr] = useState('');
   const [busy, setBusy] = useState(false);
+  // En homologación, WSASS emite el certificado a nombre de la persona que entra con su clave fiscal
+  // (su CUIT); después se la autoriza a representar a la empresa. En producción va el CUIT de la empresa.
+  const [userCuit, setUserCuit] = useState('');
+  const homoCuit = userCuit.replace(/\D/g, '');
+  const certCuit = amb === 'homologacion' && homoCuit ? homoCuit : cuit;
   const base = `${cleanAlias(alias) || 'orillas'}-${amb === 'homologacion' ? 'homologacion' : 'produccion'}`;
   const generate = () => void run(async () => {
     setBusy(true);
     try {
-      const r = await generateKeyAndCsr({ cuit, razonSocial, alias });
+      const r = await generateKeyAndCsr({ cuit: certCuit, razonSocial, alias });
       const { downloadBlob } = await import('../exports/download');
       downloadBlob(new Blob([r.keyPem], { type: 'application/octet-stream' }), `${base}.key`);
       await new Promise((ok) => setTimeout(ok, 400));
@@ -212,15 +217,20 @@ function CsrCard({ cuit, razonSocial }: { cuit: string; razonSocial: string }) {
       <div className="form-grid">
         <Field label="Para"><Segmented<'homologacion' | 'produccion'> label="Ambiente del certificado" value={amb} onChange={setAmb} options={[{ value: 'homologacion', label: 'Homologación (prueba)' }, { value: 'produccion', label: 'Producción' }]} /></Field>
         <Field label="Alias (nombre del equipo en ARCA)" hint={`Sin espacios ni acentos: quedará “${cleanAlias(alias) || '—'}”.`}><Input value={alias} onChange={(e) => setAlias(e.target.value)} /></Field>
+        {amb === 'homologacion' && (
+          <Field label="CUIT de quien entra a WSASS (opcional)" hint="WSASS hace el certificado de prueba a nombre de la persona que entra con su clave fiscal. Si no es la empresa, poné acá su CUIT (el que figura arriba en WSASS como USUARIO).">
+            <Input inputMode="numeric" placeholder={validCuit(cuit) ? fmtCuit(cuit) : '20-12345678-9'} value={userCuit} onChange={(e) => setUserCuit(e.target.value)} />
+          </Field>
+        )}
       </div>
-      <p className="small" style={{ margin: 0 }}>Se pide a nombre de <b>{razonSocial || 'falta la razón social'}</b>, CUIT <b>{validCuit(cuit) ? fmtCuit(cuit) : 'falta el CUIT'}</b> (los datos de arriba: guardalos primero).</p>
-      <div><button type="button" className="btn btn-primary" disabled={busy || !validCuit(cuit) || !razonSocial.trim()} onClick={generate}><KeyRound size={18} aria-hidden /> {busy ? 'Generando…' : 'Generar y descargar clave y pedido'}</button></div>
+      <p className="small" style={{ margin: 0 }}>Se pide a nombre de <b>{razonSocial || 'falta la razón social'}</b>, CUIT <b>{validCuit(certCuit) ? fmtCuit(certCuit) : 'falta el CUIT'}</b>{certCuit === cuit ? ' (los datos de arriba: guardalos primero)' : ' (la persona que entra a WSASS)'}.</p>
+      <div><button type="button" className="btn btn-primary" disabled={busy || !validCuit(certCuit) || !validCuit(cuit) || !razonSocial.trim()} onClick={generate}><KeyRound size={18} aria-hidden /> {busy ? 'Generando…' : 'Generar y descargar clave y pedido'}</button></div>
       {csr && (
         <div className="stack">
           <Field label="Pedido (CSR) para pegar en ARCA"><textarea className="input" readOnly rows={7} value={csr} style={{ fontFamily: 'ui-monospace, monospace', fontSize: '0.8rem' }} onFocus={(e) => e.currentTarget.select()} /></Field>
           <div><button type="button" className="btn" onClick={() => void run(async () => { await navigator.clipboard.writeText(csr); notify('Pedido copiado'); })}><Copy size={18} aria-hidden /> Copiar el pedido</button></div>
           <p className="small muted" style={{ margin: 0 }}>{amb === 'homologacion'
-            ? 'En ARCA: WSASS (Autogestión Certificados Homologación) → Nuevo certificado → mismo alias → pegar el pedido → Crear DN y obtener certificado. Después: Crear autorización a servicio → wsfe.'
+            ? `En ARCA: WSASS (Autogestión Certificados Homologación) → Nuevo certificado → mismo alias → pegar el pedido → Crear DN y obtener certificado. Después: Crear autorización a servicio → wsfe${certCuit !== cuit && validCuit(cuit) ? `, con CUIT representada ${fmtCuit(cuit)}` : ''}.`
             : 'En ARCA: Administración de Certificados Digitales → Agregar alias → subir el .csr → descargar el certificado. Después: Administrador de Relaciones → Nueva relación → Facturación Electrónica → elegir el alias.'}</p>
         </div>
       )}
