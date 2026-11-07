@@ -18,24 +18,38 @@ const qtyFmt = (n: number) => n.toLocaleString('es-AR', { maximumFractionDigits:
 const time = (iso?: string) => (iso ? new Date(iso).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', hour12: false }) : '');
 const dateTime = (iso?: string) => (iso ? new Date(iso).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }) : '');
 
+/*
+ * Estilo de los tickets de 80 mm. En las térmicas (p. ej. 3nStar RPT008 / POS-80C) el texto de
+ * trazo fino sale gris y casi ilegible, y el driver no deja subir la densidad: por eso TODO sale en
+ * negrita, con una monoespaciada de trazo grueso (Consolas o Lucida Console en Windows) y en negro
+ * puro, sin grises. Si algo no entrara en el ancho, se baja 1px el tamaño, nunca se saca la negrita.
+ */
 const STYLE = `
 @page { size: 80mm auto; margin: 0; }
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; background: #fff; color: #000; }
-body { width: 80mm; padding: 3mm 4mm 6mm; font: 12px/1.3 'Courier New', ui-monospace, monospace; }
+*, *::before, *::after { color: #000 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+body {
+  width: 80mm; padding: 3mm 4mm 6mm;
+  font-family: 'Consolas', 'Lucida Console', 'Courier New', ui-monospace, monospace;
+  font-size: 12px; line-height: 1.3; font-weight: 700;
+  -webkit-font-smoothing: none; text-rendering: optimizeLegibility;
+}
 .c { text-align: center; }
 .r { text-align: right; }
 .b { font-weight: 700; }
 .big { font-size: 15px; font-weight: 700; }
 .huge { font-size: 18px; font-weight: 700; letter-spacing: .02em; }
-.hr { border-top: 1px dashed #000; margin: 5px 0; }
+.hr { border-top: 1.5px dashed #000; margin: 5px 0; }
 .row { display: flex; justify-content: space-between; gap: 6px; }
 .row > :first-child { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.row > :last-child:not(:first-child) { flex: none; white-space: nowrap; }
 .box { border: 1.5px solid #000; padding: 3px 4px; margin: 4px 0; }
-.note { font-size: 11px; }
+.note { font-size: 11px; font-weight: 700; color: #000; }
+.muted { color: #000; font-weight: 700; }
 .warn { border: 2px solid #000; padding: 4px; text-align: center; font-weight: 700; margin: 6px 0; }
 .qr { display: block; margin: 6px auto 2px; width: 38mm; height: 38mm; image-rendering: pixelated; }
-p { margin: 0; }
+p { margin: 0; overflow-wrap: anywhere; }
 `;
 
 function page(title: string, body: string) {
