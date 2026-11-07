@@ -21,6 +21,7 @@ test('ventas: corregir una venta cerrada (medio de pago, datos, anular) con moti
   m = dialog(page);
   await m.getByRole('button', { name: 'Agregar Milanesa' }).click();
   if (!(await m.getByRole('region', { name: 'Pedido' }).isVisible())) await m.getByRole('group', { name: 'Ver' }).getByRole('button', { name: /^Pedido/ }).click();
+  await m.getByRole('button', { name: /^Mandar a cocina/ }).click();
   await m.getByRole('button', { name: 'Cobrar', exact: true }).first().click();
   await page.getByRole('dialog', { name: 'Cobrar · Mesa 1' }).getByRole('button', { name: /^Cobrar .* y cerrar$/ }).click();
   await expect(page.getByText('Mesa 1: cobrado y cerrado')).toBeVisible();
