@@ -239,7 +239,7 @@ test('accesibilidad: letra más grande y más contraste en este dispositivo; Con
   // Usuarios: vuelve a Configuración con un toque, sin la fila de pestañas de antes.
   await go(page, '/usuarios');
   await expect(page.getByRole('navigation', { name: /Pestañas de/ })).toHaveCount(0);
-  await page.getByRole('link', { name: 'Configuración', exact: true }).first().click();
+  await page.locator('main').getByRole('link', { name: 'Configuración', exact: true }).first().click();
   await expect(page).toHaveURL(/#\/configuracion$/);
   if (isMobile) {
     const nav = page.getByRole('navigation', { name: 'Navegación inferior' });

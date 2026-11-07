@@ -268,7 +268,7 @@ test('facturas: "Leer factura con IA" lee sola al sacar la foto, y una factura y
   await go(page, '/');
   const quick = page.getByRole('navigation', { name: 'Acciones rápidas' });
   if (await quick.isVisible()) await quick.getByRole('link', { name: /^Foto de factura/ }).click();
-  else await page.goto('./#/facturas?nueva=1');
+  else await page.goto('./#/facturas?nueva=1&ia=1');
   await expect(page).toHaveURL(/#\/facturas\?nueva=1&ia=1$/);
   await expect(dialog(page).getByRole('heading', { name: 'Leer factura con IA' })).toBeVisible();
 });
