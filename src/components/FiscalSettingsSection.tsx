@@ -1,4 +1,5 @@
-import { AlertTriangle, CheckCircle2, KeyRound, PlugZap, Receipt, ShieldCheck, XCircle } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Copy, KeyRound, PlugZap, Receipt, ShieldCheck, XCircle } from 'lucide-react';
+import { cleanAlias, generateKeyAndCsr } from '../services/csrService';
 import { useEffect, useState } from 'react';
 import { useCloud } from '../cloud/cloudService';
 import type { FiscalSettings, IvaRate } from '../models';
@@ -172,7 +173,58 @@ export function FiscalSettingsSection() {
           El certificado digital y la clave privada <b>no se cargan acá</b>: se guardan como secretos en el servicio de ARCA (Cloudflare) y nunca llegan a la app ni a los celulares. La <b>clave fiscal</b> de ARCA no se pide ni se guarda nunca. Sólo pueden facturar el dueño, los administradores y los usuarios con el permiso “Cobrar y facturar”.
         </p>
       </section>
+
+      <CsrCard cuit={f.cuit} razonSocial={f.razonSocial} />
     </div>
+  );
+}
+
+/**
+ * Paso 1 del certificado: generar la clave privada y el pedido (CSR) acá mismo, en el navegador.
+ * La clave se descarga en esta compu y no se sube a ningún lado; el pedido se pega en ARCA.
+ */
+function CsrCard({ cuit, razonSocial }: { cuit: string; razonSocial: string }) {
+  const { run, notify } = useFeedback();
+  const [amb, setAmb] = useState<'homologacion' | 'produccion'>('homologacion');
+  const [alias, setAlias] = useState('orillas');
+  const [csr, setCsr] = useState('');
+  const [busy, setBusy] = useState(false);
+  const base = `${cleanAlias(alias) || 'orillas'}-${amb === 'homologacion' ? 'homologacion' : 'produccion'}`;
+  const generate = () => void run(async () => {
+    setBusy(true);
+    try {
+      const r = await generateKeyAndCsr({ cuit, razonSocial, alias });
+      const { downloadBlob } = await import('../exports/download');
+      downloadBlob(new Blob([r.keyPem], { type: 'application/octet-stream' }), `${base}.key`);
+      await new Promise((ok) => setTimeout(ok, 400));
+      downloadBlob(new Blob([r.csrPem], { type: 'application/octet-stream' }), `${base}.csr`);
+      setCsr(r.csrPem);
+      notify(`Listo: se descargaron ${base}.key y ${base}.csr`);
+    } finally { setBusy(false); }
+  });
+  return (
+    <section className="card card-pad stack" aria-labelledby="csr-title">
+      <h2 id="csr-title" className="row"><KeyRound size={18} aria-hidden /> Generar clave y pedido de certificado</h2>
+      <p className="small muted" style={{ margin: 0 }}>
+        Paso 1 para obtener el certificado de ARCA. Se genera en este navegador y se descarga en esta compu: la clave privada <b>no se sube a ningún lado</b>.
+        Guardá el archivo <b>.key</b> en un lugar seguro: después se pega sólo en Cloudflare. El <b>.csr</b> (el pedido) se pega en ARCA.
+      </p>
+      <div className="form-grid">
+        <Field label="Para"><Segmented<'homologacion' | 'produccion'> label="Ambiente del certificado" value={amb} onChange={setAmb} options={[{ value: 'homologacion', label: 'Homologación (prueba)' }, { value: 'produccion', label: 'Producción' }]} /></Field>
+        <Field label="Alias (nombre del equipo en ARCA)" hint={`Sin espacios ni acentos: quedará “${cleanAlias(alias) || '—'}”.`}><Input value={alias} onChange={(e) => setAlias(e.target.value)} /></Field>
+      </div>
+      <p className="small" style={{ margin: 0 }}>Se pide a nombre de <b>{razonSocial || 'falta la razón social'}</b>, CUIT <b>{validCuit(cuit) ? fmtCuit(cuit) : 'falta el CUIT'}</b> (los datos de arriba: guardalos primero).</p>
+      <div><button type="button" className="btn btn-primary" disabled={busy || !validCuit(cuit) || !razonSocial.trim()} onClick={generate}><KeyRound size={18} aria-hidden /> {busy ? 'Generando…' : 'Generar y descargar clave y pedido'}</button></div>
+      {csr && (
+        <div className="stack">
+          <Field label="Pedido (CSR) para pegar en ARCA"><textarea className="input" readOnly rows={7} value={csr} style={{ fontFamily: 'ui-monospace, monospace', fontSize: '0.8rem' }} onFocus={(e) => e.currentTarget.select()} /></Field>
+          <div><button type="button" className="btn" onClick={() => void run(async () => { await navigator.clipboard.writeText(csr); notify('Pedido copiado'); })}><Copy size={18} aria-hidden /> Copiar el pedido</button></div>
+          <p className="small muted" style={{ margin: 0 }}>{amb === 'homologacion'
+            ? 'En ARCA: WSASS (Autogestión Certificados Homologación) → Nuevo certificado → mismo alias → pegar el pedido → Crear DN y obtener certificado. Después: Crear autorización a servicio → wsfe.'
+            : 'En ARCA: Administración de Certificados Digitales → Agregar alias → subir el .csr → descargar el certificado. Después: Administrador de Relaciones → Nueva relación → Facturación Electrónica → elegir el alias.'}</p>
+        </div>
+      )}
+    </section>
   );
 }
 

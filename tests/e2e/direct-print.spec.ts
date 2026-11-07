@@ -17,3 +17,17 @@ test('impresión directa: descarga el acceso directo de la caja con --kiosk-prin
   expect(bat).toContain('\r\n');
   console.log(bat);
 });
+
+test('certificado de ARCA: genera la clave y el pedido (CSR) en el navegador y los descarga', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'se hace en la compu');
+  await loadDemo(page);
+  await go(page, '/salon/configuracion/facturacion');
+  await page.getByLabel('CUIT').fill('30-71234567-1');
+  await page.getByLabel('Razón social').fill('Epicurae SA');
+  await page.getByLabel('Alias (nombre del equipo en ARCA)').fill('Orillas Caja');
+  const downloads: string[] = [];
+  page.on('download', (d) => downloads.push(d.suggestedFilename()));
+  await page.getByRole('button', { name: 'Generar y descargar clave y pedido' }).click();
+  await expect(page.getByLabel('Pedido (CSR) para pegar en ARCA')).toHaveValue(/^-----BEGIN CERTIFICATE REQUEST-----/);
+  await expect.poll(() => downloads.sort()).toEqual(['orillascaja-homologacion.csr', 'orillascaja-homologacion.key']);
+});
