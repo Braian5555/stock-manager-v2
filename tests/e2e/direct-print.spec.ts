@@ -22,12 +22,15 @@ test('certificado de ARCA: genera la clave y el pedido (CSR) en el navegador y l
   test.skip(isMobile, 'se hace en la compu');
   await loadDemo(page);
   await go(page, '/salon/configuracion/facturacion');
-  await page.getByLabel('CUIT').fill('30-71234567-1');
+  await page.getByLabel('CUIT', { exact: true }).fill('30-71234567-1');
   await page.getByLabel('Razón social').fill('Epicurae SA');
   await page.getByLabel('Alias (nombre del equipo en ARCA)').fill('Orillas Caja');
   const downloads: string[] = [];
   page.on('download', (d) => downloads.push(d.suggestedFilename()));
-  await page.getByRole('button', { name: 'Generar y descargar clave y pedido' }).click();
+  await page.getByRole('button', { name: 'Generar clave y pedido' }).click();
   await expect(page.getByLabel('Pedido (CSR) para pegar en ARCA')).toHaveValue(/^-----BEGIN CERTIFICATE REQUEST-----/);
+  expect(downloads).toEqual([]); // una descarga por botón: Chrome no las bloquea como "múltiples"
+  await page.getByRole('button', { name: 'Guardar la clave (.key)' }).click();
+  await page.getByRole('button', { name: 'Guardar el pedido (.csr)' }).click();
   await expect.poll(() => downloads.sort()).toEqual(['orillascaja-homologacion.csr', 'orillascaja-homologacion.key']);
 });

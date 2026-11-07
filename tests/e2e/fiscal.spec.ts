@@ -43,7 +43,7 @@ test('facturación electrónica: configurar, cobrar la mesa y emitir Factura B c
   await expect(page.getByRole('heading', { name: 'Configuración fiscal', level: 1 })).toBeVisible();
   await page.getByLabel('Facturar desde Orillas al cobrar las mesas').check();
   await page.getByLabel('Dirección del servicio de ARCA').fill(SERVICE);
-  await page.getByLabel('CUIT').fill('30-71234567-1');
+  await page.getByLabel('CUIT', { exact: true }).fill('30-71234567-1');
   await page.getByLabel('Razón social').fill('Epicurae SA');
   await page.getByLabel('Domicilio fiscal').fill('Av. Siempre Viva 123, CABA');
   await page.getByLabel('Punto de venta').fill('5');
