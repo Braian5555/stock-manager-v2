@@ -54,10 +54,11 @@ export function DashboardPage() {
 
       {products.length === 0 && can('catalog.manage') && <WelcomeCard />}
 
-      {actions.length > 0 && (
+      {/* En la computadora los accesos están en la barra de arriba (como Fudo). */}
+      {!desktop && actions.length > 0 && (
         <section className="hm-block" aria-labelledby="hm-actions-title">
           <h2 id="hm-actions-title" className="sr-only">Acciones rápidas</h2>
-          <nav className="hm-actions hm-quick hm-mobile-only" aria-label="Acciones rápidas">
+          <nav className="hm-actions hm-quick" aria-label="Acciones rápidas">
             {actions.map(({ label, hint, to, icon: Icon, tone }) => (
               <Link key={label} to={to} className="hm-action">
                 <span className={`hm-action-icon tone-${tone}`}><Icon size={22} aria-hidden /></span>
@@ -75,7 +76,7 @@ export function DashboardPage() {
 
       {allowed('salon') && canAny(['billing', 'admin']) && <TodayCharts />}
 
-      <MenuMap />
+      {!desktop && <MenuMap />}
 
       {attention}
 
@@ -190,7 +191,7 @@ function MenuMap() {
     .map((g) => ({ ...g, entries: g.entries.filter((e) => e.key !== 'resumen') })).filter((g) => g.entries.length);
   if (!list.length) return null;
   return (
-    <section className="hm-block hm-mobile-only" aria-labelledby="hm-menu-title">
+    <section className="hm-block" aria-labelledby="hm-menu-title">
       <h2 id="hm-menu-title" className="hm-block-title">Menú</h2>
       <div className="hm-map">
         {list.map((g) => (

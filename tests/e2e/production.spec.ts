@@ -25,7 +25,7 @@ test('producción: usuario panadero ve sólo Producción, anota con dos toques y
   // Entra directo a Producción; la navegación sólo ofrece Producción (Pastelería es de la pastelera).
   await expect(page.getByRole('heading', { name: 'Panadería', level: 1 })).toBeVisible();
   await expect(page).toHaveURL(/#\/produccion$/);
-  const nav = page.getByRole('navigation', { name: isMobile ? 'Navegación inferior' : 'Navegación principal' });
+  const nav = page.getByRole('navigation', { name: isMobile ? 'Navegación inferior' : 'Menú principal' });
   await expect(nav.getByRole('link', { name: 'Panadería' })).toBeVisible();
   await expect(nav.getByRole('link', { name: 'Pastelería' })).toHaveCount(0);
   await expect(nav.getByRole('link', { name: 'Stock' })).toHaveCount(0);
@@ -233,7 +233,7 @@ test('pastelera: entra directo a Pastelería y no ve Producción', async ({ page
   await login(page, 'Pastelera', '1357');
   await expect(page.getByRole('heading', { name: 'Pastelería', level: 1 })).toBeVisible();
   await expect(page).toHaveURL(/#\/pasteleria$/);
-  const nav = page.getByRole('navigation', { name: isMobile ? 'Navegación inferior' : 'Navegación principal' });
+  const nav = page.getByRole('navigation', { name: isMobile ? 'Navegación inferior' : 'Menú principal' });
   await expect(nav.getByRole('link', { name: 'Panadería' })).toHaveCount(0);
   // Un enlace a Producción la devuelve a Pastelería.
   await page.evaluate(() => { location.hash = '#/produccion'; });

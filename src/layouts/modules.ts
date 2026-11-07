@@ -345,7 +345,8 @@ export function menuGroups(settings: Settings, visible: ModuleKey[], canAny: (p:
     }
     if (sec.key === 'stock' && sec.tabs.includes('stock')) groups.get('reportes')!.push({ key: 'consumo', label: 'Consumo y mermas', icon: TrendingDown, to: '/stock/consumo', area: 'stock', group: 'reportes' });
   }
-  return MENU_GROUPS.map((g) => ({ ...g, entries: groups.get(g.key)! })).filter((g) => g.entries.length);
+  // Si se renombró el menú de stock (p. ej. "Inventario"), el grupo usa ese nombre.
+  return MENU_GROUPS.map((g) => ({ ...g, label: g.key === 'stock' ? navLabel(settings, 'stock') : g.label, entries: groups.get(g.key)! })).filter((g) => g.entries.length);
 }
 
 /** Entrada del menú que corresponde a la pantalla actual. */

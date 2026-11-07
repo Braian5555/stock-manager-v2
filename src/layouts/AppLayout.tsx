@@ -16,6 +16,7 @@ import { useAutoSync } from '../hooks/useAutoSync';
 import { SyncBadge } from '../components/SyncBadge';
 import { UserMenu } from '../components/auth/UserMenu';
 import { useSession } from '../store/session';
+import { DESKTOP_QUERY, useMediaQuery } from '../hooks/useMediaQuery';
 import { useAssistantAvailable } from '../store/assistant';
 import type { ModuleKey } from '../models';
 
@@ -70,25 +71,28 @@ export function AppLayout() {
   const current = moduleOfPath(location.pathname);
   // Área (Stock o Salón): la de la pantalla actual; en pantallas comunes (asistente, ayuda), la última usada.
   const areas = areasFor(visible);
-  const wanted: Area = areaOfModule(current) ?? readArea() ?? areas[0] ?? 'stock';
+  // El área elegida a mano vive en estado (y en el almacenamiento): cambiarla redibuja aunque la ruta no cambie.
+  const [picked, setPicked] = useState<Area | undefined>(() => readArea());
+  const wanted: Area = areaOfModule(current) ?? picked ?? areas[0] ?? 'stock';
   const area: Area = areas.includes(wanted) ? wanted : areas[0] ?? 'stock';
-  useEffect(() => { if (areaOfModule(current)) writeArea(area); }, [area, current]);
+  useEffect(() => { if (areaOfModule(current)) { writeArea(area); setPicked(area); } }, [area, current]);
   const stockVisible = visible.filter((k) => !SALON_MODULES.has(k));
   const sections = area === 'stock' ? visibleSections(settings, stockVisible) : [];
   const section = sections.find((sec) => current && sec.tabs.includes(current));
   const salon = area === 'salon' ? salonItems(visible, canAny) : [];
   const salonActive = activeSalonItem(location.pathname, location.search);
-  const salonCurrent = salon.find((i) => i.key === salonActive);
   const bottom = area === 'stock' ? bottomNavModules(settings, stockVisible) : [];
   const salonBottom = area === 'salon' ? pickSalonBottom(salon) : [];
   const home = areaHome(area, visible, canAny);
-  const switchArea = (a: Area) => { writeArea(a); navigate(areaHome(a, visible, canAny)); };
+  const switchArea = (a: Area) => { writeArea(a); setPicked(a); navigate(areaHome(a, visible, canAny)); };
   const connected = integration && integration.mode !== 'disabled' && integration.mode !== 'excel' && integration.status !== 'desconectado';
   const assistant = useAssistantAvailable();
   const menu = menuGroups(settings, visible, canAny);
   // El logo lleva al Salón (como Fudo); quien no usa el Salón vuelve a su inicio.
   const brandHome = areas.includes('salon') ? areaHome('salon', visible, canAny) : home;
   const activeKey = activeMenuKey(location.pathname, location.search);
+  // La barra tipo Fudo es de la computadora; en el celular están la barra inferior y "Más".
+  const desktop = useMediaQuery(DESKTOP_QUERY);
 
   return (
     <div className="app">
@@ -102,11 +106,9 @@ export function AppLayout() {
           </span>
         </Link>
 
-        {section && <span className="topbar-title truncate">{section.label}</span>}
-        {salonCurrent && <span className="topbar-title truncate">{salonCurrent.label}</span>}
-        <MainNav groups={menu} active={activeKey} />
+        {desktop && <MainNav groups={menu} active={activeKey} />}
         <span className="grow topbar-spacer" />
-        {areas.length > 1 && <AreaSwitch area={area} onChange={switchArea} className="area-switch-top" />}
+        {!desktop && areas.length > 1 && <AreaSwitch area={area} onChange={switchArea} className="area-switch-top" />}
         {can('stock.view') && (
           <button type="button" className="search-trigger" onClick={() => setSearchOpen(true)} aria-label="Buscar (Ctrl+K)">
             <Search size={18} aria-hidden />
@@ -124,9 +126,9 @@ export function AppLayout() {
         <UserMenu />
       </header>
 
-      <SubNav groups={menu} active={activeKey} />
+      {desktop && <SubNav groups={menu} active={activeKey} />}
       {/* Configuración no lleva pestañas: todo se elige desde sus tarjetas (antes estaba repetido arriba y abajo). */}
-      {section && section.key !== 'config' && section.tabs.length > 1 && <SectionTabs tabs={section.tabs} label={section.label} />}
+      {!desktop && section && section.key !== 'config' && section.tabs.length > 1 && <SectionTabs tabs={section.tabs} label={section.label} />}
 
       <UpdatePrompt />
       {!online && (
@@ -232,7 +234,9 @@ function topItems(groups: MenuGroupEntries[]): TopItem[] {
   for (const g of groups) {
     if (g.key === 'ventas') continue;
     const first = g.entries[0];
-    out.push({ key: `g-${g.key}`, label: GROUP_SHORT[g.key] ?? g.label, icon: GROUP_ICON[g.key], to: first.to, area: first.area, keys: g.entries.map((e) => e.key) });
+    // Un grupo con una sola pantalla (p. ej. el panadero: sólo Panadería) muestra esa pantalla.
+    if (g.entries.length === 1) out.push({ key: first.key, label: first.label, icon: first.icon, to: first.to, area: first.area, keys: [first.key] });
+    else out.push({ key: `g-${g.key}`, label: GROUP_SHORT[g.key] ?? g.label, icon: GROUP_ICON[g.key], to: first.to, area: first.area, keys: g.entries.map((e) => e.key) });
   }
   return out;
 }

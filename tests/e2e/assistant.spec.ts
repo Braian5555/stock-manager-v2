@@ -80,7 +80,7 @@ test('asistente: consulta, foto de remito con confirmación y conversación que 
 
   // Se abre desde el encabezado (y también está en el Inicio).
   await go(page, '/');
-  await expect(page.getByRole('navigation', { name: 'Acciones rápidas' }).getByRole('link', { name: /Asistente IA/ })).toBeVisible();
+  await expect(page.getByRole('link', { name: /Asistente IA/ }).first()).toBeVisible();
   await page.getByRole('link', { name: 'Asistente IA' }).first().click();
   await expect(page).toHaveURL(/#\/asistente$/);
   await expect(page.getByRole('heading', { name: 'Asistente' })).toBeVisible();

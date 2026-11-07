@@ -181,10 +181,16 @@ test('cada rol en cada pantalla: sin errores, con permisos y sin desbordes en el
     if (name !== 'Horno' && name !== 'Tortas') {
       // El Inicio respeta los permisos de cada rol.
       await go(page, '/');
-      const actions = page.getByRole('navigation', { name: 'Acciones rápidas' });
-      await expect(actions).toBeVisible();
-      await expect(actions.getByRole('link', { name: /^Cámara/ })).toHaveCount(name === 'Cajero' ? 0 : 1);
-      await expect(page.getByRole('navigation', { name: 'Menú: Stock' })).toBeVisible();
+      if (isMobile) {
+        const actions = page.getByRole('navigation', { name: 'Acciones rápidas' });
+        await expect(actions).toBeVisible();
+        await expect(actions.getByRole('link', { name: /^Cámara/ })).toHaveCount(name === 'Cajero' ? 0 : 1);
+        await expect(page.getByRole('navigation', { name: 'Menú: Stock' })).toBeVisible();
+      } else {
+        // En la compu, la barra de arriba (como Fudo) con el Stock y sus pantallas según el rol.
+        await page.getByRole('navigation', { name: 'Menú principal' }).getByRole('link', { name: 'Stock', exact: true }).click();
+        await expect(page.getByRole('navigation', { name: 'Menú: Stock' }).getByRole('link', { name: 'Cámara', exact: true })).toHaveCount(name === 'Cajero' ? 0 : 1);
+      }
     }
   }
   expect(overflow).toEqual([]);

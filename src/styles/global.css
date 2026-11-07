@@ -261,8 +261,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
   .main-nav-item:focus-visible { outline: 2px solid var(--bar-accent); outline-offset: 2px; }
   .main-nav-item.is-icon { padding: 0 10px; }
   .main-nav-item.is-icon span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-  .topbar .brand-text { display: none; }
-  .topbar .sync-pill .sync-text { display: none; }
+  .topbar .brand-sub { display: none; }
+  .topbar .brand-name { max-width: 170px; }
 
   /* Las pantallas del grupo, en una franja clara debajo de la barra. */
   .sub-nav {
@@ -280,7 +280,6 @@ button, input, select, textarea { font: inherit; color: inherit; }
   .sub-nav-item:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
 
   .section-tabs { display: none; }
-  .hm-mobile-only { display: none !important; }
   .search-trigger { padding: 0 9px; }
   .user-chip-name { display: none; }
   .bottom-nav { display: none; }
@@ -291,7 +290,6 @@ button, input, select, textarea { font: inherit; color: inherit; }
   .main-nav-item:not(.is-icon) svg { display: none; }
 }
 @media (min-width: 1500px) {
-  .topbar .brand-text { display: flex; }
   .user-chip-name { display: inline; }
   .topbar .user-chip { padding: 3px 12px 3px 3px; }
 }
