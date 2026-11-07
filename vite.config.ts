@@ -34,7 +34,8 @@ export default defineConfig({
         description: 'Software gastronómico: salón, cocina, caja, facturación, stock y compras. Funciona sin conexión.',
         lang: 'es',
         dir: 'ltr',
-        start_url: BASE,
+        // Al abrir la app instalada se entra directo al Salón (como Fudo).
+        start_url: `${BASE}#/salon`,
         scope: BASE,
         display: 'standalone',
         orientation: 'any',

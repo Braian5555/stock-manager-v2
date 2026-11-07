@@ -12,7 +12,7 @@ test('impresión directa: descarga el acceso directo de la caja con --kiosk-prin
   const bat = readFileSync((await file.path())!, 'utf8');
   expect(bat).toContain('--kiosk-printing');
   expect(bat).toContain('--user-data-dir="%PERFIL%"');
-  expect(bat).toMatch(/set "URL=http:\/\/[^"]+\/"/);
+  expect(bat).toMatch(/set "URL=http:\/\/[^"]+\/#\/salon"/);
   expect(bat).toContain('App Paths\\chrome.exe');
   expect(bat).toContain('\r\n');
   console.log(bat);

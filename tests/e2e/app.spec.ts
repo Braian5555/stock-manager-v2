@@ -136,7 +136,7 @@ test('15-17 · exporta Excel, PDF y Word válidos', async ({ page }, info) => {
 test('18-19 · PWA instalable y funciona offline', async ({ page, context }) => {
   await open(page);
   const manifest = await (await page.request.get('manifest.webmanifest')).json();
-  expect(manifest).toMatchObject({ start_url: BASE, scope: BASE, display: 'standalone' });
+  expect(manifest).toMatchObject({ start_url: `${BASE}#/salon`, scope: BASE, display: 'standalone' });
   await expect(page.locator('link[rel="manifest"]')).toHaveAttribute('href', `${BASE}manifest.webmanifest`);
   const scope = await page.evaluate(async () => (await navigator.serviceWorker.ready).scope);
   expect(new URL(scope).pathname).toBe(BASE);
@@ -186,33 +186,28 @@ test('22-23 · navegación adaptada al dispositivo', async ({ page, isMobile }) 
     await expect(page.getByRole('heading', { name: 'Operación diaria' })).toBeVisible();
     await page.getByRole('link', { name: 'Configuración' }).click();
   } else {
-    // En el Inicio los accesos están en la pantalla: sin barra lateral. En las demás, sí.
-    await expect(page.getByRole('navigation', { name: 'Navegación principal' })).toHaveCount(0);
-    await expect(page.getByRole('navigation', { name: 'Acciones rápidas' })).toBeVisible();
-    await go(page, '/stock');
-    const top = page.getByRole('navigation', { name: 'Navegación principal' });
+    // Computadora, como Fudo: barra de arriba (Salón, Mostrador, Cocina, Caja y los grupos) y,
+    // debajo, todas las pantallas del grupo. Sin barra inferior ni accesos repetidos en el Inicio.
+    await expect(page.getByRole('navigation', { name: 'Acciones rápidas' })).toHaveCount(0);
+    const top = page.getByRole('navigation', { name: 'Menú principal' });
     await expect(top).toBeVisible();
     await expect(page.getByRole('navigation', { name: 'Navegación inferior' })).toBeHidden();
-    // Barra lateral con las secciones; cada sección muestra sus módulos como pestañas.
-    // Compras agrupa facturas, pedidos y proveedores; remitos y reportes de stock se retiraron.
-    for (const l of ['Inicio', 'Stock', 'Panadería', 'Productos', 'Compras', 'Configuración', 'Ayuda']) await expect(top.getByRole('link', { name: l })).toBeVisible();
-    for (const l of ['Remitos', 'Reportes']) await expect(top.getByRole('link', { name: l })).toHaveCount(0);
-    await expect(top.getByRole('link', { name: 'Stock' })).toHaveClass(/active/);
-    await top.getByRole('link', { name: 'Productos' }).click();
-    const tabs = page.getByRole('navigation', { name: 'Pestañas de Productos' });
-    for (const l of ['Productos', 'Familias', 'Unidades', 'Ubicaciones']) await expect(tabs.getByRole('link', { name: l })).toBeVisible();
-    await tabs.getByRole('link', { name: 'Familias' }).click();
+    for (const l of ['Salón', 'Mostrador', 'Cocina', 'Caja', 'Productos', 'Stock', 'Compras', 'Reportes', 'Configuración']) await expect(top.getByRole('link', { name: l, exact: true })).toBeVisible();
+    const sub = (g: string) => page.getByRole('navigation', { name: `Menú: ${g}` });
+    await top.getByRole('link', { name: 'Stock', exact: true }).click();
+    await expect(top.getByRole('link', { name: 'Stock', exact: true })).toHaveClass(/active/);
+    for (const l of ['Stock', 'Conteo', 'Movimientos', 'Panadería', 'Cámara']) await expect(sub('Stock').getByRole('link', { name: l, exact: true })).toBeVisible();
+    for (const l of ['Remitos']) await expect(sub('Stock').getByRole('link', { name: l })).toHaveCount(0);
+    await top.getByRole('link', { name: 'Productos', exact: true }).click();
+    for (const l of ['Carta', 'Productos e insumos', 'Familias', 'Unidades', 'Ubicaciones']) await expect(sub('Productos').getByRole('link', { name: l, exact: true })).toBeVisible();
+    await sub('Productos').getByRole('link', { name: 'Familias', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Familias', level: 1 })).toBeVisible();
-    await expect(top.getByRole('link', { name: 'Productos' })).toHaveClass(/active/);
-    await top.getByRole('link', { name: 'Compras' }).click();
+    await expect(top.getByRole('link', { name: 'Productos', exact: true })).toHaveClass(/active/);
+    await top.getByRole('link', { name: 'Compras', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Facturas', level: 1 })).toBeVisible();
-    const buy = page.getByRole('navigation', { name: 'Pestañas de Compras' });
-    for (const l of ['Facturas', 'Pedidos', 'Proveedores']) await expect(buy.getByRole('link', { name: l })).toBeVisible();
-    // La barra se puede achicar (sólo íconos) y volver a agrandar.
-    await page.getByRole('button', { name: 'Achicar menú' }).click();
-    await expect(top.getByRole('link', { name: 'Productos' })).toHaveAttribute('title', 'Productos');
-    await page.getByRole('button', { name: 'Agrandar menú' }).click();
-    await top.getByRole('link', { name: 'Configuración' }).click();
+    for (const l of ['Facturas', 'Pedidos', 'Proveedores']) await expect(sub('Compras y gastos').getByRole('link', { name: l, exact: true })).toBeVisible();
+    await top.getByRole('link', { name: 'Configuración', exact: true }).click();
+    await sub('Administración').getByRole('link', { name: 'Configuración general', exact: true }).click();
   }
   await expect(page.getByRole('heading', { name: 'Configuración', level: 1 })).toBeVisible();
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
@@ -253,7 +248,7 @@ test('navegar no falla aunque scrollTo devuelva una Promise (Chrome reciente)', 
   });
   await open(page);
   // Navegación del lado del cliente con los links del menú (la que fallaba).
-  for (const hash of ['/stock', '/movimientos', '/conteo', '/']) {
+  for (const hash of ['/stock', '/movimientos', '/conteo', '/salon']) {
     await page.locator(`a[href="#${hash}"]`).filter({ visible: true }).last().click();
     await expect(page.locator('main h1').first()).toBeVisible();
     await expect(page.getByText('Algo salió mal')).toHaveCount(0);

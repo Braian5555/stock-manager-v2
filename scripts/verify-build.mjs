@@ -42,7 +42,7 @@ ok(`${assets.filter((x) => x.endsWith('.js')).length} bundles JS compilados`);
 
 // 4. Manifest PWA.
 const manifest = JSON.parse(readFileSync(join(DIST, 'manifest.webmanifest'), 'utf8'));
-if (manifest.start_url !== BASE || manifest.scope !== BASE) fail(`manifest start_url/scope deben ser ${BASE}`);
+if (manifest.start_url.split('#')[0] !== BASE || manifest.scope !== BASE) fail(`manifest start_url/scope deben ser ${BASE}`);
 for (const i of manifest.icons ?? []) if (!existsSync(join(DIST, i.src))) fail(`Icono inexistente: ${i.src}`);
 if (!(manifest.icons ?? []).some((i) => i.sizes === '512x512')) fail('Falta icono 512x512');
 if (!html.includes(`${BASE}manifest.webmanifest`)) fail('index.html no enlaza el manifest');

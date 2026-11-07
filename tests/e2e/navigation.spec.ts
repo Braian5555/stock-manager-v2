@@ -60,27 +60,31 @@ test('configuración: qué módulos van en cada barra', async ({ page, isMobile 
     await expect(bottom.getByRole('link', { name: 'Conteo' })).toBeVisible();
     await expect(bottom.getByRole('link', { name: 'Facturas' })).toHaveCount(0);
   } else {
-    // En la computadora las secciones están todas en la barra lateral: ocultar un módulo lo saca.
-    const top = page.getByRole('navigation', { name: 'Navegación principal' });
-    await expect(top.getByRole('link', { name: 'Panadería' })).toBeVisible();
+    // En la computadora, ocultar un módulo lo saca del menú (la franja de pantallas de Stock).
+    const stockMenu = page.getByRole('navigation', { name: 'Menú: Stock' });
     await page.getByRole('button', { name: /^Ocultar Panadería/ }).click();
-    await expect(top.getByRole('link', { name: 'Panadería' })).toHaveCount(0);
+    await go(page, '/stock');
+    await expect(stockMenu.getByRole('link', { name: 'Conteo', exact: true })).toBeVisible();
+    await expect(stockMenu.getByRole('link', { name: 'Panadería' })).toHaveCount(0);
+    await go(page, '/configuracion/navegacion');
     await page.getByRole('button', { name: /^Mostrar Panadería/ }).click();
-    await expect(top.getByRole('link', { name: 'Panadería' })).toBeVisible();
+    await go(page, '/stock');
+    await expect(stockMenu.getByRole('link', { name: 'Panadería' })).toBeVisible();
   }
 });
 
 test('computadora: la sección activa y sus pestañas siguen a la página', async ({ page, isMobile }) => {
   test.skip(isMobile, 'sólo computadora');
   await loadDemo(page);
-  const side = page.getByRole('navigation', { name: 'Navegación principal' });
+  const top = page.getByRole('navigation', { name: 'Menú principal' });
   await go(page, '/movimientos');
-  await expect(side.getByRole('link', { name: 'Stock' })).toHaveClass(/active/);
-  const tabs = page.getByRole('navigation', { name: /^Pestañas de / });
+  await expect(top.getByRole('link', { name: 'Stock', exact: true })).toHaveClass(/active/);
+  const tabs = page.getByRole('navigation', { name: 'Menú: Stock' });
   await expect(tabs.getByRole('link', { name: 'Movimientos' })).toHaveClass(/active/);
   await tabs.getByRole('link', { name: 'Conteo' }).click();
   await expect(page).toHaveURL(/#\/conteo$/);
-  await expect(side.getByRole('link', { name: 'Stock' })).toHaveClass(/active/);
+  await expect(top.getByRole('link', { name: 'Stock', exact: true })).toHaveClass(/active/);
+  await expect(tabs.getByRole('link', { name: 'Conteo' })).toHaveClass(/active/);
   // Sin scroll horizontal en ningún ancho de computadora
   for (const width of [1024, 1280, 1366, 1920]) {
     await page.setViewportSize({ width, height: 760 });

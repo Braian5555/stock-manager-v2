@@ -247,7 +247,7 @@ function TicketHeaderCard() {
  */
 function DirectPrintCard() {
   const { run, notify } = useFeedback();
-  const url = `${location.origin}${location.pathname}`;
+  const url = `${location.origin}${location.pathname}#/salon`;
   const download = () => void run(async () => {
     const bat = [
       '@echo off',

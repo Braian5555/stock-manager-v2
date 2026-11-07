@@ -263,10 +263,12 @@ test('facturas: "Leer factura con IA" lee sola al sacar la foto, y una factura y
   await expect.poll(() => reads, { timeout: 20_000 }).toBe(2);
   await expect(page.getByText('Leí 1 renglones, todos reconocidos').last()).toBeVisible({ timeout: 20_000 });
 
-  // 3) Desde el Inicio, "Foto de factura" ya abre con la IA.
+  // 3) "Foto de factura" (Inicio del celular; en la compu, el mismo enlace) ya abre con la IA.
   await dialog(page).getByRole('button', { name: 'Cancelar' }).click();
   await go(page, '/');
-  await page.getByRole('navigation', { name: 'Acciones rápidas' }).getByRole('link', { name: /^Foto de factura/ }).click();
+  const quick = page.getByRole('navigation', { name: 'Acciones rápidas' });
+  if (await quick.isVisible()) await quick.getByRole('link', { name: /^Foto de factura/ }).click();
+  else await page.goto('./#/facturas?nueva=1&ia=1');
   await expect(page).toHaveURL(/#\/facturas\?nueva=1&ia=1$/);
   await expect(dialog(page).getByRole('heading', { name: 'Leer factura con IA' })).toBeVisible();
 });

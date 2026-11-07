@@ -1,10 +1,18 @@
 import { expect, test, type Page } from '@playwright/test';
 import { dialog, go, loadDemo } from './helpers';
 
-/** Va a una sección del Salón con el menú real: la barra lateral (compu) o la barra inferior / "Más" (celular). */
+/** Va a una sección del Salón con el menú real: la barra de arriba (compu) o la barra inferior / "Más" (celular). */
 async function view(page: Page, name: string) {
-  const side = page.getByRole('navigation', { name: 'Navegación: Salón' });
-  if (await side.isVisible()) return side.getByRole('link', { name, exact: true }).click();
+  const top = page.getByRole('navigation', { name: 'Menú principal' });
+  if (await top.isVisible()) {
+    const direct = top.getByRole('link', { name: name === 'Mesas' ? 'Salón' : name, exact: true });
+    if (await direct.count()) return direct.click();
+    const sub = page.getByRole('navigation', { name: /^Menú: / }).getByRole('link', { name, exact: true });
+    if (await sub.count()) return sub.click();
+    const group: Record<string, string> = { Carta: 'Productos', Reportes: 'Reportes', Configuración: 'Configuración' };
+    await top.getByRole('link', { name: group[name] ?? 'Salón', exact: true }).click();
+    return page.getByRole('navigation', { name: /^Menú: / }).getByRole('link', { name, exact: true }).click();
+  }
   const bottom = page.getByRole('navigation', { name: 'Navegación inferior' }).getByRole('link', { name, exact: true });
   if (await bottom.count()) return bottom.click();
   await page.getByRole('navigation', { name: 'Navegación inferior' }).getByRole('link', { name: 'Más' }).click();
@@ -26,11 +34,13 @@ async function addMenuItem(page: Page, name: string, section: string, price: str
 
 test('salón tipo Fudo: caja, plano, adicionales, descuento, cuenta dividida, delivery y arqueo', async ({ page }) => {
   await loadDemo(page);
-  // Desde el Inicio se entra al Salón con el menú grande.
+  // Desde el Inicio se entra al Salón: en la compu con "Salón" de la barra de arriba, en el celular con el menú grande.
   await go(page, '/');
-  await page.getByRole('navigation', { name: 'Menú: Ventas' }).getByRole('link', { name: 'Mesas', exact: true }).click();
+  const top = page.getByRole('navigation', { name: 'Menú principal' });
+  if (await top.isVisible()) await top.getByRole('link', { name: 'Salón', exact: true }).click();
+  else await page.getByRole('navigation', { name: 'Menú: Ventas' }).getByRole('link', { name: 'Mesas', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Mesas', level: 1 })).toBeVisible();
-  await expect(page.getByRole('group', { name: 'Área' }).first().getByRole('button', { name: 'Salón' })).toHaveAttribute('aria-pressed', 'true');
+  if (!(await top.isVisible())) await expect(page.getByRole('group', { name: 'Área' }).first().getByRole('button', { name: 'Salón' })).toHaveAttribute('aria-pressed', 'true');
   await page.getByLabel('Cantidad de mesas').fill('4');
   await page.getByRole('button', { name: 'Crear mesas' }).click();
 
@@ -148,23 +158,23 @@ test('salón tipo Fudo: caja, plano, adicionales, descuento, cuenta dividida, de
   await expect(page.getByText(/Faltó \$\s?175/)).toBeVisible();
 });
 
-test('áreas: el Salón y el Stock tienen menús separados', async ({ page }) => {
+test('áreas: en el celular el Salón y el Stock tienen menús separados; en la compu, una sola barra como Fudo', async ({ page }) => {
   await loadDemo(page);
   await go(page, '/stock');
-  const isDesktop = await page.getByRole('navigation', { name: 'Navegación principal' }).isVisible();
+  const top = page.getByRole('navigation', { name: 'Menú principal' });
+  const isDesktop = await top.isVisible();
   if (isDesktop) {
-    const side = page.getByRole('navigation', { name: 'Navegación principal' });
-    await expect(side.getByRole('link', { name: 'Stock', exact: true })).toBeVisible();
-    await expect(side.getByRole('link', { name: 'Cocina' })).toHaveCount(0);
-  }
-  await page.getByRole('group', { name: 'Área' }).first().getByRole('button', { name: 'Salón' }).click();
-  await expect(page.getByRole('heading', { name: 'Mesas', level: 1 })).toBeVisible();
-  if (isDesktop) {
-    const side = page.getByRole('navigation', { name: 'Navegación: Salón' });
-    for (const n of ['Inicio', 'Mesas', 'Mostrador', 'Cocina', 'Caja', 'Carta', 'Ventas de hoy', 'Comprobantes', 'Configuración']) await expect(side.getByRole('link', { name: n, exact: true })).toBeVisible();
-    await expect(side.getByRole('link', { name: 'Stock', exact: true })).toHaveCount(0);
-    await side.getByRole('link', { name: 'Configuración', exact: true }).click();
+    // Todo en la misma barra: Salón, Mostrador, Cocina, Caja y Stock.
+    for (const n of ['Salón', 'Cocina', 'Stock']) await expect(top.getByRole('link', { name: n, exact: true })).toBeVisible();
+    await expect(page.getByRole('group', { name: 'Área' })).toHaveCount(0);
+    await top.getByRole('link', { name: 'Salón', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'Mesas', level: 1 })).toBeVisible();
+    const ventas = page.getByRole('navigation', { name: 'Menú: Ventas' });
+    for (const n of ['Mesas', 'Mostrador', 'Cocina', 'Caja', 'Ventas de hoy', 'Comprobantes']) await expect(ventas.getByRole('link', { name: n, exact: true })).toBeVisible();
+    await top.getByRole('link', { name: 'Configuración', exact: true }).click();
   } else {
+    await page.getByRole('group', { name: 'Área' }).first().getByRole('button', { name: 'Salón' }).click();
+    await expect(page.getByRole('heading', { name: 'Mesas', level: 1 })).toBeVisible();
     const bottom = page.getByRole('navigation', { name: 'Navegación inferior' });
     for (const n of ['Inicio', 'Mesas', 'Mostrador', 'Cocina']) await expect(bottom.getByRole('link', { name: n, exact: true })).toBeVisible();
     await bottom.getByRole('link', { name: 'Más' }).click();
@@ -178,8 +188,11 @@ test('áreas: el Salón y el Stock tienen menús separados', async ({ page }) =>
   await row('Facturación electrónica').click();
   await expect(page.getByRole('heading', { name: 'Configuración fiscal' })).toBeVisible();
   // Volver al Stock.
-  await page.getByRole('group', { name: 'Área' }).first().getByRole('button', { name: 'Stock' }).click();
-  await expect(page).toHaveURL(/#\/$/);
+  if (isDesktop) await top.getByRole('link', { name: 'Stock', exact: true }).click();
+  else {
+    await page.getByRole('group', { name: 'Área' }).first().getByRole('button', { name: 'Stock' }).click();
+    await expect(page).toHaveURL(/#\/$/);
+  }
   // Configuración del Stock: lo del stock y lo general, sin lo del salón.
   await go(page, '/configuracion');
   await expect(page.getByRole('heading', { name: 'Configuración', level: 1 })).toBeVisible();

@@ -1,11 +1,11 @@
-import { AlertTriangle, Armchair, Boxes, Camera, ChefHat, CheckCircle2, ChevronRight, ClipboardCheck, CookingPot, DollarSign, Lock, LogOut, MinusCircle, Package, Receipt, Snowflake, Sparkles, Store, TrendingDown, TrendingUp, Users, Wallet, type LucideIcon } from 'lucide-react';
+import { AlertTriangle, Armchair, Boxes, Camera, ChefHat, CheckCircle2, ChevronRight, ClipboardCheck, CookingPot, DollarSign, Lock, LogOut, MinusCircle, Package, Receipt, Snowflake, Sparkles, Store, TrendingUp, Users, Wallet, type LucideIcon } from 'lucide-react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../database/db';
 import { useMemo, useState, type ReactNode } from 'react';
 import { Link } from 'react-router';
 import { EMPTY, useProducts } from '../hooks/useData';
 import { DESKTOP_QUERY, useMediaQuery } from '../hooks/useMediaQuery';
-import { MENU_GROUPS, MODULE_ICON, MODULE_PATH, MODULE_PERMISSIONS, SALON_MODULES, moduleEnabled, navLabel, salonItems, visibleModules, visibleSections, writeArea, type MenuGroup } from '../layouts/modules';
+import { MODULE_PERMISSIONS, menuGroups, moduleEnabled, visibleModules, writeArea } from '../layouts/modules';
 import { useMenu, useOpenCash, useOpenTickets, useTables } from '../components/salon/hooks';
 import { Bars, Hours } from '../components/salon/SalesReports';
 import { salesReport, type SalesReport } from '../services/salesReportService';
@@ -54,7 +54,8 @@ export function DashboardPage() {
 
       {products.length === 0 && can('catalog.manage') && <WelcomeCard />}
 
-      {actions.length > 0 && (
+      {/* En la computadora los accesos están en la barra de arriba (como Fudo). */}
+      {!desktop && actions.length > 0 && (
         <section className="hm-block" aria-labelledby="hm-actions-title">
           <h2 id="hm-actions-title" className="sr-only">Acciones rápidas</h2>
           <nav className="hm-actions hm-quick" aria-label="Acciones rápidas">
@@ -75,7 +76,7 @@ export function DashboardPage() {
 
       {allowed('salon') && canAny(['billing', 'admin']) && <TodayCharts />}
 
-      <MenuMap />
+      {!desktop && <MenuMap />}
 
       {attention}
 
@@ -183,26 +184,11 @@ function TodayCharts() {
 
 // ───────────────────────── Menú completo (como Fudo) ─────────────────────────
 
-interface MenuEntry { key: string; label: string; icon: LucideIcon; to: string; area: 'salon' | 'stock' }
-
-/** Todo el menú agrupado como en Fudo; el Stock es el grupo propio de Orillas. */
 function MenuMap() {
   const settings = useSettings();
   const { canAny } = useSession();
-  const visible = visibleModules(settings, canAny);
-  const groups = new Map<MenuGroup, MenuEntry[]>(MENU_GROUPS.map((g) => [g.key, []]));
-  for (const i of salonItems(visible, canAny)) {
-    if (i.key === 'inicio' || !i.group) continue;
-    groups.get(i.group)!.push({ key: `s-${i.key}`, label: i.key === 'config' ? 'Configuración del salón' : i.label, icon: i.icon, to: i.to, area: 'salon' });
-  }
-  for (const s of visibleSections(settings, visible.filter((k) => !SALON_MODULES.has(k)))) {
-    if (!s.group) continue;
-    for (const k of s.tabs) {
-      groups.get(s.group)!.push({ key: k, label: k === 'settings' ? 'Configuración general' : k === 'products' ? 'Productos e insumos' : navLabel(settings, k), icon: MODULE_ICON[k], to: MODULE_PATH[k], area: 'stock' });
-    }
-    if (s.key === 'stock' && s.tabs.includes('stock')) groups.get('reportes')!.push({ key: 'consumo', label: 'Consumo y mermas', icon: TrendingDown, to: '/stock/consumo', area: 'stock' });
-  }
-  const list = MENU_GROUPS.filter((g) => groups.get(g.key)!.length);
+  const list = menuGroups(settings, visibleModules(settings, canAny), canAny)
+    .map((g) => ({ ...g, entries: g.entries.filter((e) => e.key !== 'resumen') })).filter((g) => g.entries.length);
   if (!list.length) return null;
   return (
     <section className="hm-block" aria-labelledby="hm-menu-title">
@@ -211,7 +197,7 @@ function MenuMap() {
         {list.map((g) => (
           <nav key={g.key} className={`hm-map-group is-${g.key}`} aria-label={`Menú: ${g.label}`}>
             <h3 className="hm-map-title">{g.label}</h3>
-            {groups.get(g.key)!.map((e) => (
+            {g.entries.map((e) => (
               <Link key={e.key} to={e.to} className="hm-map-link" onClick={() => writeArea(e.area)}>
                 <e.icon size={20} aria-hidden />
                 <span>{e.label}</span>
