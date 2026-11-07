@@ -7,7 +7,7 @@ import { db } from '../../database/db';
 import { DESKTOP_QUERY, useMediaQuery } from '../../hooks/useMediaQuery';
 import { sinceLabel, useNow } from '../../hooks/useNow';
 import type { DiningTable, MenuExtra, MenuItem, TableTicket, TicketDiscount, TicketLine } from '../../models';
-import { comandaHtml, precuentaHtml, printHtml } from '../../services/printService';
+import { comandaHtml, precuentaHtml, printHtml, ticketBusiness } from '../../services/printService';
 import {
   addCustomLine, addLine, cancelTicket, channelOf, chargedAmount, discountAmount, isOpen, markDelivered, moveTicket, paidQty, remainingAmount, requestBill, sendToKitchen,
   setComp, setDiscount, ticketLabel, updateCustomer, updateLine, voidLine,
@@ -64,7 +64,7 @@ export function TicketSheet({ ticketId, onClose, onCharge, tables, busy }: { tic
     if (!live.length) return notify('El pedido está vacío: si no se pidió nada, anulalo.', { tone: 'error' });
     onCharge(ticket);
   };
-  const printPre = () => void run(() => printHtml(precuentaHtml(ticket, settings.businessName)));
+  const printPre = () => void run(() => printHtml(precuentaHtml(ticket, ticketBusiness(settings))));
   const kitchenLines = lines.filter((l) => l.status === 'cocina');
   const printComanda = () => void run(() => printHtml(comandaHtml(ticket, kitchenLines.length ? kitchenLines : lines.filter((l) => l.kitchen && l.status !== 'nuevo'))));
   const cancel = async () => {

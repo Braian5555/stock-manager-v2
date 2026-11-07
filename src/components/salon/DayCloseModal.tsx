@@ -7,7 +7,7 @@ import { useCosts } from '../../hooks/useCosts';
 import type { FiscalDoc, TableTicket } from '../../models';
 import { dailyClose } from '../../services/closingService';
 import { fiscalOf, PAYMENT_LABEL } from '../../services/fiscalService';
-import { cierreHtml, printHtml } from '../../services/printService';
+import { cierreHtml, printHtml, ticketBusiness } from '../../services/printService';
 import { useFeedback } from '../../store/feedback';
 import { useSettings } from '../../store/settings';
 import { fmtMoney } from '../../utils/format';
@@ -55,7 +55,7 @@ export function DayCloseModal({ onClose }: { onClose: () => void }) {
     <Modal open title="Cierre del día" onClose={onClose}
       footer={<>
         <button type="button" className="btn" onClick={excel}><FileSpreadsheet size={18} aria-hidden /> Excel</button>
-        <button type="button" className="btn btn-primary" onClick={() => void run(() => printHtml(cierreHtml(z, settings.businessName)))}><Printer size={18} aria-hidden /> Imprimir cierre</button>
+        <button type="button" className="btn btn-primary" onClick={() => void run(() => printHtml(cierreHtml(z, ticketBusiness(settings))))}><Printer size={18} aria-hidden /> Imprimir cierre</button>
       </>}>
       <div className="stack">
         <Field label="Día"><Input type="date" value={date} max={ymd()} onChange={(e) => e.target.value && setDate(e.target.value)} /></Field>

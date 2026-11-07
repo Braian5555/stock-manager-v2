@@ -8,7 +8,7 @@ import {
   CBTE_NAME, COND_IVA, CONSUMIDOR_FINAL, CF_ID_THRESHOLD, DOC_TIPO_LABEL, PAYMENT_LABEL, chargeTicket, docNumber, fiscalOf, fiscalReady, invoiceLater, issue, itemsAmount,
   isMoneyMethod, letterFor, paymentProblems, receptorProblems, recentReceptors, ymdToDate, type ChargePart,
 } from '../../services/fiscalService';
-import { fiscalTicketHtml, printHtml } from '../../services/printService';
+import { fiscalTicketHtml, printHtml, ticketBusiness } from '../../services/printService';
 import { chargedAmount, closeTicket, paidQty, remainingAmount, ticketLabel } from '../../services/salonService';
 import { useFeedback } from '../../store/feedback';
 import { useSettings } from '../../store/settings';
@@ -132,7 +132,7 @@ export function ChargeModal({ ticket: initial, onClose }: { ticket: TableTicket;
     }
   };
 
-  const print = async (d: FiscalDoc) => run(async () => printHtml(await fiscalTicketHtml(d, f.pie)));
+  const print = async (d: FiscalDoc) => run(async () => printHtml(await fiscalTicketHtml(d, f.pie, settings.ticketHeader?.trim() ? ticketBusiness(settings) : undefined)));
   const afterResult = () => { if (closed || remaining <= 0.009) onClose(true); else setDoc(null); };
 
   // ── Resultado de la factura ──

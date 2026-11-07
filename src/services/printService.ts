@@ -82,7 +82,21 @@ export function printHtml(html: string): Promise<void> {
 }
 
 /** Ticket del comprobante fiscal electrónico (80 mm). */
-export async function fiscalTicketHtml(d: FiscalDoc, pie?: string): Promise<string> {
+/**
+ * Encabezado de los tickets: renglones del encabezado (el primero grande) y la sucursal.
+ * Se arma con ticketBusiness(settings); un texto suelto (sin saltos de línea) es sólo el nombre.
+ */
+export function ticketBusiness(st: { businessName: string; ticketHeader?: string; sucursal?: string }): string {
+  const lines = (st.ticketHeader ?? '').split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  const head = lines.length ? lines : [st.businessName];
+  return [...head, ...(st.sucursal?.trim() ? [`Sucursal: ${st.sucursal.trim()}`] : [])].join('\n');
+}
+function headerHtml(business: string): string {
+  const [first, ...rest] = business.split('\n');
+  return `<p class="c big">${esc(first)}</p>${rest.map((l) => `<p class="c">${esc(l)}</p>`).join('')}`;
+}
+
+export async function fiscalTicketHtml(d: FiscalDoc, pie?: string, header?: string): Promise<string> {
   if (d.status !== 'autorizada' || !d.cae || !d.nro) throw new Error('Sólo se imprime un comprobante autorizado por ARCA.');
   const qr = await QRCode.toDataURL(qrUrl(d), { errorCorrectionLevel: 'M', margin: 1, width: 300 });
   const e = d.emisor;
@@ -105,7 +119,7 @@ export async function fiscalTicketHtml(d: FiscalDoc, pie?: string): Promise<stri
   const asoc = d.asociado ? `<p class="note">Comprobante asociado: ${esc(CBTE_NAME[d.asociado.cbteTipo] ?? '')} ${pad(d.asociado.ptoVta, 5)}-${pad(d.asociado.nro, 8)}${d.asociado.fecha ? ` del ${ymdToDate(d.asociado.fecha)}` : ''}</p>` : '';
   const body = `
     ${homo ? '<div class="warn">HOMOLOGACIÓN — COMPROBANTE DE PRUEBA SIN VALIDEZ FISCAL</div>' : ''}
-    ${e.nombreFantasia ? `<p class="c big">${esc(e.nombreFantasia)}</p>` : ''}
+    ${header ? headerHtml(header) : e.nombreFantasia ? `<p class="c big">${esc(e.nombreFantasia)}</p>` : ''}
     <p class="c b">${esc(e.razonSocial)}</p>
     <p class="c">CUIT ${esc(fmtCuit(e.cuit))}${e.iibb ? ` · IIBB ${esc(e.iibb)}` : ''}</p>
     <p class="c">${esc(e.domicilio)}</p>
@@ -144,7 +158,7 @@ export function precuentaHtml(t: TableTicket, business: string): string {
   const disc = discountAmount(t.subtotal ?? t.total, t.discount);
   const paid = (t.charges ?? []).reduce((x, c) => x + c.amount, 0);
   const body = `
-    <p class="c big">${esc(business)}</p>
+    ${headerHtml(business)}
     <div class="warn">PRE-CUENTA<br>NO VÁLIDO COMO FACTURA</div>
     <div class="row"><span>${esc(ticketLabel(t))} · #${t.number}</span><span>${dateTime(new Date().toISOString())}</span></div>
     ${t.guests ? `<p>${t.guests} comensales</p>` : ''}
@@ -182,7 +196,7 @@ function comandaBody(t: TableTicket, lines: TicketLine[], station?: string): str
 export function arqueoHtml(s: CashSession, sum: CashSummary, business: string, diffs: { method: SalePaymentMethod; expected: number; counted: number; diff: number }[]): string {
   const methods = (Object.keys(sum.expected) as SalePaymentMethod[]).filter((m) => sum.expected[m] || sum.sales[m] || sum.tips[m] || sum.ingresos[m] || sum.egresos[m]);
   const body = `
-    <p class="c big">${esc(business)}</p>
+    ${headerHtml(business)}
     <div class="warn">${s.status === 'cerrada' ? 'ARQUEO DE CAJA' : 'CAJA — RESUMEN PARCIAL'}<br>NO VÁLIDO COMO FACTURA</div>
     <p>${esc(s.register)} #${s.number}</p>
     <p class="note">Abierta ${dateTime(s.openedAt)}${s.openedBy ? ` · ${esc(s.openedBy.name)}` : ''}</p>
@@ -212,7 +226,7 @@ export function arqueoHtml(s: CashSession, sum: CashSummary, business: string, d
 /** Ticket de prueba para ajustar la impresora. */
 export function testTicketHtml(business: string): string {
   return page('Ticket de prueba', `
-    <p class="c big">${esc(business)}</p>
+    ${headerHtml(business)}
     <div class="warn">TICKET DE PRUEBA<br>NO VÁLIDO COMO FACTURA</div>
     <p>Si este texto entra completo en el ancho, la impresora está bien configurada.</p>
     <div class="hr"></div>
@@ -229,7 +243,7 @@ export function cierreHtml(z: DailyClose, business: string): string {
   const s = z.sales;
   const rows = (list: { label: string; total: number; count: number }[], unit = '') => list.map((b) => `<div class="row"><span>${esc(b.label)}${unit ? ` (${b.count}${unit})` : ''}</span><span>${money(b.total)}</span></div>`).join('');
   const body = `
-    <p class="c big">${esc(business)}</p>
+    ${headerHtml(business)}
     <div class="warn">CIERRE DEL DÍA ${d}/${m}/${y}<br>NO VÁLIDO COMO FACTURA</div>
     <p class="note">Impreso ${dateTime(new Date().toISOString())}</p>
     <div class="hr"></div>

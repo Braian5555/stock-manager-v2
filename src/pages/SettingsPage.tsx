@@ -24,7 +24,7 @@ import { StockResetSection } from '../components/StockResetSection';
 import { AccessibilitySection } from '../components/AccessibilitySection';
 import { AIReaderSection } from '../components/AIReaderSection';
 import { FiscalSettingsSection } from '../components/FiscalSettingsSection';
-import { printHtml, testTicketHtml } from '../services/printService';
+import { printHtml, testTicketHtml, ticketBusiness } from '../services/printService';
 import { salonStockOn } from '../services/saleStockService';
 import { MODULE_ICON, MODULE_PATH, maxirestOn, moduleEnabled, navLabel } from '../layouts/modules';
 import { useCloud } from '../cloud/cloudService';
@@ -203,10 +203,39 @@ function PrintSection() {
           <li><b>Arqueo de caja</b>: al cerrar la caja o desde el historial.</li>
         </ul>
         <p className="small muted" style={{ margin: 0 }}>La impresora térmica tiene que estar instalada en el celular, tablet o compu. En el diálogo de impresión elegí esa impresora, papel de 80 mm y márgenes “Ninguno”.</p>
-        <div><button type="button" className="btn" onClick={() => void run(() => printHtml(testTicketHtml(settings.businessName)))}><Printer size={18} aria-hidden /> Imprimir ticket de prueba</button></div>
+        <div><button type="button" className="btn" onClick={() => void run(() => printHtml(testTicketHtml(ticketBusiness(settings))))}><Printer size={18} aria-hidden /> Imprimir ticket de prueba</button></div>
       </section>
+      <TicketHeaderCard />
       <DirectPrintCard />
     </>
+  );
+}
+
+/** Encabezado de todos los tickets (pre-cuenta, arqueo, cierre, factura) y la sucursal. */
+function TicketHeaderCard() {
+  const { run, notify } = useFeedback();
+  const settings = useSettings();
+  const [head, setHead] = useState(settings.ticketHeader ?? '');
+  const [suc, setSuc] = useState(settings.sucursal ?? '');
+  const dirty = head !== (settings.ticketHeader ?? '') || suc !== (settings.sucursal ?? '');
+  const preview = ticketBusiness({ businessName: settings.businessName, ticketHeader: head, sucursal: suc }).split('\n');
+  return (
+    <section className="card card-pad stack" aria-labelledby="ticket-head">
+      <h2 id="ticket-head" style={{ margin: 0 }}>Encabezado de los tickets</h2>
+      <p className="small muted" style={{ margin: 0 }}>Lo que sale arriba de la pre-cuenta, el arqueo, el cierre y la factura. En la factura, abajo van igual la razón social, el CUIT y los datos que pide ARCA.</p>
+      <div className="form-grid">
+        <Field label="Renglones del encabezado" hint="Uno por renglón. El primero sale más grande.">
+          <textarea className="input" rows={3} value={head} placeholder={settings.businessName} onChange={(e) => setHead(e.target.value)} />
+        </Field>
+        <Field label="Sucursal (este local)" hint="Sale como “Sucursal: …”. Vacío: no se imprime.">
+          <input className="input" value={suc} placeholder="Parador" onChange={(e) => setSuc(e.target.value)} />
+        </Field>
+      </div>
+      <div className="ticket-preview" aria-label="Vista previa del encabezado" style={{ fontFamily: "'Consolas', 'Lucida Console', monospace", fontWeight: 700, textAlign: 'center', border: '1px dashed var(--border)', borderRadius: 8, padding: 8 }}>
+        {preview.map((l, i) => <div key={i} style={i === 0 ? { fontSize: '1.1em' } : undefined}>{l}</div>)}
+      </div>
+      <div><button type="button" className="btn btn-primary" disabled={!dirty} onClick={() => void run(async () => { await updateSettings({ ticketHeader: head.trim() || undefined, sucursal: suc.trim() || undefined }); notify('Encabezado guardado'); })}>Guardar encabezado</button></div>
+    </section>
   );
 }
 

@@ -9,7 +9,7 @@ import type { FiscalDoc, FiscalLine, FiscalLogEntry, FiscalReceptor, FiscalStatu
 import {
   CBTE_NAME, CONSUMIDOR_FINAL, DOC_TIPO_LABEL, PAYMENT_LABEL, docNumber, docPlace, fiscalOf, fiscalReady, fmtCuit, invoiceLater, issue, letterFor, noteFor, receptorProblems, recentReceptors, verifyInArca, ymdToDate,
 } from '../services/fiscalService';
-import { fiscalTicketHtml, printHtml } from '../services/printService';
+import { fiscalTicketHtml, printHtml, ticketBusiness } from '../services/printService';
 import { ticketLabel } from '../services/salonService';
 import { useFeedback } from '../store/feedback';
 import { useSession } from '../store/session';
@@ -210,7 +210,8 @@ function InvoiceLaterModal({ ticket, chargeId, amount, onClose }: { ticket: Tabl
 function DocDetail({ id, onClose, onOpen }: { id: string; onClose: () => void; onOpen: (id: string) => void }) {
   const { run, notify } = useFeedback();
   const { can } = useSession();
-  const f = fiscalOf(useSettings());
+  const settings = useSettings();
+  const f = fiscalOf(settings);
   const d = useLiveQuery(() => db.fiscalDocs.get(id), [id]);
   const notes = (useLiveQuery(() => db.fiscalDocs.filter((x) => x.asociado?.docId === id).toArray(), [id]) ?? EMPTY) as FiscalDoc[];
   const log = (useLiveQuery(() => db.fiscalLog.where('docId').equals(id).sortBy('at'), [id]) ?? EMPTY) as FiscalLogEntry[];
@@ -227,7 +228,7 @@ function DocDetail({ id, onClose, onOpen }: { id: string; onClose: () => void; o
   return (
     <Modal open wide title={`${CBTE_NAME[d.cbteTipo]} ${d.nro ? docNumber(d) : ''}`} onClose={onClose}
       footer={<>
-        {ok && <button type="button" className="btn" onClick={() => void act(async () => printHtml(await fiscalTicketHtml(d, f.pie)))}><Printer size={18} aria-hidden /> Imprimir</button>}
+        {ok && <button type="button" className="btn" onClick={() => void act(async () => printHtml(await fiscalTicketHtml(d, f.pie, settings.ticketHeader?.trim() ? ticketBusiness(settings) : undefined)))}><Printer size={18} aria-hidden /> Imprimir</button>}
         {ok && <button type="button" className="btn" disabled={busy} onClick={() => void verify()}><ShieldCheck size={18} aria-hidden /> Verificar en ARCA</button>}
         {!ok && d.status !== 'rechazada' && <button type="button" className="btn btn-primary" disabled={busy} onClick={() => void act(() => issue(d.id))}><RotateCcw size={18} aria-hidden /> {busy ? 'Enviando…' : 'Reintentar'}</button>}
         {ok && d.kind === 'factura' && credited < d.impTotal - 0.009 && <button type="button" className="btn" onClick={() => setNoteKind('nc')}>Nota de crédito</button>}

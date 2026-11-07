@@ -212,6 +212,10 @@ export type SuggestionMode = 'toMax' | 'toMin' | 'byUse';
 
 export interface Settings extends BaseEntity {
   businessName: string;
+  /** Encabezado de los tickets impresos: una línea por renglón (si falta, el nombre del negocio). */
+  ticketHeader?: string;
+  /** Sucursal / local que se imprime debajo del encabezado ("Sucursal: Parador"). */
+  sucursal?: string;
   subtitle: string;
   logo: { kind: LogoKind; value?: string };
   primaryColor: string;

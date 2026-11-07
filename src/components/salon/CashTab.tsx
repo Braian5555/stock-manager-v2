@@ -6,7 +6,7 @@ import { EMPTY } from '../../hooks/useData';
 import type { CashMovement, CashSession, SalePaymentMethod, TableTicket } from '../../models';
 import { METHODS, addMovement, chargesOf, closeCash, differences, openCash, summarize } from '../../services/cashService';
 import { PAYMENT_LABEL } from '../../services/fiscalService';
-import { arqueoHtml, printHtml } from '../../services/printService';
+import { arqueoHtml, printHtml, ticketBusiness } from '../../services/printService';
 import { ticketLabel } from '../../services/salonService';
 import { useFeedback } from '../../store/feedback';
 import { useSettings } from '../../store/settings';
@@ -120,7 +120,7 @@ function OpenCash({ session }: { session: CashSession }) {
       <div className="row wrap">
         <button type="button" className="btn" onClick={() => setMov('ingreso')}><ArrowDownCircle size={18} aria-hidden /> Ingreso</button>
         <button type="button" className="btn" onClick={() => setMov('egreso')}><ArrowUpCircle size={18} aria-hidden /> Egreso</button>
-        <button type="button" className="btn btn-ghost" onClick={() => void run(() => printHtml(arqueoHtml(session, sum, settings.businessName, [])))}><Printer size={18} aria-hidden /> Imprimir parcial</button>
+        <button type="button" className="btn btn-ghost" onClick={() => void run(() => printHtml(arqueoHtml(session, sum, ticketBusiness(settings), [])))}><Printer size={18} aria-hidden /> Imprimir parcial</button>
         <span className="grow" />
         <button type="button" className="btn btn-primary" onClick={() => setClosing(true)}><Lock size={18} aria-hidden /> Cerrar caja</button>
       </div>
@@ -189,7 +189,7 @@ function CloseModal({ session, expected, onClose }: { session: CashSession; expe
     onClose();
     const tickets = await db.tickets.filter((t) => (t.charges ?? []).some((c) => c.cashSessionId === s.id)).toArray();
     const movements = await db.cashMovements.where('sessionId').equals(s.id).toArray();
-    if (await confirm({ title: 'Caja cerrada', message: '¿Imprimir el arqueo?', confirmLabel: 'Imprimir' })) void printHtml(arqueoHtml(s, summarize(s, tickets, movements), settings.businessName, differences(s)));
+    if (await confirm({ title: 'Caja cerrada', message: '¿Imprimir el arqueo?', confirmLabel: 'Imprimir' })) void printHtml(arqueoHtml(s, summarize(s, tickets, movements), ticketBusiness(settings), differences(s)));
   };
   return (
     <Modal open title={`Cerrar ${session.register} #${session.number}`} onClose={onClose}
@@ -225,7 +225,7 @@ function SessionDetail({ session, onClose }: { session: CashSession; onClose: ()
   const diffs = differences(session);
   return (
     <Modal open wide title={`${session.register} #${session.number}`} onClose={onClose}
-      footer={<button type="button" className="btn" onClick={() => void run(() => printHtml(arqueoHtml(session, summarize(session, tickets, movements), settings.businessName, diffs)))}><Printer size={18} aria-hidden /> Imprimir arqueo</button>}>
+      footer={<button type="button" className="btn" onClick={() => void run(() => printHtml(arqueoHtml(session, summarize(session, tickets, movements), ticketBusiness(settings), diffs)))}><Printer size={18} aria-hidden /> Imprimir arqueo</button>}>
       <p className="small muted" style={{ marginTop: 0 }}>Abierta {fmtDateTime(session.openedAt)}{session.openedBy ? ` por ${session.openedBy.name}` : ''} · cerrada {fmtDateTime(session.closedAt)}{session.closedBy ? ` por ${session.closedBy.name}` : ''}</p>
       <SummaryTable session={session} tickets={tickets} movements={movements} />
       <h3 className="salon-sub">Arqueo</h3>
