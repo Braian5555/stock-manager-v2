@@ -34,6 +34,21 @@ export function ticketConsumption(t: Pick<TableTicket, 'lines'>, items: Map<stri
   return out;
 }
 
+/**
+ * Clave de la venta de un producto. Si la venta se reabrió (y su descuento se deshizo), el nuevo
+ * cierre usa la siguiente (":2"…); si sigue vigente, applyMovement la toma como repetida.
+ */
+async function saleKey(ticketId: string, productId: string): Promise<string> {
+  const base = `venta:${ticketId}:${productId}`;
+  for (let n = 1; n < 50; n++) {
+    const key = n === 1 ? base : `${base}:${n}`;
+    const m = await db.movements.where('idempotencyKey').equals(key).first();
+    if (!m) return key;
+    if (!(await db.movements.where('idempotencyKey').equals(`undo:${m.id}`).first())) return key;
+  }
+  return `${base}:${Date.now()}`;
+}
+
 /** Descuenta el stock de un pedido cerrado. Devuelve cuántos productos se descontaron. */
 export async function consumeTicketStock(ticket: TableTicket, label: string): Promise<number> {
   if (!salonStockOn(await getSettings())) return 0;
@@ -44,7 +59,7 @@ export async function consumeTicketStock(ticket: TableTicket, label: string): Pr
     if (!(qty > 0) || !(await db.products.get(productId))) continue;
     const r = await applyMovement({
       productId, type: 'venta', delta: -qty, origin: 'salon', refId: ticket.id,
-      reason: `Venta · ${label}`, idempotencyKey: `venta:${ticket.id}:${productId}`,
+      reason: `Venta · ${label}`, idempotencyKey: await saleKey(ticket.id, productId),
     });
     if (!r.duplicate) n++;
   }

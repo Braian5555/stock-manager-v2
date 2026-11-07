@@ -28,6 +28,8 @@ export const PERMISSION_LABEL: Record<Permission, string> = {
   recipes: 'Ver y editar recetas de producción',
   salon: 'Salón: mesas, pedidos y pantalla de cocina',
   billing: 'Cobrar y facturar (factura electrónica ARCA)',
+  'sales.edit': 'Editar ventas cerradas (medio de pago, datos, reabrir)',
+  'sales.void': 'Anular ventas cerradas',
 };
 
 export const ROLE_LABEL: Record<UserRole, string> = {
@@ -42,7 +44,7 @@ export const ROLE_LABEL: Record<UserRole, string> = {
 
 export const ROLE_PERMISSIONS: Record<Exclude<UserRole, 'custom'>, Permission[]> = {
   admin: [...PERMISSIONS],
-  manager: ['stock.view', 'stock.move', 'count.do', 'count.apply', 'orders.manage', 'orders.receive', 'catalog.manage', 'movements.view', 'export', 'invoices', 'transfers', 'production', 'recipes', 'pastry', 'salon', 'billing'],
+  manager: ['stock.view', 'stock.move', 'count.do', 'count.apply', 'orders.manage', 'orders.receive', 'catalog.manage', 'movements.view', 'export', 'invoices', 'transfers', 'production', 'recipes', 'pastry', 'salon', 'billing', 'sales.edit', 'sales.void'],
   staff: ['stock.view', 'count.do', 'orders.receive', 'invoices'],
   /** Sólo anota lo que produce (p. ej. el panadero): ve una sola pantalla. */
   production: ['production', 'recipes'],

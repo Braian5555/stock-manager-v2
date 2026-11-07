@@ -316,6 +316,7 @@ export type StockStatus = 'normal' | 'bajo' | 'critico' | 'sin_stock';
 export const PERMISSIONS = [
   'stock.view', 'stock.move', 'count.do', 'count.apply', 'orders.manage', 'orders.receive', 'catalog.manage',
   'movements.view', 'export', 'admin', 'invoices', 'transfers', 'production', 'recipes', 'pastry', 'salon', 'billing',
+  'sales.edit', 'sales.void',
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];
 
@@ -622,6 +623,17 @@ export interface TableTicket extends BaseEntity {
   discount?: TicketDiscount;
   /** Cobros (uno, o varios si se dividió la cuenta). */
   charges?: TicketCharge[];
+  /** Cambios hechos después de cerrar la venta (quién, cuándo, qué y por qué). */
+  edits?: SaleEdit[];
+}
+
+/** Un cambio a una venta cerrada: medio de pago, datos, reabrir o anular (siempre con motivo). */
+export interface SaleEdit {
+  at: ISODate;
+  by?: { id: string; name: string };
+  action: 'pagos' | 'datos' | 'reabierta' | 'anulada';
+  reason: string;
+  detail?: string;
 }
 
 // ───────────────────────── Caja ─────────────────────────

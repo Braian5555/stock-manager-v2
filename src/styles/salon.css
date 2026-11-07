@@ -334,3 +334,9 @@
 .pcard-usage.is-soon { color: var(--crit); opacity: 1; font-weight: 600; }
 .stock-tile.is-soon { border-color: var(--crit); }
 .sales-table tr.is-soon td { color: var(--crit); }
+
+/* Corregir una venta cerrada (como Fudo): acciones e historial de cambios. */
+.sale-actions { display: flex; flex-direction: column; gap: 8px; margin: 12px 0; padding: 12px; border: var(--dash); border-radius: var(--radius-sm); background: var(--surface-2); }
+.sale-history { margin: 8px 0 4px; }
+.sale-history-list { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.sale-history-list li { padding-left: 10px; border-left: 3px solid var(--border); }

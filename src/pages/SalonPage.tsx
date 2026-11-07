@@ -25,6 +25,7 @@ import { CashTab } from '../components/salon/CashTab';
 import { AccountsTab } from '../components/salon/AccountsTab';
 import { SalesReports } from '../components/salon/SalesReports';
 import { DayCloseModal } from '../components/salon/DayCloseModal';
+import { SaleActions } from '../components/salon/SaleEditor';
 import { useMenu, useOpenCash, useOpenTickets, useTables } from '../components/salon/hooks';
 import { SALON_VIEWS, type SalonView } from '../layouts/modules';
 import { useSettings } from '../store/settings';
@@ -37,7 +38,7 @@ const TITLE: Record<Tab, { title: string; sub: string }> = {
   caja: { title: 'Caja', sub: 'Apertura, ingresos y egresos, propinas y arqueo.' },
   cuentas: { title: 'Cuentas corrientes', sub: 'Lo que debe cada cliente (ALADES, socios, personal…) y sus pagos.' },
   carta: { title: 'Carta', sub: 'Lo que se vende en el salón: precios, secciones y adicionales.' },
-  hoy: { title: 'Ventas de hoy', sub: 'Pedidos del día, lo cobrado y lo más pedido.' },
+  hoy: { title: 'Ventas de hoy', sub: 'Pedidos del día, lo cobrado y lo más pedido. Tocá un pedido para ver el detalle o corregirlo.' },
   reportes: { title: 'Reportes de ventas', sub: 'Ventas por período, plato, día, hora, medio de pago, canal y mozo, con costo y margen.' },
 };
 type View = 'plano' | 'lista';
@@ -387,8 +388,12 @@ function MenuItemModal({ draft, sections, onClose }: { draft: ItemDraft; section
 
 function TodayTab() {
   const today = useToday();
-  const since = startOfDayIso(today);
-  const tickets = (useLiveQuery(() => db.tickets.where('openedAt').aboveOrEqual(since).reverse().sortBy('openedAt'), [since]) ?? EMPTY) as TableTicket[];
+  // Como en Fudo, se puede ver (y corregir) las ventas de otro día.
+  const [picked, setPicked] = useState<string | null>(null);
+  const day = picked ?? today;
+  const since = startOfDayIso(day);
+  const until = useMemo(() => { const d = new Date(since); d.setDate(d.getDate() + 1); return d.toISOString(); }, [since]);
+  const tickets = (useLiveQuery(() => db.tickets.where('openedAt').between(since, until, true, false).reverse().sortBy('openedAt'), [since, until]) ?? EMPTY) as TableTicket[];
   const [detail, setDetail] = useState<TableTicket | null>(null);
   const [closing, setClosing] = useState(false);
   const { can } = useSession();
@@ -410,11 +415,10 @@ function TodayTab() {
 
   return (
     <>
-      {(can('billing') || can('admin')) && (
-        <div className="salon-bar" style={{ justifyContent: 'flex-end' }}>
-          <button type="button" className="btn" onClick={() => setClosing(true)}><Receipt size={18} aria-hidden /> Cierre del día</button>
-        </div>
-      )}
+      <div className="salon-bar" style={{ justifyContent: 'space-between', alignItems: 'flex-end' }}>
+        <Field label="Día"><Input type="date" value={day} max={today} onChange={(e) => setPicked(e.target.value && e.target.value !== today ? e.target.value : null)} /></Field>
+        {(can('billing') || can('admin')) && day === today && <button type="button" className="btn" onClick={() => setClosing(true)}><Receipt size={18} aria-hidden /> Cierre del día</button>}
+      </div>
       {closing && <DayCloseModal onClose={() => setClosing(false)} />}
       <div className="salon-stats">
         <div className="salon-stat"><span className="num">{fmtMoney(sold)}</span><span>vendido</span></div>
@@ -427,11 +431,11 @@ function TodayTab() {
       )}
 
       {tickets.length === 0 ? (
-        <div className="card"><EmptyState icon={<Receipt size={40} />} title="Todavía no hubo mesas hoy">Cuando se abra la primera mesa aparece acá.</EmptyState></div>
+        <div className="card"><EmptyState icon={<Receipt size={40} />} title={day === today ? 'Todavía no hubo mesas hoy' : 'No hubo ventas ese día'}>{day === today ? 'Cuando se abra la primera mesa aparece acá.' : 'Elegí otro día.'}</EmptyState></div>
       ) : (
         <div className="salon-today">
           <section className="card" aria-labelledby="salon-today-list">
-            <div className="card-head"><h2 id="salon-today-list">Pedidos de hoy</h2></div>
+            <div className="card-head"><h2 id="salon-today-list">{day === today ? 'Pedidos de hoy' : 'Pedidos del día'}</h2><span className="small muted">tocá uno para ver el detalle o corregirlo</span></div>
             <ul className="list">
               {tickets.map((t) => (
                 <li key={t.id} className="list-item">
@@ -469,9 +473,11 @@ function FiscalBadge({ d }: { d: FiscalDoc }) {
   return <Badge tone={d.status === 'rechazada' || d.status === 'error' ? 'danger' : 'warn'}>{d.status === 'rechazada' ? 'Factura rechazada' : d.status === 'error' ? 'Factura con error' : 'Factura sin confirmar'}</Badge>;
 }
 
-function TicketDetail({ ticket, onClose }: { ticket: TableTicket; onClose: () => void }) {
+function TicketDetail({ ticket: first, onClose }: { ticket: TableTicket; onClose: () => void }) {
+  // La venta en vivo: si se cambia (medio de pago, datos, anular), el detalle se actualiza.
+  const ticket = useLiveQuery(() => db.tickets.get(first.id), [first.id]) ?? first;
   return (
-    <Modal open title={`${ticketLabel(ticket)} · #${ticket.number}`} onClose={onClose}>
+    <Modal open title={`${ticketLabel(ticket)} · #${ticket.number}${ticket.status === 'anulada' ? ' · ANULADA' : ''}`} onClose={onClose}>
       <p className="small muted" style={{ marginTop: 0 }}>Abierta {fmtTime(ticket.openedAt)}{ticket.closedAt ? `, cerrada ${fmtTime(ticket.closedAt)}` : ''}{ticket.openedBy ? ` · ${ticket.openedBy.name}` : ''}{ticket.guests ? ` · ${ticket.guests} comensales` : ''}</p>
       <ul className="salon-lines">
         {ticket.lines.map((l) => (
@@ -489,6 +495,7 @@ function TicketDetail({ ticket, onClose }: { ticket: TableTicket; onClose: () =>
           {ticket.charges!.map((c) => <li key={c.id}>{fmtTime(c.at)} · {c.label ?? 'Cobro'}: {c.payments.map((p) => `${PAYMENT_LABEL[p.method]} ${fmtMoney(p.amount)}`).join(' + ')}{c.tip ? ` · propina ${fmtMoney(c.tip.amount)}` : ''}{c.by ? ` · ${c.by.name}` : ''}</li>)}
         </ul>
       )}
+      <SaleActions ticket={ticket} onDone={(t) => { if (t.status === 'abierta') onClose(); }} />
       <p className="small muted">Para ver lo que cocina tiene pendiente, abrí <Link to="/cocina">Cocina</Link>.</p>
     </Modal>
   );

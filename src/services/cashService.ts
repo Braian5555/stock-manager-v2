@@ -25,7 +25,8 @@ export async function openSession(): Promise<CashSession | undefined> {
 /** Cobros de la cuenta (con sus pedidos) que pertenecen a una caja. */
 export function chargesOf(tickets: TableTicket[], sessionId: string): { ticket: TableTicket; charge: TicketCharge }[] {
   const out: { ticket: TableTicket; charge: TicketCharge }[] = [];
-  for (const t of tickets) for (const c of t.charges ?? []) if (c.cashSessionId === sessionId) out.push({ ticket: t, charge: c });
+  // Una venta anulada (con permiso, mientras la caja seguía abierta) ya no cuenta en la caja.
+  for (const t of tickets) if (t.status !== 'anulada') for (const c of t.charges ?? []) if (c.cashSessionId === sessionId) out.push({ ticket: t, charge: c });
   return out.sort((a, b) => a.charge.at.localeCompare(b.charge.at));
 }
 
