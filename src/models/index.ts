@@ -647,6 +647,9 @@ export interface CashMovement extends BaseEntity {
   method: SalePaymentMethod;
   reason: string;
   by?: { id: string; name: string };
+  /** Cobranza de una cuenta corriente: el cliente que pagó. */
+  accountId?: string;
+  accountName?: string;
 }
 
 // ───────────────────────── Facturación electrónica (ARCA) ─────────────────────────
@@ -680,12 +683,33 @@ export interface FiscalSettings {
   pie?: string;
 }
 
-export type SalePaymentMethod = 'efectivo' | 'debito' | 'credito' | 'transferencia' | 'qr' | 'otro';
+/**
+ * Medios de cobro. Los de plata (efectivo…otro) entran en la caja; `cuenta_corriente` deja la
+ * deuda en la cuenta de un cliente y `invitacion` cierra sin cobrar (consumo interno): ninguno de
+ * los dos entra en la caja ni en el arqueo.
+ */
+export type SalePaymentMethod = 'efectivo' | 'debito' | 'credito' | 'transferencia' | 'qr' | 'otro' | 'cuenta_corriente' | 'invitacion';
 export interface Payment {
   method: SalePaymentMethod;
   amount: number;
   /** Efectivo entregado (para calcular el vuelto). */
   received?: number;
+  /** Cuenta corriente: a qué cliente se le carga. */
+  accountId?: string;
+  accountName?: string;
+  /** Invitación / consumo interno: motivo (obligatorio). */
+  note?: string;
+}
+
+/** Cliente de cuenta corriente (ALADES, socios, huéspedes, personal…). */
+export interface CustomerAccount extends BaseEntity {
+  name: string;
+  /** Para facturarle: documento y condición frente al IVA (opcionales). */
+  docTipo?: DocTipo;
+  docNro?: string;
+  condicionIva?: number;
+  notes?: string;
+  active: boolean;
 }
 
 export type FiscalKind = 'factura' | 'nc' | 'nd';

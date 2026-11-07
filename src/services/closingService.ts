@@ -62,7 +62,8 @@ export function dailyClose(date: string, tickets: TableTicket[], docs: FiscalDoc
   for (const t of tickets) {
     if (t.status !== 'cerrada' || !t.closedAt) continue;
     if (t.charges?.length) {
-      for (const c of t.charges) if (localDay(c.at) === date && !(c.fiscalDocId && authorized.has(c.fiscalDocId))) unbilled += c.amount;
+      // Las invitaciones no se facturan: no cuentan como "sin factura".
+      for (const c of t.charges) if (localDay(c.at) === date && !(c.fiscalDocId && authorized.has(c.fiscalDocId))) unbilled += c.amount - c.payments.filter((p) => p.method === 'invitacion').reduce((a, p) => a + p.amount, 0);
     } else if (localDay(t.closedAt) === date && !(t.fiscalDocId && authorized.has(t.fiscalDocId))) unbilled += t.total;
   }
   return { date, sales, fiscal, invoiced, unbilled: round2(unbilled), test: !real.length && day.length > 0 };

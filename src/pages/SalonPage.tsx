@@ -22,6 +22,7 @@ import { TicketSheet } from '../components/salon/TicketSheet';
 import { FloorPlan, STATE_LABEL, tableState } from '../components/salon/FloorPlan';
 import { CounterTab } from '../components/salon/CounterTab';
 import { CashTab } from '../components/salon/CashTab';
+import { AccountsTab } from '../components/salon/AccountsTab';
 import { SalesReports } from '../components/salon/SalesReports';
 import { DayCloseModal } from '../components/salon/DayCloseModal';
 import { useMenu, useOpenCash, useOpenTickets, useTables } from '../components/salon/hooks';
@@ -34,6 +35,7 @@ const TITLE: Record<Tab, { title: string; sub: string }> = {
   mesas: { title: 'Mesas', sub: 'Plano del salón: tocá una mesa para abrirla o ver su pedido.' },
   mostrador: { title: 'Mostrador', sub: 'Pedidos de mostrador, para llevar y delivery.' },
   caja: { title: 'Caja', sub: 'Apertura, ingresos y egresos, propinas y arqueo.' },
+  cuentas: { title: 'Cuentas corrientes', sub: 'Lo que debe cada cliente (ALADES, socios, personal…) y sus pagos.' },
   carta: { title: 'Carta', sub: 'Lo que se vende en el salón: precios, secciones y adicionales.' },
   hoy: { title: 'Ventas de hoy', sub: 'Pedidos del día, lo cobrado y lo más pedido.' },
   reportes: { title: 'Reportes de ventas', sub: 'Ventas por período, plato, día, hora, medio de pago, canal y mozo, con costo y margen.' },
@@ -75,6 +77,7 @@ export function SalonPage() {
       {tab === 'mesas' && <TablesBoard tables={tables} byTable={byTable} onOpen={setSheet} onGoMenu={() => setTab('carta')} />}
       {tab === 'mostrador' && <CounterTab open={counter} onOpen={setSheet} />}
       {tab === 'caja' && (billing ? <CashTab /> : <div className="card card-pad"><p className="muted" style={{ margin: 0 }}>La caja la manejan quienes tienen permiso para cobrar.</p></div>)}
+      {tab === 'cuentas' && (billing ? <AccountsTab /> : <div className="card card-pad"><p className="muted" style={{ margin: 0 }}>Las cuentas corrientes las manejan quienes tienen permiso para cobrar.</p></div>)}
       {tab === 'carta' && <MenuTab />}
       {tab === 'hoy' && <TodayTab />}
       {tab === 'reportes' && (billing ? <SalesReports /> : <div className="card card-pad"><p className="muted" style={{ margin: 0 }}>Los reportes los ven quienes tienen permiso para cobrar.</p></div>)}

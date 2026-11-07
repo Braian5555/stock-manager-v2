@@ -113,6 +113,8 @@ function OpenCash({ session }: { session: CashSession }) {
         <div className="salon-stat"><span className="num">{fmtMoney(sum.expected.efectivo)}</span><span>efectivo en caja</span></div>
         <div className="salon-stat"><span className="num">{fmtMoney(sum.totalTips)}</span><span>propinas</span></div>
         <div className="salon-stat"><span className="num">{fmtMoney(METHODS.reduce((s, m) => s + sum.egresos[m], 0))}</span><span>egresos</span></div>
+        {sum.onAccount > 0 && <div className="salon-stat"><span className="num">{fmtMoney(sum.onAccount)}</span><span>a cuenta corriente (no entra en caja)</span></div>}
+        {sum.invitations > 0 && <div className="salon-stat"><span className="num">{fmtMoney(sum.invitations)}</span><span>invitaciones</span></div>}
       </div>
       <SummaryTable session={session} tickets={tickets} movements={movements} />
       <div className="row wrap">

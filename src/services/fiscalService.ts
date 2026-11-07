@@ -40,7 +40,25 @@ export const COND_IVA: Record<number, string> = {
 };
 export const EMISOR_COND_LABEL: Record<EmisorCondicion, string> = { RI: 'IVA Responsable Inscripto', MONO: 'Responsable Monotributo', EXENTO: 'IVA Sujeto Exento' };
 export const DOC_TIPO_LABEL: Record<DocTipo, string> = { 80: 'CUIT', 86: 'CUIL', 96: 'DNI', 99: 'Sin identificar' };
-export const PAYMENT_LABEL: Record<SalePaymentMethod, string> = { efectivo: 'Efectivo', debito: 'Débito', credito: 'Crédito', transferencia: 'Transferencia', qr: 'QR / billetera', otro: 'Otro' };
+export const PAYMENT_LABEL: Record<SalePaymentMethod, string> = {
+  efectivo: 'Efectivo', debito: 'Débito', credito: 'Crédito', transferencia: 'Transferencia', qr: 'QR / billetera', otro: 'Otro',
+  cuenta_corriente: 'Cuenta corriente', invitacion: 'Invitación / consumo interno',
+};
+/** Medios que NO son plata: no entran en la caja ni en el arqueo. */
+export const NON_CASH_METHODS: ReadonlySet<SalePaymentMethod> = new Set<SalePaymentMethod>(['cuenta_corriente', 'invitacion']);
+export const isMoneyMethod = (m: SalePaymentMethod) => !NON_CASH_METHODS.has(m);
+
+/** Revisa los pagos de un cobro: cuenta corriente con cliente, invitación con motivo, propina en plata. */
+export function paymentProblems(payments: Payment[], tip?: { amount: number; method: SalePaymentMethod }): string[] {
+  const out: string[] = [];
+  for (const p of payments) {
+    if (!(p.amount > 0)) continue;
+    if (p.method === 'cuenta_corriente' && !p.accountId) out.push('Elegí a qué cliente se carga la cuenta corriente.');
+    if (p.method === 'invitacion' && !p.note?.trim()) out.push('Poné el motivo de la invitación.');
+  }
+  if (tip?.amount && !isMoneyMethod(tip.method)) out.push('La propina tiene que ser en un medio de pago con plata.');
+  return [...new Set(out)];
+}
 /** RG 5700/2025: desde este importe hay que identificar al consumidor final. */
 export const CF_ID_THRESHOLD = 10_000_000;
 export const CONSUMIDOR_FINAL: FiscalReceptor = { docTipo: 99, docNro: '0', condicionIva: 5 };
@@ -418,6 +436,11 @@ export async function chargeTicket(ticketId: string, opts: {
   const paid = round2(opts.payments.reduce((s, p) => s + p.amount, 0));
   if (Math.abs(paid - amount) > 0.009) throw new Error(`Los pagos (${paid.toLocaleString('es-AR')}) no suman lo que se cobra (${amount.toLocaleString('es-AR')}).`);
   if (opts.tip && (!Number.isFinite(opts.tip.amount) || opts.tip.amount < 0)) throw new Error('La propina no es válida.');
+  const payProblems = paymentProblems(opts.payments, opts.tip);
+  if (payProblems.length) throw new Error(payProblems[0]);
+  // Lo que es invitación no se factura.
+  const onlyInvitation = opts.payments.filter((p) => p.amount > 0).every((p) => p.method === 'invitacion');
+  if (opts.invoice && opts.payments.some((p) => p.method === 'invitacion' && p.amount > 0)) throw new Error('Las invitaciones no se facturan: cobrá esa parte por separado o elegí "Sin factura".');
 
   const s = await getSettings();
   const f = fiscalOf(s);
@@ -436,7 +459,7 @@ export async function chargeTicket(ticketId: string, opts: {
     id: uuid(), at: t, amount, payments: opts.payments,
     ...(opts.tip?.amount ? { tip: { amount: round2(opts.tip.amount), method: opts.tip.method } } : {}),
     ...(part.kind === 'equal' ? { label: part.label } : part.kind === 'items' ? { label: 'Por ítems', items: part.items.filter((i) => i.qty > 0) } : n > 1 ? { label: 'Resto' } : {}),
-    ...(doc ? { fiscalDocId: doc.id } : f.enabled ? { fiscalPending: true } : {}),
+    ...(doc ? { fiscalDocId: doc.id } : f.enabled && !onlyInvitation ? { fiscalPending: true } : {}),
     ...(session ? { cashSessionId: session.id } : {}),
     ...(by ? { by: { id: by.id, name: by.name } } : {}),
   };

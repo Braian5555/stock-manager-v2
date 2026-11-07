@@ -100,7 +100,7 @@ export async function fiscalTicketHtml(d: FiscalDoc, pie?: string): Promise<stri
     ? `<div class="hr"></div><p class="b note">Régimen de Transparencia Fiscal al Consumidor (Ley 27.743)</p><div class="row note"><span>IVA Contenido</span><span>$ ${money(d.impIva)}</span></div><div class="row note"><span>Otros Impuestos Nacionales Indirectos</span><span>$ 0,00</span></div>`
     : '';
   const payments = d.payments?.length
-    ? `<div class="hr"></div>${d.payments.map((p) => `<div class="row note"><span>${esc(PAYMENT_LABEL[p.method])}</span><span>${money(p.amount)}</span></div>${p.method === 'efectivo' && p.received && p.received > p.amount ? `<div class="row note"><span>Recibido / Vuelto</span><span>${money(p.received)} / ${money(p.received - p.amount)}</span></div>` : ''}`).join('')}`
+    ? `<div class="hr"></div>${d.payments.map((p) => `<div class="row note"><span>${esc(PAYMENT_LABEL[p.method])}${p.accountName ? ` · ${esc(p.accountName)}` : ''}</span><span>${money(p.amount)}</span></div>${p.method === 'efectivo' && p.received && p.received > p.amount ? `<div class="row note"><span>Recibido / Vuelto</span><span>${money(p.received)} / ${money(p.received - p.amount)}</span></div>` : ''}`).join('')}`
     : '';
   const asoc = d.asociado ? `<p class="note">Comprobante asociado: ${esc(CBTE_NAME[d.asociado.cbteTipo] ?? '')} ${pad(d.asociado.ptoVta, 5)}-${pad(d.asociado.nro, 8)}${d.asociado.fecha ? ` del ${ymdToDate(d.asociado.fecha)}` : ''}</p>` : '';
   const body = `
@@ -191,6 +191,9 @@ export function arqueoHtml(s: CashSession, sum: CashSummary, business: string, d
     <div class="row"><span>Efectivo inicial</span><span>${money(s.initialCash)}</span></div>
     <div class="row b"><span>Ventas (${sum.count})</span><span>${money(sum.totalSales)}</span></div>
     <div class="row"><span>Propinas</span><span>${money(sum.totalTips)}</span></div>
+    ${sum.onAccount ? `<div class="row"><span>A cuenta corriente</span><span>${money(sum.onAccount)}</span></div>` : ''}
+    ${sum.invitations ? `<div class="row"><span>Invitaciones</span><span>${money(sum.invitations)}</span></div>` : ''}
+    ${sum.onAccount || sum.invitations ? '<p class="note">(no entran en la caja)</p>' : ''}
     <div class="hr"></div>
     ${methods.map((m) => `<p class="b">${esc(PAYMENT_LABEL[m])}</p>
       <div class="row note"><span>Ventas</span><span>${money(sum.sales[m])}</span></div>

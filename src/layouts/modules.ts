@@ -1,4 +1,4 @@
-import { Snowflake, UtensilsCrossed, CookingPot, ReceiptText, Store, Wallet, BookOpen, Armchair, LineChart,
+import { BookUser, Snowflake, UtensilsCrossed, CookingPot, ReceiptText, Store, Wallet, BookOpen, Armchair, LineChart,
   ArrowLeftRight, BarChart3, Boxes, ClipboardCheck, Cloud, Download, Forklift, Home, MapPin, Package, Plug, Receipt, Ruler, Scale, Settings as SettingsIcon,
   ShoppingCart, Stethoscope, Tags, Truck, UserCog, ChefHat, CakeSlice,
   type LucideIcon,
@@ -268,13 +268,14 @@ export const SALON_NAV: SalonItem[] = [
   { key: 'mostrador', label: 'Mostrador', icon: Store, to: '/salon?vista=mostrador', module: 'salon', group: 'ventas' },
   { key: 'cocina', label: 'Cocina', icon: CookingPot, to: '/cocina', module: 'kitchen', group: 'ventas' },
   { key: 'caja', label: 'Caja', icon: Wallet, to: '/salon?vista=caja', module: 'salon', perms: ['billing', 'admin'], group: 'ventas' },
+  { key: 'cuentas', label: 'Cta. corriente', icon: BookUser, to: '/salon?vista=cuentas', module: 'salon', perms: ['billing', 'admin'], group: 'ventas' },
   { key: 'hoy', label: 'Ventas de hoy', icon: BarChart3, to: '/salon?vista=hoy', module: 'salon', group: 'ventas' },
   { key: 'comprobantes', label: 'Comprobantes', icon: ReceiptText, to: '/comprobantes', module: 'fiscal', group: 'ventas' },
   { key: 'carta', label: 'Carta', icon: BookOpen, to: '/salon?vista=carta', module: 'salon', group: 'productos' },
   { key: 'reportes', label: 'Reportes', icon: LineChart, to: '/salon?vista=reportes', module: 'salon', perms: ['billing', 'admin'], group: 'reportes' },
   { key: 'config', label: 'Configuración', icon: SettingsIcon, to: '/salon/configuracion', module: 'salonConfig', bottom: true, group: 'admin' },
 ];
-export const SALON_VIEWS = ['mesas', 'mostrador', 'caja', 'carta', 'hoy', 'reportes'] as const;
+export const SALON_VIEWS = ['mesas', 'mostrador', 'caja', 'cuentas', 'carta', 'hoy', 'reportes'] as const;
 export type SalonView = (typeof SALON_VIEWS)[number];
 
 export function salonItems(visible: ModuleKey[], canAny: (p: Permission[]) => boolean): SalonItem[] {

@@ -1,11 +1,12 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { CheckCircle2, Minus, Plus, Printer, RotateCcw, Trash2, TriangleAlert, Wallet } from 'lucide-react';
+import { saveAccount } from '../../services/accountService';
 import { useEffect, useMemo, useState } from 'react';
 import { db } from '../../database/db';
 import type { DocTipo, FiscalDoc, FiscalReceptor, Payment, SalePaymentMethod, TableTicket } from '../../models';
 import {
   CBTE_NAME, COND_IVA, CONSUMIDOR_FINAL, CF_ID_THRESHOLD, DOC_TIPO_LABEL, PAYMENT_LABEL, chargeTicket, docNumber, fiscalOf, fiscalReady, invoiceLater, issue, itemsAmount,
-  letterFor, receptorProblems, recentReceptors, ymdToDate, type ChargePart,
+  isMoneyMethod, letterFor, paymentProblems, receptorProblems, recentReceptors, ymdToDate, type ChargePart,
 } from '../../services/fiscalService';
 import { fiscalTicketHtml, printHtml } from '../../services/printService';
 import { chargedAmount, closeTicket, paidQty, remainingAmount, ticketLabel } from '../../services/salonService';
@@ -19,6 +20,9 @@ import { useOpenCash } from './hooks';
 type InvoiceMode = 'cf' | 'datos' | 'no';
 type SplitMode = 'todo' | 'partes' | 'items';
 const METHODS = Object.keys(PAYMENT_LABEL) as SalePaymentMethod[];
+/** La propina siempre es plata. */
+const TIP_METHODS = METHODS.filter(isMoneyMethod);
+const NEW_ACCOUNT = '__nuevo';
 const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
 /**
@@ -33,6 +37,8 @@ export function ChargeModal({ ticket: initial, onClose }: { ticket: TableTicket;
   const cash = useOpenCash();
   const { run, notify } = useFeedback();
   const ticket = useLiveQuery(() => db.tickets.get(initial.id), [initial.id]) ?? initial;
+  const accounts = useLiveQuery(async () => (await db.accounts.toArray()).filter((a) => a.active).sort((a, b) => a.name.localeCompare(b.name, 'es')), []) ?? [];
+  const [newAccount, setNewAccount] = useState<{ row: number; name: string } | null>(null);
   const label = ticketLabel(ticket);
   const remaining = remainingAmount(ticket);
   const charged = chargedAmount(ticket);
@@ -66,7 +72,13 @@ export function ChargeModal({ ticket: initial, onClose }: { ticket: TableTicket;
   const change = cashPay?.received && cashPay.received > cashPay.amount + (tipMethod === 'efectivo' || (!tipMethod && payments[0].method === 'efectivo') ? tip ?? 0 : 0) ? round2(cashPay.received - cashPay.amount - ((tipMethod || payments[0].method) === 'efectivo' ? tip ?? 0 : 0)) : 0;
   const receptor: FiscalReceptor = mode === 'datos' ? rec : CONSUMIDOR_FINAL;
   const letra = letterFor(f, receptor.condicionIva);
-  const problems = useMemo(() => (mode === 'no' ? [] : receptorProblems(receptor, letra, amount)), [mode, receptor, letra, amount]);
+  const tipInfo = useMemo(() => (tip ? { amount: tip, method: tipMethod || (isMoneyMethod(payments[0].method) ? payments[0].method : 'efectivo' as SalePaymentMethod) } : undefined), [tip, tipMethod, payments]);
+  const hasInvitation = payments.some((p) => p.method === 'invitacion' && p.amount > 0);
+  const payProblems = useMemo(() => [
+    ...paymentProblems(payments, tipInfo),
+    ...(hasInvitation && mode !== 'no' ? ['Las invitaciones no se facturan: elegí "Sin factura por ahora" o cobrá esa parte por separado.'] : []),
+  ], [payments, tipInfo, hasInvitation, mode]);
+  const problems = useMemo(() => [...payProblems, ...(mode === 'no' ? [] : receptorProblems(receptor, letra, amount))], [payProblems, mode, receptor, letra, amount]);
   const cfTooBig = mode === 'cf' && amount >= CF_ID_THRESHOLD;
 
   const setPay = (i: number, p: Partial<Payment>) => setPayments((xs) => xs.map((x, j) => (j === i ? { ...x, ...p } : x)));
@@ -85,10 +97,14 @@ export function ChargeModal({ ticket: initial, onClose }: { ticket: TableTicket;
     if (problems.length) return notify(problems.join(' '), { tone: 'error' });
     setBusy(true);
     try {
-      const clean = payments.filter((p) => p.amount > 0).map((p) => (p.method === 'efectivo' && p.received ? p : { method: p.method, amount: p.amount }));
+      const clean: Payment[] = payments.filter((p) => p.amount > 0).map((p) => (
+        p.method === 'efectivo' && p.received ? { method: p.method, amount: p.amount, received: p.received }
+          : p.method === 'cuenta_corriente' ? { method: p.method, amount: p.amount, accountId: p.accountId, accountName: accounts.find((a) => a.id === p.accountId)?.name ?? p.accountName }
+          : p.method === 'invitacion' ? { method: p.method, amount: p.amount, note: p.note?.trim() }
+          : { method: p.method, amount: p.amount }));
       const r = await run(() => chargeTicket(ticket.id, {
         payments: clean, invoice: mode === 'no' ? false : { receptor }, part,
-        ...(tip ? { tip: { amount: tip, method: tipMethod || clean[0].method } } : {}),
+        ...(tipInfo ? { tip: tipInfo } : {}),
       }));
       if (!r) return;
       setSel({});
@@ -163,7 +179,7 @@ export function ChargeModal({ ticket: initial, onClose }: { ticket: TableTicket;
       footer={<>
         <div className="salon-total"><span>{split === 'todo' && !charged ? 'Total' : 'Se cobra'}</span><b className="num">{fmtMoney(amount)}</b></div>
         <button type="button" className="btn btn-primary" disabled={busy || !(amount > 0) || Math.abs(left) > 0.009 || problems.length > 0} onClick={() => void submit()}>
-          {busy ? (mode === 'no' ? 'Cobrando…' : 'Facturando…') : mode === 'no' ? (amount >= remaining - 0.009 ? `Cobrar ${fmtMoney(amount)} y cerrar` : `Cobrar ${fmtMoney(amount)}`) : `Cobrar y emitir Factura ${letra}`}
+          {busy ? (mode === 'no' ? 'Cobrando…' : 'Facturando…') : mode === 'no' ? (amount >= remaining - 0.009 ? (payments.every((p) => !isMoneyMethod(p.method)) ? `Cerrar mesa (${fmtMoney(amount)})` : `Cobrar ${fmtMoney(amount)} y cerrar`) : `Cobrar ${fmtMoney(amount)}`) : `Cobrar y emitir Factura ${letra}`}
         </button>
       </>}>
       {cash === null && <div className="alert alert-info" role="note"><Wallet size={18} aria-hidden /><span>No hay caja abierta: este cobro entra en la próxima caja que se abra (Salón → Caja).</span></div>}
@@ -210,10 +226,44 @@ export function ChargeModal({ ticket: initial, onClose }: { ticket: TableTicket;
         {payments.map((p, i) => (
           <div key={i} className="charge-pay">
             <label className="charge-field"><span>Medio</span>
-              <Select aria-label={`Medio de pago ${i + 1}`} value={p.method} onChange={(e) => setPay(i, { method: e.target.value as SalePaymentMethod, received: undefined })}>
+              <Select aria-label={`Medio de pago ${i + 1}`} value={p.method} onChange={(e) => {
+                const m = e.target.value as SalePaymentMethod;
+                setPay(i, { method: m, received: undefined, accountId: undefined, accountName: undefined, note: undefined });
+                if (m === 'invitacion' && payments.length === 1) setMode('no');
+              }}>
                 {METHODS.map((m) => <option key={m} value={m}>{PAYMENT_LABEL[m]}</option>)}
               </Select>
             </label>
+            {p.method === 'cuenta_corriente' && (newAccount?.row === i ? (
+              <span className="charge-field"><span>Cliente nuevo</span>
+                <span className="row" style={{ gap: 6 }}>
+                  <Input aria-label="Nombre del cliente nuevo" autoFocus value={newAccount.name} onChange={(e) => setNewAccount({ row: i, name: e.target.value })} placeholder="Ej.: ALADES" />
+                  <button type="button" className="btn btn-sm" onClick={() => void run(async () => {
+                    const a = await saveAccount({ name: newAccount.name });
+                    setPay(i, { accountId: a.id, accountName: a.name });
+                    setNewAccount(null);
+                  })}>Agregar</button>
+                  <button type="button" className="btn btn-sm btn-ghost" onClick={() => setNewAccount(null)}>Cancelar</button>
+                </span>
+              </span>
+            ) : (
+              <label className="charge-field"><span>Cliente</span>
+                <Select aria-label={`Cliente de cuenta corriente ${i + 1}`} value={p.accountId ?? ''} onChange={(e) => {
+                  const id = e.target.value;
+                  if (id === NEW_ACCOUNT) return setNewAccount({ row: i, name: '' });
+                  setPay(i, { accountId: id || undefined, accountName: accounts.find((a) => a.id === id)?.name });
+                }}>
+                  <option value="">Elegí el cliente…</option>
+                  {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                  <option value={NEW_ACCOUNT}>+ Cliente nuevo…</option>
+                </Select>
+              </label>
+            ))}
+            {p.method === 'invitacion' && (
+              <label className="charge-field"><span>Motivo</span>
+                <Input aria-label={`Motivo de la invitación ${i + 1}`} value={p.note ?? ''} onChange={(e) => setPay(i, { note: e.target.value })} placeholder="Ej.: invitación de la casa, consumo personal" />
+              </label>
+            )}
             <label className="charge-field"><span>Importe</span><NumberInput aria-label={`Importe ${i + 1}`} value={p.amount} onChange={(v) => setPay(i, { amount: v ?? 0 })} min={0} /></label>
             {p.method === 'efectivo' && <label className="charge-field"><span>Recibido (para el vuelto)</span><NumberInput aria-label="Efectivo recibido" placeholder="Opcional" value={p.received} onChange={(v) => setPay(i, { received: v })} min={0} /></label>}
             {payments.length > 1 && <button type="button" className="btn btn-ghost icon-btn" aria-label={`Quitar pago ${i + 1}`} onClick={() => setPayments((xs) => xs.filter((_, j) => j !== i))}><Trash2 size={18} /></button>}
@@ -221,7 +271,7 @@ export function ChargeModal({ ticket: initial, onClose }: { ticket: TableTicket;
         ))}
         <div className="row wrap" style={{ justifyContent: 'space-between' }}>
           <button type="button" className="btn btn-sm" onClick={addPay}><Plus size={16} aria-hidden /> Otro medio de pago</button>
-          <span className="small">{Math.abs(left) > 0.009 ? <b style={{ color: 'var(--crit)' }}>{left > 0 ? `Faltan ${fmtMoney(left)}` : `Sobran ${fmtMoney(-left)}`}</b> : change ? <b>Vuelto: {fmtMoney(change)}</b> : 'Cubierto'}</span>
+          <span className="small">{payProblems.length ? <b style={{ color: 'var(--crit)' }}>{payProblems[0]}</b> : Math.abs(left) > 0.009 ? <b style={{ color: 'var(--crit)' }}>{left > 0 ? `Faltan ${fmtMoney(left)}` : `Sobran ${fmtMoney(-left)}`}</b> : change ? <b>Vuelto: {fmtMoney(change)}</b> : 'Cubierto'}</span>
         </div>
         <div className="charge-tip">
           <label className="charge-field"><span>Propina (opcional)</span><NumberInput aria-label="Propina" value={tip} onChange={setTip} min={0} placeholder="0" /></label>
@@ -231,8 +281,8 @@ export function ChargeModal({ ticket: initial, onClose }: { ticket: TableTicket;
           </div>
           {tip ? (
             <label className="charge-field"><span>Propina en</span>
-              <Select aria-label="Medio de la propina" value={tipMethod || payments[0].method} onChange={(e) => setTipMethod(e.target.value as SalePaymentMethod)}>
-                {METHODS.map((m) => <option key={m} value={m}>{PAYMENT_LABEL[m]}</option>)}
+              <Select aria-label="Medio de la propina" value={tipInfo?.method ?? 'efectivo'} onChange={(e) => setTipMethod(e.target.value as SalePaymentMethod)}>
+                {TIP_METHODS.map((m) => <option key={m} value={m}>{PAYMENT_LABEL[m]}</option>)}
               </Select>
             </label>
           ) : null}
@@ -248,7 +298,7 @@ export function ChargeModal({ ticket: initial, onClose }: { ticket: TableTicket;
           {mode !== 'no' && <p className="small muted" style={{ margin: 0 }}>Se emite <b>Factura {letra}</b> {f.ambiente === 'homologacion' ? 'de PRUEBA (homologación)' : 'electrónica'} por {fmtMoney(amount)} en el punto de venta {f.ptoVta}. La propina no se factura.</p>}
           {mode === 'no' && <p className="small muted" style={{ margin: 0 }}>Se cobra y queda en “Sin facturar” para emitir la factura después (por ejemplo, si ARCA no anda).</p>}
           {cfTooBig && <p className="small" style={{ color: 'var(--crit)', margin: 0 }}>Desde {fmtMoney(CF_ID_THRESHOLD)} hay que identificar al cliente: elegí “Con datos”.</p>}
-          {mode === 'datos' && problems.length > 0 && <p className="small" style={{ color: 'var(--crit)', margin: 0 }}>{problems.join(' ')}</p>}
+          {mode === 'datos' && problems.length > payProblems.length && <p className="small" style={{ color: 'var(--crit)', margin: 0 }}>{problems.slice(payProblems.length).join(' ')}</p>}
         </>) : (
           <p className="small muted" style={{ margin: 0 }}>{f.enabled ? 'Falta completar la Configuración fiscal para facturar acá.' : 'Se registra el cobro sin factura electrónica. Para facturar con ARCA, activala en Configuración del salón → Facturación electrónica.'}</p>
         )}

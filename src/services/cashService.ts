@@ -39,6 +39,10 @@ export interface CashSummary {
   totalSales: number;
   totalTips: number;
   count: number;
+  /** Cargado a cuenta corriente en esta caja (no es plata: no entra en el arqueo). */
+  onAccount: number;
+  /** Invitaciones / consumo interno (cerrado sin cobrar). */
+  invitations: number;
 }
 
 const zero = () => Object.fromEntries(METHODS.map((m) => [m, 0])) as Record<SalePaymentMethod, number>;
@@ -48,14 +52,19 @@ export function summarize(session: CashSession, tickets: TableTicket[], movement
   const tips = zero();
   const ingresos = zero();
   const egresos = zero();
+  let onAccount = 0, invitations = 0;
   const charges = chargesOf(tickets, session.id);
   for (const { charge } of charges) {
-    for (const p of charge.payments) sales[p.method] = round2(sales[p.method] + p.amount);
-    if (charge.tip?.amount) tips[charge.tip.method] = round2(tips[charge.tip.method] + charge.tip.amount);
+    for (const p of charge.payments) {
+      if (p.method === 'cuenta_corriente') onAccount = round2(onAccount + p.amount);
+      else if (p.method === 'invitacion') invitations = round2(invitations + p.amount);
+      else if (p.method in sales) sales[p.method] = round2(sales[p.method] + p.amount);
+    }
+    if (charge.tip?.amount && charge.tip.method in tips) tips[charge.tip.method] = round2(tips[charge.tip.method] + charge.tip.amount);
   }
   for (const m of movements.filter((x) => x.sessionId === session.id)) {
     const bag = m.kind === 'ingreso' ? ingresos : egresos;
-    bag[m.method] = round2(bag[m.method] + m.amount);
+    if (m.method in bag) bag[m.method] = round2(bag[m.method] + m.amount);
   }
   const expected = zero();
   for (const k of METHODS) expected[k] = round2(sales[k] + tips[k] + ingresos[k] - egresos[k] + (k === 'efectivo' ? session.initialCash : 0));
@@ -64,6 +73,7 @@ export function summarize(session: CashSession, tickets: TableTicket[], movement
     totalSales: round2(METHODS.reduce((s, k) => s + sales[k], 0)),
     totalTips: round2(METHODS.reduce((s, k) => s + tips[k], 0)),
     count: charges.length,
+    onAccount, invitations,
   };
 }
 
@@ -92,14 +102,15 @@ export async function openCash(initialCash: number, register = 'Caja'): Promise<
   });
 }
 
-export async function addMovement(kind: 'ingreso' | 'egreso', amount: number, reason: string, method: SalePaymentMethod = 'efectivo'): Promise<CashMovement> {
+export async function addMovement(kind: 'ingreso' | 'egreso', amount: number, reason: string, method: SalePaymentMethod = 'efectivo', account?: { id: string; name: string }): Promise<CashMovement> {
   if (!Number.isFinite(amount) || amount <= 0) throw new Error('Poné un importe mayor a cero.');
+  if (!METHODS.includes(method)) throw new Error('Los movimientos de caja tienen que ser con plata (no cuenta corriente ni invitación).');
   if (!reason.trim()) throw new Error(kind === 'egreso' ? 'Poné en qué se gastó.' : 'Poné de qué es el ingreso.');
   const s = await openSession();
   if (!s) throw new Error('No hay una caja abierta.');
   const t = nowIso();
   const by = actor();
-  const m: CashMovement = { id: uuid(), createdAt: t, updatedAt: t, sessionId: s.id, at: t, kind, amount: round2(amount), method, reason: reason.trim(), ...(by ? { by } : {}) };
+  const m: CashMovement = { id: uuid(), createdAt: t, updatedAt: t, sessionId: s.id, at: t, kind, amount: round2(amount), method, reason: reason.trim(), ...(by ? { by } : {}), ...(account ? { accountId: account.id, accountName: account.name } : {}) };
   await db.cashMovements.add(m);
   return m;
 }

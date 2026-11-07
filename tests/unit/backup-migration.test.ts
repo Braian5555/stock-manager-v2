@@ -49,9 +49,10 @@ describe('migraciones', () => {
     v1.close();
     const v2 = new StockDatabase('migration-test');
     await v2.open();
-    expect(v2.verno).toBe(11);
+    expect(v2.verno).toBe(12);
     expect(await v2.cashSessions.count()).toBe(0);
     expect(await v2.fiscalDocs.count()).toBe(0);
+    expect(await v2.accounts.count()).toBe(0);
     expect(await v2.tickets.count()).toBe(0);
     expect(await v2.accessLog.count()).toBe(0);
     expect(await v2.transfers.count()).toBe(0);
