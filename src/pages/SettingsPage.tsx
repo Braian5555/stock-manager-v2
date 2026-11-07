@@ -205,7 +205,51 @@ function PrintSection() {
         <p className="small muted" style={{ margin: 0 }}>La impresora térmica tiene que estar instalada en el celular, tablet o compu. En el diálogo de impresión elegí esa impresora, papel de 80 mm y márgenes “Ninguno”.</p>
         <div><button type="button" className="btn" onClick={() => void run(() => printHtml(testTicketHtml(settings.businessName)))}><Printer size={18} aria-hidden /> Imprimir ticket de prueba</button></div>
       </section>
+      <DirectPrintCard />
     </>
+  );
+}
+
+/**
+ * Impresión directa: el navegador no deja que una página imprima sin mostrar el cuadro de
+ * impresión. Chrome (y Edge) sí lo hacen si se abren con --kiosk-printing: imprimen al toque en la
+ * impresora predeterminada de Windows. Se arma un acceso directo (.bat) que abre Orillas así, con
+ * un perfil propio para la caja (no hace falta cerrar el Chrome de todos los días).
+ */
+function DirectPrintCard() {
+  const { run, notify } = useFeedback();
+  const url = `${location.origin}${location.pathname}`;
+  const download = () => void run(async () => {
+    const bat = [
+      '@echo off',
+      'rem Orillas - caja con impresion directa: los tickets salen sin el cuadro de impresion,',
+      'rem en la impresora PREDETERMINADA de Windows (poner la termica POS-80C como predeterminada).',
+      `set "URL=${url}"`,
+      'set "PERFIL=%LOCALAPPDATA%\\Orillas-Caja"',
+      'set "B="',
+      // Primero Chrome (instalado para todos o sólo para este usuario), después Edge.
+      ...['chrome.exe', 'msedge.exe'].flatMap((exe) => ['HKLM', 'HKCU'].map((h) =>
+        `if not defined B for /f "tokens=2*" %%a in ('reg query "${h}\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\${exe}" /ve 2^>nul') do set "B=%%b"`)),
+      'if not defined B (echo No se encontro Google Chrome ni Microsoft Edge. & pause & exit /b 1)',
+      'start "" "%B%" --kiosk-printing --user-data-dir="%PERFIL%" --app="%URL%"',
+      '',
+    ].join('\r\n');
+    const { downloadBlob } = await import('../exports/download');
+    downloadBlob(new Blob([bat], { type: 'application/octet-stream' }), 'Orillas - Caja (impresion directa).bat');
+    notify('Acceso directo descargado');
+  });
+  return (
+    <section className="card card-pad stack" aria-labelledby="direct-print">
+      <h2 id="direct-print" style={{ margin: 0, fontSize: '1.1rem' }}>Imprimir directo, sin el cuadro de impresión</h2>
+      <p style={{ margin: 0 }}>Por seguridad, el navegador siempre muestra el cuadro de impresión. En la compu de la caja se puede saltear: Orillas se abre con un acceso directo especial y los tickets salen al toque en la térmica.</p>
+      <ol style={{ margin: 0, paddingLeft: 20 }} className="stack-sm">
+        <li>En Windows, poné la <b>POS-80C como impresora predeterminada</b> (Configuración → Bluetooth y dispositivos → Impresoras → POS-80C → Establecer como predeterminada; si está activado “Permitir que Windows administre mi impresora predeterminada”, desactivalo).</li>
+        <li>Descargá el acceso directo de abajo y guardalo en el Escritorio.</li>
+        <li>Abrí Orillas desde ese acceso directo (la primera vez pide entrar con tu cuenta). Desde ahí, todos los tickets se imprimen directo al tocar el botón.</li>
+      </ol>
+      <div><button type="button" className="btn btn-primary" onClick={download}><Download size={18} aria-hidden /> Descargar acceso directo (Windows)</button></div>
+      <p className="small muted" style={{ margin: 0 }}>Funciona con Google Chrome o Microsoft Edge. Abierto de la forma normal, Orillas sigue mostrando el cuadro de impresión (sirve para elegir otra impresora).</p>
+    </section>
   );
 }
 
