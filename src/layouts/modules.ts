@@ -1,6 +1,6 @@
 import { BookUser, Snowflake, UtensilsCrossed, CookingPot, ReceiptText, Store, Wallet, BookOpen, Armchair, LineChart,
   ArrowLeftRight, BarChart3, Boxes, ClipboardCheck, Cloud, Download, Forklift, Home, MapPin, Package, Plug, Receipt, Ruler, Scale, Settings as SettingsIcon,
-  ShoppingCart, Stethoscope, Tags, Truck, UserCog, ChefHat, CakeSlice,
+  ShoppingCart, Stethoscope, Tags, Truck, UserCog, ChefHat, CakeSlice, TrendingDown, LayoutDashboard,
   type LucideIcon,
 } from 'lucide-react';
 import type { ModuleKey, Permission, Settings } from '../models';
@@ -319,4 +319,40 @@ export function readArea(): Area | undefined {
 }
 export function writeArea(a: Area) {
   try { localStorage.setItem(AREA_KEY, a); } catch { /* sin almacenamiento */ }
+}
+
+// ───────────── Menú completo (como Fudo) ─────────────
+
+/** Una entrada del menú: a dónde lleva y en qué grupo va. */
+export interface MenuEntry { key: string; label: string; icon: LucideIcon; to: string; area: Area; group: MenuGroup }
+export interface MenuGroupEntries { key: MenuGroup; label: string; entries: MenuEntry[] }
+
+/**
+ * Todo lo que puede usar esta persona, agrupado como en Fudo (Ventas, Productos, Stock, Compras y
+ * gastos, Reportes, Administración). Lo usan la barra de arriba (computadora) y el Inicio (celular).
+ */
+export function menuGroups(settings: Settings, visible: ModuleKey[], canAny: (p: Permission[]) => boolean): MenuGroupEntries[] {
+  const groups = new Map<MenuGroup, MenuEntry[]>(MENU_GROUPS.map((g) => [g.key, []]));
+  for (const i of salonItems(visible, canAny)) {
+    if (i.key === 'inicio' || !i.group) continue;
+    groups.get(i.group)!.push({ key: `s-${i.key}`, label: i.key === 'config' ? 'Configuración del salón' : i.label, icon: i.icon, to: i.to, area: 'salon', group: i.group });
+  }
+  if (visible.includes('dashboard')) groups.get('reportes')!.push({ key: 'resumen', label: 'Resumen del día', icon: LayoutDashboard, to: MODULE_PATH.dashboard, area: 'stock', group: 'reportes' });
+  for (const sec of visibleSections(settings, visible.filter((k) => !SALON_MODULES.has(k)))) {
+    if (!sec.group) continue;
+    for (const k of sec.tabs) {
+      groups.get(sec.group)!.push({ key: k, label: k === 'settings' ? 'Configuración general' : k === 'products' ? 'Productos e insumos' : navLabel(settings, k), icon: MODULE_ICON[k], to: MODULE_PATH[k], area: 'stock', group: sec.group });
+    }
+    if (sec.key === 'stock' && sec.tabs.includes('stock')) groups.get('reportes')!.push({ key: 'consumo', label: 'Consumo y mermas', icon: TrendingDown, to: '/stock/consumo', area: 'stock', group: 'reportes' });
+  }
+  return MENU_GROUPS.map((g) => ({ ...g, entries: groups.get(g.key)! })).filter((g) => g.entries.length);
+}
+
+/** Entrada del menú que corresponde a la pantalla actual. */
+export function activeMenuKey(pathname: string, search: string): string | undefined {
+  if (pathname === '/') return 'resumen';
+  if (pathname.startsWith('/stock/consumo')) return 'consumo';
+  const salon = activeSalonItem(pathname, search);
+  if (salon) return `s-${salon}`;
+  return moduleOfPath(pathname);
 }
