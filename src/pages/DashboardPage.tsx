@@ -1,12 +1,17 @@
-import { AlertTriangle, Armchair, Boxes, Camera, ChefHat, CheckCircle2, ClipboardCheck, CookingPot, Lock, LogOut, MinusCircle, Package, Snowflake, Sparkles, Store, UtensilsCrossed, Wallet, type LucideIcon } from 'lucide-react';
+import { AlertTriangle, Armchair, Boxes, Camera, ChefHat, CheckCircle2, ChevronRight, ClipboardCheck, CookingPot, DollarSign, Lock, LogOut, MinusCircle, Package, Receipt, Snowflake, Sparkles, Store, TrendingDown, TrendingUp, Users, Wallet, type LucideIcon } from 'lucide-react';
+import { useLiveQuery } from 'dexie-react-hooks';
+import { db } from '../database/db';
 import { useMemo, useState, type ReactNode } from 'react';
 import { Link } from 'react-router';
-import { useProducts } from '../hooks/useData';
+import { EMPTY, useProducts } from '../hooks/useData';
 import { DESKTOP_QUERY, useMediaQuery } from '../hooks/useMediaQuery';
-import { MODULE_PATH, MODULE_PERMISSIONS, SALON_MODULES, moduleEnabled, navLabel, salonItems, visibleModules, visibleSections, writeArea } from '../layouts/modules';
-import { useOpenCash, useOpenTickets, useTables } from '../components/salon/hooks';
+import { MENU_GROUPS, MODULE_ICON, MODULE_PATH, MODULE_PERMISSIONS, SALON_MODULES, moduleEnabled, navLabel, salonItems, visibleModules, visibleSections, writeArea, type MenuGroup } from '../layouts/modules';
+import { useMenu, useOpenCash, useOpenTickets, useTables } from '../components/salon/hooks';
+import { Bars, Hours } from '../components/salon/SalesReports';
+import { salesReport, type SalesReport } from '../services/salesReportService';
+import { PAYMENT_LABEL } from '../services/fiscalService';
 import { channelOf } from '../services/salonService';
-import { PERMISSIONS, type ModuleKey, type Permission } from '../models';
+import { PERMISSIONS, type ModuleKey, type Permission, type TableTicket } from '../models';
 import { useAssistantAvailable } from '../store/assistant';
 import { useSession } from '../store/session';
 import { useSettings } from '../store/settings';
@@ -14,13 +19,14 @@ import { WelcomeCard } from '../components/WelcomeCard';
 import { BakeryTodayCard, RestockCard, useHomePanels, type HomePanels, type Tone } from '../components/dashboard/HomePanels';
 import { AttentionCard } from '../components/dashboard/AttentionCard';
 import { negativeProducts } from '../services/attentionService';
-import { fmtNumber } from '../utils/format';
+import { fmtMoneyShort, fmtNumber } from '../utils/format';
 
 /**
- * Inicio: el tablero para entrar a todo. Arriba cómo está el negocio ahora (mesas, cocina, caja y
- * stock, cada dato es un botón que lleva ahí), después el menú completo con botones grandes —
- * primero el Salón y después el Stock—, las acciones rápidas y lo que hay que resolver hoy.
- * Todo según los permisos de cada persona.
+ * Inicio, organizado como Fudo: arriba los accesos de todos los días (Mesas, Mostrador, Cocina,
+ * Caja y lo del stock), después "Hoy" con las ventas del día y el estado del negocio (cada dato es
+ * un botón), los gráficos del día (por hora, medios de pago, lo más vendido) y el menú completo
+ * agrupado como en Fudo: Ventas, Productos, Stock (lo propio de Orillas), Compras y gastos,
+ * Reportes y Administración. Al final, lo que hay que resolver. Todo según los permisos.
  */
 export function DashboardPage() {
   const desktop = useMediaQuery(DESKTOP_QUERY);
@@ -48,14 +54,10 @@ export function DashboardPage() {
 
       {products.length === 0 && can('catalog.manage') && <WelcomeCard />}
 
-      <NowStrip d={d} allowed={allowed} onNegatives={() => setNegOpen(true)} />
-
-      <MainMenu />
-
       {actions.length > 0 && (
         <section className="hm-block" aria-labelledby="hm-actions-title">
-          <h2 id="hm-actions-title" className="hm-block-title">Acciones rápidas</h2>
-          <nav className="hm-actions" aria-label="Acciones rápidas">
+          <h2 id="hm-actions-title" className="sr-only">Acciones rápidas</h2>
+          <nav className="hm-actions hm-quick" aria-label="Acciones rápidas">
             {actions.map(({ label, hint, to, icon: Icon, tone }) => (
               <Link key={label} to={to} className="hm-action">
                 <span className={`hm-action-icon tone-${tone}`}><Icon size={22} aria-hidden /></span>
@@ -68,6 +70,12 @@ export function DashboardPage() {
           </nav>
         </section>
       )}
+
+      <NowStrip d={d} allowed={allowed} onNegatives={() => setNegOpen(true)} />
+
+      {allowed('salon') && canAny(['billing', 'admin']) && <TodayCharts />}
+
+      <MenuMap />
 
       {attention}
 
@@ -98,6 +106,13 @@ function NowStrip({ d, allowed, onNegatives }: { d: HomePanels; allowed: (m: Mod
   const cooking = open.reduce((n, t) => n + t.lines.filter((l) => l.status === 'cocina' && l.qty > 0).length, 0);
   const sinceCash = cash ? (cash.openedAt ? new Date(cash.openedAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }) : '') : '';
   const items: ReactNode[] = [];
+  const sales = useTodaySales(salon && canAny(['billing', 'admin']));
+  if (sales) {
+    items.push(<NowItem key="vend" to="/salon?vista=hoy" icon={DollarSign} value={fmtMoneyShort(sales.sold)} label="vendido hoy" big />);
+    items.push(<NowItem key="vtas" to="/salon?vista=hoy" icon={Receipt} value={String(sales.orders)} label={sales.orders === 1 ? 'venta' : 'ventas'} />);
+    items.push(<NowItem key="prom" to="/salon?vista=reportes" icon={TrendingUp} value={sales.orders ? fmtMoneyShort(sales.avg) : '—'} label="ticket promedio" />);
+    if (sales.guests) items.push(<NowItem key="com" to="/salon?vista=reportes" icon={Users} value={String(sales.guests)} label="comensales" />);
+  }
   if (salon) {
     items.push(<NowItem key="mesas" to="/salon" icon={Armchair} value={tables.length ? `${busy} de ${tables.length}` : '—'} label={tables.length ? 'mesas ocupadas' : 'Armar las mesas'} />);
     if (counter) items.push(<NowItem key="most" to="/salon?vista=mostrador" icon={Store} value={String(counter)} label={counter === 1 ? 'pedido de mostrador' : 'pedidos de mostrador'} />);
@@ -119,78 +134,94 @@ function NowStrip({ d, allowed, onNegatives }: { d: HomePanels; allowed: (m: Mod
   if (!items.length) return null;
   return (
     <section className="hm-block" aria-labelledby="hm-now-title">
-      <h2 id="hm-now-title" className="hm-block-title">Ahora</h2>
+      <h2 id="hm-now-title" className="hm-block-title">Hoy</h2>
       <div className="hm-now-grid">{items}</div>
     </section>
   );
 }
 
-function NowItem({ to, icon: Icon, value, label, tone }: { to: string; icon: LucideIcon; value: string; label: string; tone?: 'ok' | 'warn' }) {
+function NowItem({ to, icon: Icon, value, label, tone, big }: { to: string; icon: LucideIcon; value: string; label: string; tone?: 'ok' | 'warn'; big?: boolean }) {
   return (
-    <Link to={to} className={`hm-now${tone ? ` is-${tone}` : ''}`}>
+    <Link to={to} className={`hm-now${tone ? ` is-${tone}` : ''}${big ? ' is-big' : ''}`}>
       <Icon size={24} aria-hidden />
       <span className="hm-now-text"><span className="hm-now-value num">{value}</span><span className="hm-now-label">{label}</span></span>
     </Link>
   );
 }
 
-// ───────────────────────── Menú completo ─────────────────────────
+// ───────────────────────── Ventas del día ─────────────────────────
 
-const SALON_HINT: Record<string, string> = {
-  mesas: 'Plano, pedidos y cobro', mostrador: 'Mostrador, para llevar y delivery', cocina: 'Comandas de cocina y barra',
-  caja: 'Abrir, cerrar y arqueo', carta: 'Platos, precios y recetas', hoy: 'Lo vendido hoy y el cierre del día',
-  reportes: 'Ventas, platos, horas y mozos', comprobantes: 'Facturas ARCA y libro IVA', config: 'Facturación, mesas, impresión',
-};
-const STOCK_HINT: Record<string, string> = {
-  stock: 'Existencias, conteos y movimientos', produccion: 'Lo que sale del horno', pasteleria: 'Tortas y pastelería',
-  camara: 'Congelados y lo que se saca', productos: 'Catálogo, familias y recetas', compras: 'Facturas, pedidos y proveedores',
-  config: 'Empresa, usuarios, nube y datos',
-};
+const todayYmd = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 
-/** Todas las secciones con botones grandes: primero el Salón, después el Stock. */
-function MainMenu() {
+/** Ventas de hoy (pedidos cerrados hoy). null si esta persona no las puede ver. */
+function useTodaySales(enabled: boolean): SalesReport | null {
+  const since = useMemo(() => { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - 1); return d.toISOString(); }, []);
+  const tickets = (useLiveQuery(() => (enabled ? db.tickets.where('openedAt').aboveOrEqual(since).toArray() : []), [enabled, since]) ?? EMPTY) as TableTicket[];
+  const menu = useMenu();
+  return useMemo(() => {
+    if (!enabled) return null;
+    const day = todayYmd();
+    return salesReport(tickets, { from: day, to: day }, { menu: new Map(menu.map((m) => [m.id, m])), payLabel: PAYMENT_LABEL });
+  }, [enabled, tickets, menu]);
+}
+
+/** Gráficos del día, como el inicio de Fudo: ventas por hora, medios de pago y lo más vendido. */
+function TodayCharts() {
+  const r = useTodaySales(true);
+  if (!r || !r.orders) return null;
+  return (
+    <section className="hm-block" aria-labelledby="hm-charts-title">
+      <h2 id="hm-charts-title" className="hm-block-title">Ventas de hoy</h2>
+      <div className="sales-grid hm-charts">
+        <Hours rows={r.byHour} />
+        <Bars id="hm-pay" title="Medios de pago" rows={r.byPayment} />
+        <Bars id="hm-top" title="Lo más vendido" rows={r.items.slice(0, 6).map((i) => ({ key: i.key, label: `${fmtNumber(i.qty)} × ${i.name}`, count: i.qty, total: i.revenue }))} />
+      </div>
+    </section>
+  );
+}
+
+// ───────────────────────── Menú completo (como Fudo) ─────────────────────────
+
+interface MenuEntry { key: string; label: string; icon: LucideIcon; to: string; area: 'salon' | 'stock' }
+
+/** Todo el menú agrupado como en Fudo; el Stock es el grupo propio de Orillas. */
+function MenuMap() {
   const settings = useSettings();
   const { canAny } = useSession();
   const visible = visibleModules(settings, canAny);
-  const salon = salonItems(visible, canAny).filter((i) => i.key !== 'inicio');
-  const stock = visibleSections(settings, visible.filter((k) => !SALON_MODULES.has(k))).filter((s) => s.key !== 'inicio');
-  if (!salon.length && !stock.length) return null;
+  const groups = new Map<MenuGroup, MenuEntry[]>(MENU_GROUPS.map((g) => [g.key, []]));
+  for (const i of salonItems(visible, canAny)) {
+    if (i.key === 'inicio' || !i.group) continue;
+    groups.get(i.group)!.push({ key: `s-${i.key}`, label: i.key === 'config' ? 'Configuración del salón' : i.label, icon: i.icon, to: i.to, area: 'salon' });
+  }
+  for (const s of visibleSections(settings, visible.filter((k) => !SALON_MODULES.has(k)))) {
+    if (!s.group) continue;
+    for (const k of s.tabs) {
+      groups.get(s.group)!.push({ key: k, label: k === 'settings' ? 'Configuración general' : k === 'products' ? 'Productos e insumos' : navLabel(settings, k), icon: MODULE_ICON[k], to: MODULE_PATH[k], area: 'stock' });
+    }
+    if (s.key === 'stock' && s.tabs.includes('stock')) groups.get('reportes')!.push({ key: 'consumo', label: 'Consumo y mermas', icon: TrendingDown, to: '/stock/consumo', area: 'stock' });
+  }
+  const list = MENU_GROUPS.filter((g) => groups.get(g.key)!.length);
+  if (!list.length) return null;
   return (
-    <>
-      {salon.length > 0 && (
-        <section className="hm-block" aria-labelledby="hm-menu-salon">
-          <h2 id="hm-menu-salon" className="hm-block-title"><UtensilsCrossed size={20} aria-hidden /> Salón</h2>
-          <nav className="hm-menu" aria-label="Menú del Salón">
-            {salon.map((i) => (
-              <Link key={i.key} to={i.to} className="hm-go" onClick={() => writeArea('salon')}>
-                <span className="hm-go-icon"><i.icon size={26} aria-hidden /></span>
-                <span className="hm-go-text"><span className="hm-go-label">{i.label}</span><span className="hm-go-hint">{SALON_HINT[i.key]}</span></span>
+    <section className="hm-block" aria-labelledby="hm-menu-title">
+      <h2 id="hm-menu-title" className="hm-block-title">Menú</h2>
+      <div className="hm-map">
+        {list.map((g) => (
+          <nav key={g.key} className={`hm-map-group is-${g.key}`} aria-label={`Menú: ${g.label}`}>
+            <h3 className="hm-map-title">{g.label}</h3>
+            {groups.get(g.key)!.map((e) => (
+              <Link key={e.key} to={e.to} className="hm-map-link" onClick={() => writeArea(e.area)}>
+                <e.icon size={20} aria-hidden />
+                <span>{e.label}</span>
+                <ChevronRight size={18} aria-hidden className="hm-map-chev" />
               </Link>
             ))}
           </nav>
-        </section>
-      )}
-      {stock.length > 0 && (
-        <section className="hm-block" aria-labelledby="hm-menu-stock">
-          <h2 id="hm-menu-stock" className="hm-block-title"><Boxes size={20} aria-hidden /> Stock</h2>
-          <nav className="hm-menu" aria-label="Menú del Stock">
-            {stock.map((s) => (
-              <div key={s.key} className="hm-go-wrap">
-                <Link to={MODULE_PATH[s.tabs[0]]} className="hm-go" onClick={() => writeArea('stock')}>
-                  <span className="hm-go-icon"><s.icon size={26} aria-hidden /></span>
-                  <span className="hm-go-text"><span className="hm-go-label">{s.label}</span><span className="hm-go-hint">{STOCK_HINT[s.key]}</span></span>
-                </Link>
-                {s.tabs.length > 1 && (
-                  <span className="hm-go-subs">
-                    {s.tabs.slice(1).map((k) => <Link key={k} to={MODULE_PATH[k]} className="hm-sub" onClick={() => writeArea('stock')}>{navLabel(settings, k)}</Link>)}
-                  </span>
-                )}
-              </div>
-            ))}
-          </nav>
-        </section>
-      )}
-    </>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -223,6 +254,10 @@ function Top({ name, business }: { name: string; business: string }) {
 interface Action { label: string; hint: string; to: string; icon: LucideIcon; tone: Tone; perms: Permission[]; module?: ModuleKey }
 
 const ACTIONS: Action[] = [
+  { label: 'Mesas', hint: 'Plano y pedidos', to: '/salon', icon: Armchair, tone: 'petrol', perms: MODULE_PERMISSIONS.salon, module: 'salon' },
+  { label: 'Mostrador', hint: 'Para llevar y delivery', to: '/salon?vista=mostrador', icon: Store, tone: 'petrol', perms: MODULE_PERMISSIONS.salon, module: 'salon' },
+  { label: 'Cocina', hint: 'Comandas', to: '/cocina', icon: CookingPot, tone: 'amber', perms: MODULE_PERMISSIONS.kitchen, module: 'kitchen' },
+  { label: 'Caja', hint: 'Abrir, cerrar, arqueo', to: '/salon?vista=caja', icon: Wallet, tone: 'emerald', perms: ['billing', 'admin'], module: 'salon' },
   { label: 'Anotar producción', hint: 'Lo que salió del horno', to: '/produccion', icon: ChefHat, tone: 'emerald', perms: ['production'], module: 'production' },
   { label: 'Cámara', hint: 'Lo congelado y lo que se saca', to: '/camara', icon: Snowflake, tone: 'blue', perms: MODULE_PERMISSIONS.showcase, module: 'showcase' },
   { label: 'Foto de factura', hint: 'Para el administrativo', to: '/facturas?nueva=1', icon: Camera, tone: 'amber', perms: ['invoices'], module: 'invoices' },

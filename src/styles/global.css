@@ -1564,3 +1564,26 @@ a.hm-row:hover { background: var(--surface-2); }
 /* En el celular, los accesos rápidos también con su texto bien legible. */
 .hm-action-label { font-size: 0.86rem; }
 @media (max-width: 1023px) { .hm-actions { grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); } }
+
+/* Títulos de grupo en la barra lateral (Ventas, Productos, Stock…), como en Fudo. */
+.side-group { display: block; margin: 12px 12px 2px; font-size: 0.72rem; font-weight: 700; letter-spacing: .04em; color: var(--bar-text); opacity: .7; }
+.side-group:first-child { margin-top: 4px; }
+
+/* ── Inicio estilo Fudo: menú agrupado ── */
+.hm-map { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 250px), 1fr)); gap: 12px; align-items: start; }
+.hm-map-group { display: flex; flex-direction: column; border-radius: var(--hm-radius); background: var(--surface); border: 1px solid var(--border); overflow: hidden; }
+.hm-map-title { margin: 0; padding: 12px 14px 8px; font-size: 0.95rem; font-weight: 700; color: var(--primary-fg); border-bottom: 1px solid var(--border); }
+.hm-map-group.is-stock { border-color: var(--primary); }
+.hm-map-group.is-stock .hm-map-title { background: var(--primary); color: var(--primary-ink, #fff); border-bottom-color: var(--primary); }
+.hm-map-link { display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 8px 14px; color: var(--text); text-decoration: none; font-weight: 600; font-size: 1rem; border-top: 1px solid var(--border); }
+.hm-map-title + .hm-map-link { border-top: 0; }
+.hm-map-link > svg:first-child { color: var(--primary-fg); flex: none; }
+.hm-map-link span { flex: 1; min-width: 0; }
+.hm-map-chev { color: var(--text-3); flex: none; }
+.hm-map-link:hover { background: var(--surface-2); }
+.hm-map-link:focus-visible { outline: 3px solid var(--primary); outline-offset: -3px; }
+.hm-now.is-big .hm-now-value { font-size: 1.6rem; }
+.hm-charts { margin-top: 0; }
+.hm-quick .hm-action-icon { width: 56px; height: 56px; }
+@media (min-width: 640px) { .hm-now.is-big { grid-column: span 2; } }
+.hm-now-value { overflow-wrap: anywhere; }

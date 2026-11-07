@@ -1,5 +1,5 @@
 import { ChevronLeft, ChevronRight, CloudOff, HelpCircle, LayoutGrid, Search, Sparkles, UploadCloud } from 'lucide-react';
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useEffect, useState, type ReactNode } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router';
 import { GlobalSearch } from '../components/GlobalSearch';
 import { Logo } from '../components/Logo';
@@ -10,7 +10,7 @@ import { useFeedback } from '../store/feedback';
 import { useSettings } from '../store/settings';
 import {
   AREA_ICON, AREA_LABEL, MODULE_ICON, MODULE_PATH, SALON_MODULES, activeSalonItem, areaHome, areaOfModule, areasFor, bottomNavModules, moduleOfPath, navLabel, readArea, salonItems,
-  soleModule, visibleModules, visibleSections, writeArea, type Area, type SalonItem, type VisibleSection,
+  soleModule, visibleModules, visibleSections, writeArea, MENU_GROUPS, type Area, type MenuGroup, type SalonItem, type VisibleSection,
 } from './modules';
 import { useAutoSync } from '../hooks/useAutoSync';
 import { SyncBadge } from '../components/SyncBadge';
@@ -258,8 +258,8 @@ function Sidebar({ sections, salon, area, areas, onArea, home, active, collapsed
         ? <button type="button" className="side-item side-area" onClick={() => onArea(area === 'stock' ? 'salon' : 'stock')} title={`Ir a ${AREA_LABEL[area === 'stock' ? 'salon' : 'stock']}`} aria-label={`Ir a ${AREA_LABEL[area === 'stock' ? 'salon' : 'stock']}`}>{area === 'stock' ? <AREA_ICON.salon size={20} aria-hidden /> : <AREA_ICON.stock size={20} aria-hidden />}</button>
         : <AreaSwitch area={area} onChange={onArea} className="area-switch-side" />)}
       <nav className="side-nav" aria-label={area === 'salon' ? 'Navegación: Salón' : 'Navegación principal'}>
-        {sections.filter((s) => !s.bottom).map(item)}
-        {salon.filter((i) => !i.bottom).map(salonItem)}
+        {withGroups(sections.filter((s) => !s.bottom), item, collapsed)}
+        {withGroups(salon.filter((i) => !i.bottom), salonItem, collapsed)}
         {assistant && (
           <Link to="/asistente" className={`side-item ${active === 'asistente' ? 'active' : ''}`} aria-current={active === 'asistente' ? 'page' : undefined} title={collapsed ? 'Asistente IA' : undefined}>
             <Sparkles size={20} aria-hidden />
@@ -276,6 +276,18 @@ function Sidebar({ sections, salon, area, areas, onArea, home, active, collapsed
       </nav>
     </aside>
   );
+}
+
+/** Entradas de la barra lateral con el título de su grupo (Ventas, Productos, Stock…), como en Fudo. */
+function withGroups<T extends { key: string; group?: MenuGroup }>(list: T[], render: (x: T) => ReactNode, collapsed: boolean): ReactNode[] {
+  const out: ReactNode[] = [];
+  let last: MenuGroup | undefined;
+  for (const x of list) {
+    if (x.group && x.group !== last && !collapsed) out.push(<span key={`g-${x.group}`} className="side-group" aria-hidden>{MENU_GROUPS.find((g) => g.key === x.group)?.label}</span>);
+    last = x.group ?? last;
+    out.push(render(x));
+  }
+  return out;
 }
 
 /** Pestañas con los módulos de la sección actual (p. ej. Productos · Familias · Unidades · Ubicaciones). */

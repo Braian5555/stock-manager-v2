@@ -15,25 +15,31 @@ test('inicio: ahora, menú completo (Salón primero), accesos y lo del día con 
   // Encabezado: iniciales y saludo con el nombre.
   await expect(page.getByRole('heading', { level: 1, name: /^(Buen día|Buenas tardes|Buenas noches), Admin$/ })).toBeVisible();
 
-  // Ahora: cómo está el negocio, cada dato lleva a donde se resuelve.
-  const now = page.getByRole('region', { name: 'Ahora' });
+  // Hoy: ventas del día y cómo está el negocio; cada dato lleva a donde se resuelve.
+  const now = page.getByRole('region', { name: 'Hoy' });
+  await expect(now.getByRole('link', { name: /vendido hoy/ })).toBeVisible();
+  await expect(now.getByRole('link', { name: /ticket promedio/ })).toBeVisible();
   await expect(now.getByRole('link', { name: /en negativo/ })).toBeVisible();
   await expect(now.getByRole('link', { name: /para reponer/ })).toBeVisible();
   await expect(now.getByRole('link', { name: /en la cámara/ })).toBeVisible();
   await expect(now.getByRole('link', { name: /mesas ocupadas|Armar las mesas/ })).toBeVisible();
   await expect(now.getByRole('link', { name: /caja/ })).toContainText('Cerrada');
 
-  // Menú completo: primero el Salón y después el Stock, con botones grandes.
-  const menus = page.getByRole('navigation', { name: /^Menú del/ });
-  await expect(menus.first()).toHaveAccessibleName('Menú del Salón');
-  const salon = page.getByRole('navigation', { name: 'Menú del Salón' });
-  for (const n of ['Mesas', 'Mostrador', 'Cocina', 'Caja', 'Carta', 'Reportes', 'Comprobantes']) await expect(salon.getByRole('link', { name: new RegExp(`^${n}`) })).toBeVisible();
-  const stock = page.getByRole('navigation', { name: 'Menú del Stock' });
-  for (const n of ['Stock', 'Conteo', 'Movimientos', 'Panadería', 'Cámara', 'Productos', 'Compras', 'Pedidos', 'Proveedores']) await expect(stock.getByRole('link', { name: new RegExp(`^${n}`) }).first()).toBeVisible();
+  // Menú agrupado como en Fudo: Ventas, Productos, Stock, Compras y gastos, Reportes, Administración.
+  const groups = page.getByRole('navigation', { name: /^Menú: / });
+  await expect(groups).toHaveCount(6);
+  await expect(groups.first()).toHaveAccessibleName('Menú: Ventas');
+  const menu = (g: string) => page.getByRole('navigation', { name: `Menú: ${g}` });
+  for (const n of ['Mesas', 'Mostrador', 'Cocina', 'Caja', 'Ventas de hoy', 'Comprobantes']) await expect(menu('Ventas').getByRole('link', { name: n, exact: true })).toBeVisible();
+  for (const n of ['Carta', 'Productos e insumos']) await expect(menu('Productos').getByRole('link', { name: n, exact: true })).toBeVisible();
+  for (const n of ['Stock', 'Conteo', 'Movimientos', 'Panadería', 'Cámara']) await expect(menu('Stock').getByRole('link', { name: n, exact: true })).toBeVisible();
+  for (const n of ['Facturas', 'Pedidos', 'Proveedores']) await expect(menu('Compras y gastos').getByRole('link', { name: n, exact: true })).toBeVisible();
+  for (const n of ['Reportes', 'Consumo y mermas']) await expect(menu('Reportes').getByRole('link', { name: n, exact: true })).toBeVisible();
+  for (const n of ['Configuración del salón', 'Configuración general', 'Usuarios']) await expect(menu('Administración').getByRole('link', { name: n, exact: true })).toBeVisible();
 
   // Accesos rápidos según permisos (administrador: todos).
   const actions = page.getByRole('navigation', { name: 'Acciones rápidas' });
-  for (const a of ['Anotar producción', 'Cámara', 'Foto de factura', 'Contar stock', 'Ver stock']) await expect(actions.getByRole('link', { name: new RegExp(`^${a}`) })).toBeVisible();
+  for (const a of ['Mesas', 'Mostrador', 'Cocina', 'Caja', 'Anotar producción', 'Cámara', 'Foto de factura', 'Contar stock', 'Ver stock']) await expect(actions.getByRole('link', { name: new RegExp(`^${a}`) })).toBeVisible();
 
   // Lo del día: panadería y para reponer.
   const bakery = page.getByRole('region', { name: 'Panadería de hoy' });
@@ -78,5 +84,5 @@ test('inicio: el encargado sin facturas ni producción ve sólo lo que puede usa
   await expect(actions.getByRole('link', { name: /^Contar stock/ })).toBeVisible();
   for (const a of ['Anotar producción', 'Cámara']) await expect(actions.getByRole('link', { name: new RegExp(`^${a}`) })).toHaveCount(0);
   await expect(page.getByRole('region', { name: 'Panadería de hoy' })).toHaveCount(0);
-  await expect(page.getByRole('navigation', { name: 'Menú del Stock' }).getByRole('link', { name: /^Panadería/ })).toHaveCount(0);
+  await expect(page.getByRole('navigation', { name: 'Menú: Stock' }).getByRole('link', { name: 'Panadería', exact: true })).toHaveCount(0);
 });

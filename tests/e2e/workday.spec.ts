@@ -184,7 +184,7 @@ test('cada rol en cada pantalla: sin errores, con permisos y sin desbordes en el
       const actions = page.getByRole('navigation', { name: 'Acciones rápidas' });
       await expect(actions).toBeVisible();
       await expect(actions.getByRole('link', { name: /^Cámara/ })).toHaveCount(name === 'Cajero' ? 0 : 1);
-      await expect(page.getByRole('navigation', { name: 'Menú del Stock' })).toBeVisible();
+      await expect(page.getByRole('navigation', { name: 'Menú: Stock' })).toBeVisible();
     }
   }
   expect(overflow).toEqual([]);

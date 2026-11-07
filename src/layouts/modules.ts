@@ -189,18 +189,31 @@ export interface Section {
   modules: ModuleKey[];
   /** Va abajo en la barra lateral (configuración). */
   bottom?: boolean;
+  /** Grupo del menú (como en Fudo): Ventas, Productos, Stock, Compras, Reportes, Administración. */
+  group?: MenuGroup;
 }
+
+/** Grupos del menú, ordenados como en Fudo; Orillas suma el grupo Stock. */
+export type MenuGroup = 'ventas' | 'productos' | 'stock' | 'compras' | 'reportes' | 'admin';
+export const MENU_GROUPS: { key: MenuGroup; label: string }[] = [
+  { key: 'ventas', label: 'Ventas' },
+  { key: 'productos', label: 'Productos' },
+  { key: 'stock', label: 'Stock' },
+  { key: 'compras', label: 'Compras y gastos' },
+  { key: 'reportes', label: 'Reportes' },
+  { key: 'admin', label: 'Administración' },
+];
 
 /** Cada sección agrupa módulos relacionados, que se muestran como pestañas arriba. */
 export const SECTIONS: Section[] = [
   { key: 'inicio', icon: Home, modules: ['dashboard'] },
-  { key: 'stock', icon: Boxes, modules: ['stock', 'movements', 'count', 'reconciliation'] },
-  { key: 'produccion', icon: ChefHat, modules: ['production'] },
-  { key: 'pasteleria', icon: CakeSlice, modules: ['pastry'] },
-  { key: 'camara', icon: Snowflake, modules: ['showcase'] },
-  { key: 'productos', icon: Package, modules: ['products', 'categories', 'units', 'locations'] },
-  { key: 'compras', icon: Receipt, label: 'Compras', modules: ['invoices', 'orders', 'suppliers'] },
-  { key: 'config', icon: SettingsIcon, modules: ['settings', 'users', 'cloud', 'export', 'integrations', 'diagnostics'], bottom: true },
+  { key: 'stock', icon: Boxes, modules: ['stock', 'movements', 'count', 'reconciliation'], group: 'stock' },
+  { key: 'produccion', icon: ChefHat, modules: ['production'], group: 'stock' },
+  { key: 'pasteleria', icon: CakeSlice, modules: ['pastry'], group: 'stock' },
+  { key: 'camara', icon: Snowflake, modules: ['showcase'], group: 'stock' },
+  { key: 'productos', icon: Package, modules: ['products', 'categories', 'units', 'locations'], group: 'productos' },
+  { key: 'compras', icon: Receipt, label: 'Compras', modules: ['invoices', 'orders', 'suppliers'], group: 'compras' },
+  { key: 'config', icon: SettingsIcon, modules: ['settings', 'users', 'cloud', 'export', 'integrations', 'diagnostics'], bottom: true, group: 'admin' },
 ];
 
 export interface VisibleSection extends Section {
@@ -248,18 +261,18 @@ export const AREA_ICON: Record<Area, LucideIcon> = { stock: Boxes, salon: Utensi
 export const areaOfModule = (k?: ModuleKey): Area | undefined => (!k || k === 'dashboard' ? undefined : SALON_MODULES.has(k) ? 'salon' : 'stock');
 
 /** Entradas del menú del Salón: cada vista es una sección propia. */
-export interface SalonItem { key: string; label: string; icon: LucideIcon; to: string; module: ModuleKey; perms?: Permission[]; bottom?: boolean }
+export interface SalonItem { key: string; label: string; icon: LucideIcon; to: string; module: ModuleKey; perms?: Permission[]; bottom?: boolean; group?: MenuGroup }
 export const SALON_NAV: SalonItem[] = [
   { key: 'inicio', label: 'Inicio', icon: Home, to: '/', module: 'dashboard' },
-  { key: 'mesas', label: 'Mesas', icon: Armchair, to: '/salon', module: 'salon' },
-  { key: 'mostrador', label: 'Mostrador', icon: Store, to: '/salon?vista=mostrador', module: 'salon' },
-  { key: 'cocina', label: 'Cocina', icon: CookingPot, to: '/cocina', module: 'kitchen' },
-  { key: 'caja', label: 'Caja', icon: Wallet, to: '/salon?vista=caja', module: 'salon', perms: ['billing', 'admin'] },
-  { key: 'carta', label: 'Carta', icon: BookOpen, to: '/salon?vista=carta', module: 'salon' },
-  { key: 'hoy', label: 'Ventas de hoy', icon: BarChart3, to: '/salon?vista=hoy', module: 'salon' },
-  { key: 'reportes', label: 'Reportes', icon: LineChart, to: '/salon?vista=reportes', module: 'salon', perms: ['billing', 'admin'] },
-  { key: 'comprobantes', label: 'Comprobantes', icon: ReceiptText, to: '/comprobantes', module: 'fiscal' },
-  { key: 'config', label: 'Configuración', icon: SettingsIcon, to: '/salon/configuracion', module: 'salonConfig', bottom: true },
+  { key: 'mesas', label: 'Mesas', icon: Armchair, to: '/salon', module: 'salon', group: 'ventas' },
+  { key: 'mostrador', label: 'Mostrador', icon: Store, to: '/salon?vista=mostrador', module: 'salon', group: 'ventas' },
+  { key: 'cocina', label: 'Cocina', icon: CookingPot, to: '/cocina', module: 'kitchen', group: 'ventas' },
+  { key: 'caja', label: 'Caja', icon: Wallet, to: '/salon?vista=caja', module: 'salon', perms: ['billing', 'admin'], group: 'ventas' },
+  { key: 'hoy', label: 'Ventas de hoy', icon: BarChart3, to: '/salon?vista=hoy', module: 'salon', group: 'ventas' },
+  { key: 'comprobantes', label: 'Comprobantes', icon: ReceiptText, to: '/comprobantes', module: 'fiscal', group: 'ventas' },
+  { key: 'carta', label: 'Carta', icon: BookOpen, to: '/salon?vista=carta', module: 'salon', group: 'productos' },
+  { key: 'reportes', label: 'Reportes', icon: LineChart, to: '/salon?vista=reportes', module: 'salon', perms: ['billing', 'admin'], group: 'reportes' },
+  { key: 'config', label: 'Configuración', icon: SettingsIcon, to: '/salon/configuracion', module: 'salonConfig', bottom: true, group: 'admin' },
 ];
 export const SALON_VIEWS = ['mesas', 'mostrador', 'caja', 'carta', 'hoy', 'reportes'] as const;
 export type SalonView = (typeof SALON_VIEWS)[number];

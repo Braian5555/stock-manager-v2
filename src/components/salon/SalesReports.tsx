@@ -117,7 +117,7 @@ export function SalesReports() {
   );
 }
 
-function Bars({ id, title, rows, sub, keepOrder }: { id: string; title: string; rows: Bucket[]; sub?: (b: Bucket) => string; keepOrder?: boolean }) {
+export function Bars({ id, title, rows, sub, keepOrder }: { id: string; title: string; rows: Bucket[]; sub?: (b: Bucket) => string; keepOrder?: boolean }) {
   if (!rows.length) return null;
   const max = Math.max(...rows.map((r) => r.total), 1);
   const list = keepOrder ? rows : rows.slice(0, 10);
@@ -138,7 +138,7 @@ function Bars({ id, title, rows, sub, keepOrder }: { id: string; title: string; 
   );
 }
 
-function Hours({ rows }: { rows: Bucket[] }) {
+export function Hours({ rows }: { rows: Bucket[] }) {
   if (!rows.length) return null;
   const max = Math.max(...rows.map((r) => r.total), 1);
   const first = Number(rows[0].key), last = Number(rows[rows.length - 1].key);

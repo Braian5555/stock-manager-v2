@@ -28,7 +28,7 @@ test('salón tipo Fudo: caja, plano, adicionales, descuento, cuenta dividida, de
   await loadDemo(page);
   // Desde el Inicio se entra al Salón con el menú grande.
   await go(page, '/');
-  await page.getByRole('navigation', { name: 'Menú del Salón' }).getByRole('link', { name: /^Mesas/ }).click();
+  await page.getByRole('navigation', { name: 'Menú: Ventas' }).getByRole('link', { name: 'Mesas', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Mesas', level: 1 })).toBeVisible();
   await expect(page.getByRole('group', { name: 'Área' }).first().getByRole('button', { name: 'Salón' })).toHaveAttribute('aria-pressed', 'true');
   await page.getByLabel('Cantidad de mesas').fill('4');
