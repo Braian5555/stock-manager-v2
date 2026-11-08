@@ -45,6 +45,9 @@ describe('locales: cada local con lo suyo, sin cruzarse', () => {
     expect(inLocal(pizza)).toBe(false);
     expect(inLocal(tx)).toBe(false);
     expect(await openSession()).toBeUndefined();
+    // Las mesas y la carta del Kiosco se arman aunque se repitan números o nombres del Xenote.
+    expect(await addNumberedTables(1, 2, 'Salón')).toBe(2);
+    expect((await saveMenuItem({ name: 'Pizza', section: 'Platos', price: 8000, kitchen: false })).outletId).toBe(kiosco.id);
     const cajaK = await openCash(0);
     expect(cajaK.number).toBe(1);
     expect(cajaK.outletId).toBe(kiosco.id);

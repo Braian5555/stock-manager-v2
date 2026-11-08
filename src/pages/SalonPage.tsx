@@ -190,7 +190,7 @@ function FirstTables() {
       <EmptyState icon={<UtensilsCrossed size={40} />} title="Armá el salón">
         Creá las mesas numeradas de una vez. Después podés cambiarles el nombre, el sector o sumar más.
       </EmptyState>
-      <form className="salon-first" onSubmit={(e) => { e.preventDefault(); void run(() => addNumberedTables(1, to ?? 0, zone), 'Mesas creadas'); }}>
+      <form className="salon-first" onSubmit={(e) => { e.preventDefault(); void run(async () => { if (!(await addNumberedTables(1, to ?? 0, zone))) throw new Error('Esas mesas ya existen en este local.'); }, 'Mesas creadas'); }}>
         <Field label="Cantidad de mesas"><NumberInput value={to} onChange={setTo} min={1} /></Field>
         <Field label="Sector"><Input value={zone} onChange={(e) => setZone(e.target.value)} placeholder="Salón, Terraza…" /></Field>
         <button type="submit" className="btn btn-primary"><Plus size={18} aria-hidden /> Crear mesas</button>
@@ -240,7 +240,7 @@ function TablesModal({ onClose, tables, busy }: { onClose: () => void; tables: D
           <button type="button" className="btn" onClick={() => setEdit({ name: '', zone: zones[0] ?? 'Salón' })}><Plus size={16} aria-hidden /> Una mesa</button>
         </div>
         <h3 className="salon-sub">Agregar varias numeradas</h3>
-        <form className="salon-first" onSubmit={(e) => { e.preventDefault(); void run(async () => { const n = await addNumberedTables(from ?? 0, to ?? 0, zone); return n; }, 'Mesas agregadas'); }}>
+        <form className="salon-first" onSubmit={(e) => { e.preventDefault(); void run(async () => { if (!(await addNumberedTables(from ?? 0, to ?? 0, zone))) throw new Error('Esas mesas ya existen en este local.'); }, 'Mesas agregadas'); }}>
           <Field label="Desde"><NumberInput value={from} onChange={setFrom} min={1} /></Field>
           <Field label="Hasta"><NumberInput value={to} onChange={setTo} min={1} /></Field>
           <Field label="Sector"><Input list="salon-zones" value={zone} onChange={(e) => setZone(e.target.value)} /></Field>

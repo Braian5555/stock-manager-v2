@@ -12,6 +12,7 @@ import { nowIso, uuid } from '../utils/id';
 import { saveEntity, type Draft } from './entityService';
 import { consumeTicketStock } from './saleStockService';
 import { getCurrentActor } from './userService';
+import { inLocal } from './localScope';
 
 const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 /** Suma de lo que se cobra (sin anulados ni cortesías). */
@@ -39,7 +40,8 @@ export async function saveTable(d: { id?: string; name: string; zone: string; se
   const name = d.name.trim();
   if (!name) throw new Error('Poné el nombre o número de la mesa.');
   const zone = d.zone.trim() || 'Salón';
-  const all = await db.diningTables.toArray();
+  // Cada local tiene sus mesas: los números se pueden repetir entre locales.
+  const all = (await db.diningTables.toArray()).filter(inLocal);
   if (all.some((t) => t.id !== d.id && t.active && t.name.toLocaleLowerCase('es') === name.toLocaleLowerCase('es')))
     throw new Error(`Ya hay una mesa "${name}".`);
   const prev = d.id ? all.find((t) => t.id === d.id) : undefined;
@@ -74,7 +76,7 @@ export async function placeTable(id: string, p: { x?: number; y?: number; shape?
 export async function addNumberedTables(from: number, to: number, zone: string): Promise<number> {
   if (!Number.isInteger(from) || !Number.isInteger(to) || from < 1 || to < from) throw new Error('Revisá los números de mesa.');
   if (to - from > 99) throw new Error('Son demasiadas mesas de una vez (hasta 100).');
-  const names = new Set((await db.diningTables.toArray()).filter((t) => t.active).map((t) => t.name.toLocaleLowerCase('es')));
+  const names = new Set((await db.diningTables.toArray()).filter((t) => t.active && inLocal(t)).map((t) => t.name.toLocaleLowerCase('es')));
   let added = 0;
   for (let n = from; n <= to; n++) {
     if (names.has(String(n))) continue;
@@ -116,7 +118,8 @@ export async function saveMenuItem(d: { id?: string; name: string; section: stri
   const name = d.name.trim();
   if (!name) throw new Error('Poné el nombre del plato o la bebida.');
   if (!Number.isFinite(d.price) || d.price < 0) throw new Error('El precio no es válido.');
-  const all = await db.menuItems.toArray();
+  // Cada local tiene su carta: el mismo plato puede estar en varios locales.
+  const all = (await db.menuItems.toArray()).filter(inLocal);
   if (all.some((m) => m.id !== d.id && m.active && m.name.toLocaleLowerCase('es') === name.toLocaleLowerCase('es')))
     throw new Error(`"${name}" ya está en la carta.`);
   const extras = (d.extras ?? []).map((e) => ({ name: e.name.trim(), price: round2(Number(e.price) || 0) })).filter((e) => e.name);
@@ -166,7 +169,8 @@ async function nextNumber() {
   // Número correlativo del día (mesas y mostrador comparten la numeración).
   const start = new Date();
   start.setHours(0, 0, 0, 0);
-  const today = await db.tickets.where('openedAt').aboveOrEqual(start.toISOString()).toArray();
+  // Cada local numera sus pedidos.
+  const today = await db.tickets.where('openedAt').aboveOrEqual(start.toISOString()).filter(inLocal).toArray();
   return today.reduce((m, x) => Math.max(m, x.number), 0) + 1;
 }
 
