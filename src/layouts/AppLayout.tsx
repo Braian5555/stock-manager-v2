@@ -1,5 +1,5 @@
-import { Boxes, ChevronLeft, CloudOff, LayoutGrid, LineChart, Package, Receipt, Search, Settings as SettingsIcon, Sparkles, UploadCloud, type LucideIcon } from 'lucide-react';
-import { Suspense, useEffect, useState } from 'react';
+import { Boxes, ChevronLeft, ChevronRight, CloudOff, LayoutGrid, LineChart, Package, Receipt, Search, Settings as SettingsIcon, Sparkles, UploadCloud, type LucideIcon } from 'lucide-react';
+import { Suspense, useEffect, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router';
 import { GlobalSearch } from '../components/GlobalSearch';
 import { Logo } from '../components/Logo';
@@ -251,19 +251,43 @@ function topItems(groups: MenuGroupEntries[]): TopItem[] {
 /** Barra de arriba (computadora): Salón, Mostrador, Cocina, Caja y los grupos. */
 function MainNav({ groups, active }: { groups: MenuGroupEntries[]; active?: string }) {
   const items = topItems(groups);
+  const ref = useRef<HTMLElement>(null);
+  const [edge, setEdge] = useState({ left: false, right: false });
+  // Si no entra todo, aparecen flechas para correr la barra (y ver lo que sigue).
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const update = () => setEdge({ left: el.scrollLeft > 4, right: el.scrollLeft + el.clientWidth < el.scrollWidth - 4 });
+    update();
+    el.addEventListener('scroll', update, { passive: true });
+    // También cuando cambia el ancho de los botones (fuentes que cargan, letra más grande…).
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    for (const c of el.children) ro.observe(c, { box: 'border-box' });
+    void document.fonts?.ready.then(update);
+    window.addEventListener('resize', update);
+    return () => { el.removeEventListener('scroll', update); window.removeEventListener('resize', update); ro.disconnect(); };
+  }, [items.length]);
+  // La sección activa siempre a la vista.
+  useEffect(() => { ref.current?.querySelector<HTMLElement>('.main-nav-item.active')?.scrollIntoView({ block: 'nearest', inline: 'nearest' }); }, [active]);
   if (!items.length) return null;
+  const move = (dir: 1 | -1) => ref.current?.scrollBy({ left: dir * Math.max(160, (ref.current.clientWidth * 2) / 3), behavior: 'smooth' });
   return (
-    <nav className="main-nav" aria-label="Menú principal">
-      {items.map((i) => {
-        const on = !!active && i.keys.includes(active);
-        return (
-          <Link key={i.key} to={i.to} className={`main-nav-item ${on ? 'active' : ''} ${i.key === 'g-admin' ? 'is-icon' : ''}`} aria-current={on ? 'page' : undefined} title={i.key === 'g-admin' ? i.label : undefined} onClick={() => writeArea(i.area)}>
-            <i.icon size={18} aria-hidden />
-            <span>{i.label}</span>
-          </Link>
-        );
-      })}
-    </nav>
+    <div className="main-nav-wrap">
+      {edge.left && <button type="button" className="main-nav-arrow is-left" aria-label="Ver secciones anteriores" onClick={() => move(-1)}><ChevronLeft size={20} aria-hidden /></button>}
+      <nav ref={ref} className="main-nav" aria-label="Menú principal">
+        {items.map((i) => {
+          const on = !!active && i.keys.includes(active);
+          return (
+            <Link key={i.key} to={i.to} className={`main-nav-item ${on ? 'active' : ''} ${i.key === 'g-admin' ? 'is-icon' : ''}`} aria-current={on ? 'page' : undefined} title={i.key === 'g-admin' ? i.label : undefined} onClick={() => writeArea(i.area)}>
+              <i.icon size={18} aria-hidden />
+              <span>{i.label}</span>
+            </Link>
+          );
+        })}
+      </nav>
+      {edge.right && <button type="button" className="main-nav-arrow is-right" aria-label="Ver más secciones" onClick={() => move(1)}><ChevronRight size={20} aria-hidden /></button>}
+    </div>
   );
 }
 
