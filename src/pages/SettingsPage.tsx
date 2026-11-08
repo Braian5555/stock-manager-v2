@@ -245,27 +245,54 @@ function TicketHeaderCard() {
  * impresora predeterminada de Windows. Se arma un acceso directo (.bat) que abre Orillas así, con
  * un perfil propio para la caja (no hace falta cerrar el Chrome de todos los días).
  */
+/**
+ * Instalador del acceso directo de la caja (Windows): un .bat que, con PowerShell, crea en el Escritorio
+ * "Orillas Caja (impresion directa)" con el logo de Orillas y lo abre. El acceso abre Chrome (o Edge)
+ * en una ventana propia con --kiosk-printing: los tickets salen sin el cuadro de impresión, en la
+ * impresora predeterminada de Windows.
+ */
+export function cashShortcutInstaller(appUrl: string): string {
+  const base = appUrl.replace(/#.*$/, '');
+  const q = (x: string) => `'${x.replace(/'/g, "''")}'`;
+  const ps = [
+    "$ErrorActionPreference = 'Stop'",
+    `$url = ${q(`${base}#/salon`)}`,
+    "$dir = Join-Path $env:LOCALAPPDATA 'Orillas-Caja'",
+    'New-Item -ItemType Directory -Force -Path $dir | Out-Null',
+    "$ico = Join-Path $dir 'orillas.ico'",
+    '[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12',
+    `try { Invoke-WebRequest -UseBasicParsing -Uri ${q(`${base}brand/orillas.ico`)} -OutFile $ico } catch {}`,
+    '$b = $null',
+    "foreach ($k in 'HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\chrome.exe','HKCU:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\chrome.exe','HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\msedge.exe','HKCU:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\msedge.exe') { if (-not $b -and (Test-Path $k)) { $b = (Get-ItemProperty $k).'(default)' } }",
+    "if (-not $b) { Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.MessageBox]::Show('No se encontró Google Chrome ni Microsoft Edge.', 'Orillas') | Out-Null; exit 1 }",
+    "$lnk = Join-Path ([Environment]::GetFolderPath('Desktop')) 'Orillas Caja (impresion directa).lnk'",
+    '$s = (New-Object -ComObject WScript.Shell).CreateShortcut($lnk)',
+    '$s.TargetPath = $b',
+    `$s.Arguments = '--kiosk-printing --user-data-dir="' + $dir + '" --app=' + $url`,
+    '$s.WorkingDirectory = Split-Path $b',
+    "if (Test-Path $ico) { $s.IconLocation = $ico + ',0' }",
+    "$s.Description = 'Orillas - caja con impresion directa'",
+    '$s.Save()',
+    'Start-Process -FilePath $lnk',
+  ].join('\n');
+  // PowerShell -EncodedCommand: el script en UTF-16LE y base64 (sin problemas de comillas en el .bat).
+  let bin = '';
+  for (let i = 0; i < ps.length; i++) { const c = ps.charCodeAt(i); bin += String.fromCharCode(c & 0xff, c >> 8); }
+  return [
+    '@echo off',
+    'rem Orillas: crea en el Escritorio el acceso "Orillas Caja (impresion directa)" con el logo y lo abre.',
+    'rem Los tickets salen sin el cuadro de impresion, en la impresora PREDETERMINADA de Windows.',
+    `powershell -NoProfile -ExecutionPolicy Bypass -EncodedCommand ${btoa(bin)}`,
+    '',
+  ].join('\r\n');
+}
+
 function DirectPrintCard() {
   const { run, notify } = useFeedback();
-  const url = `${location.origin}${location.pathname}#/salon`;
   const download = () => void run(async () => {
-    const bat = [
-      '@echo off',
-      'rem Orillas - caja con impresion directa: los tickets salen sin el cuadro de impresion,',
-      'rem en la impresora PREDETERMINADA de Windows (poner la termica POS-80C como predeterminada).',
-      `set "URL=${url}"`,
-      'set "PERFIL=%LOCALAPPDATA%\\Orillas-Caja"',
-      'set "B="',
-      // Primero Chrome (instalado para todos o sólo para este usuario), después Edge.
-      ...['chrome.exe', 'msedge.exe'].flatMap((exe) => ['HKLM', 'HKCU'].map((h) =>
-        `if not defined B for /f "tokens=2*" %%a in ('reg query "${h}\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\${exe}" /ve 2^>nul') do set "B=%%b"`)),
-      'if not defined B (echo No se encontro Google Chrome ni Microsoft Edge. & pause & exit /b 1)',
-      'start "" "%B%" --kiosk-printing --user-data-dir="%PERFIL%" --app="%URL%"',
-      '',
-    ].join('\r\n');
     const { downloadBlob } = await import('../exports/download');
-    downloadBlob(new Blob([bat], { type: 'application/octet-stream' }), 'Orillas - Caja (impresion directa).bat');
-    notify('Acceso directo descargado');
+    downloadBlob(new Blob([cashShortcutInstaller(`${location.origin}${location.pathname}`)], { type: 'application/octet-stream' }), 'Crear acceso Orillas Caja.bat');
+    notify('Instalador del acceso descargado');
   });
   return (
     <section className="card card-pad stack" aria-labelledby="direct-print">
@@ -273,10 +300,10 @@ function DirectPrintCard() {
       <p style={{ margin: 0 }}>Por seguridad, el navegador siempre muestra el cuadro de impresión. En la compu de la caja se puede saltear: Orillas se abre con un acceso directo especial y los tickets salen al toque en la térmica.</p>
       <ol style={{ margin: 0, paddingLeft: 20 }} className="stack-sm">
         <li>En Windows, poné la <b>POS-80C como impresora predeterminada</b> (Configuración → Bluetooth y dispositivos → Impresoras → POS-80C → Establecer como predeterminada; si está activado “Permitir que Windows administre mi impresora predeterminada”, desactivalo).</li>
-        <li>Descargá el acceso directo de abajo y guardalo en el Escritorio.</li>
-        <li>Abrí Orillas desde ese acceso directo (la primera vez pide entrar con tu cuenta). Desde ahí, todos los tickets se imprimen directo al tocar el botón.</li>
+        <li>Descargá el instalador de abajo y abrilo con doble clic: crea en el Escritorio el acceso <b>“Orillas Caja (impresion directa)”</b>, con el logo de Orillas, y lo abre. Si Windows avisa “Windows protegió su PC”, tocá “Más información” → “Ejecutar de todas formas”.</li>
+        <li>Desde ahí en adelante abrí Orillas con ese acceso (la primera vez pide entrar con tu cuenta). Todos los tickets se imprimen directo al tocar el botón.</li>
       </ol>
-      <div><button type="button" className="btn btn-primary" onClick={download}><Download size={18} aria-hidden /> Descargar acceso directo (Windows)</button></div>
+      <div><button type="button" className="btn btn-primary" onClick={download}><Download size={18} aria-hidden /> Descargar instalador del acceso (Windows)</button></div>
       <p className="small muted" style={{ margin: 0 }}>Funciona con Google Chrome o Microsoft Edge. Abierto de la forma normal, Orillas sigue mostrando el cuadro de impresión (sirve para elegir otra impresora).</p>
     </section>
   );

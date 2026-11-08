@@ -2,20 +2,25 @@ import { expect, test } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { go, loadDemo } from './helpers';
 
-test('impresión directa: descarga el acceso directo de la caja con --kiosk-printing', async ({ page, isMobile }) => {
+test('impresión directa: descarga el instalador que crea el acceso de la caja (logo + --kiosk-printing)', async ({ page, isMobile }) => {
   test.skip(isMobile, 'es para la compu de la caja');
   await loadDemo(page);
   await go(page, '/salon/configuracion/impresion');
   await expect(page.getByRole('heading', { name: 'Imprimir directo, sin el cuadro de impresión' })).toBeVisible();
-  const [file] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Descargar acceso directo (Windows)' }).click()]);
-  expect(file.suggestedFilename()).toBe('Orillas - Caja (impresion directa).bat');
+  const [file] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Descargar instalador del acceso (Windows)' }).click()]);
+  expect(file.suggestedFilename()).toBe('Crear acceso Orillas Caja.bat');
   const bat = readFileSync((await file.path())!, 'utf8');
-  expect(bat).toContain('--kiosk-printing');
-  expect(bat).toContain('--user-data-dir="%PERFIL%"');
-  expect(bat).toMatch(/set "URL=http:\/\/[^"]+\/#\/salon"/);
-  expect(bat).toContain('App Paths\\chrome.exe');
   expect(bat).toContain('\r\n');
-  console.log(bat);
+  const encoded = /-EncodedCommand (\S+)/.exec(bat)![1];
+  const ps = Buffer.from(encoded, 'base64').toString('utf16le');
+  expect(ps).toContain('--kiosk-printing');
+  expect(ps).toMatch(/\$url = 'http:\/\/[^']+\/#\/salon'/);
+  expect(ps).toMatch(/brand\/orillas\.ico/);
+  expect(ps).toContain('App Paths\\chrome.exe');
+  expect(ps).toContain("'Orillas Caja (impresion directa).lnk'");
+  // El ícono existe en la app publicada.
+  const ico = await page.request.get('./brand/orillas.ico');
+  expect(ico.ok()).toBe(true);
 });
 
 test('certificado de ARCA: genera la clave y el pedido (CSR) en el navegador y los descarga', async ({ page, isMobile }) => {
