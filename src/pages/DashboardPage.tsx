@@ -21,6 +21,7 @@ import { AttentionCard } from '../components/dashboard/AttentionCard';
 import { negativeProducts } from '../services/attentionService';
 import { fmtMoneyShort, fmtNumber } from '../utils/format';
 import { inLocal, useLocalScope } from '../services/localScope';
+import { LocalsOverview } from '../components/locales/LocalsOverview';
 
 /**
  * Inicio, organizado como Fudo: arriba los accesos de todos los días (Mesas, Mostrador, Cocina,
@@ -73,6 +74,7 @@ export function DashboardPage() {
         </section>
       )}
 
+      {canAny(['admin']) && <LocalsOverview />}
       <NowStrip d={d} allowed={allowed} onNegatives={() => setNegOpen(true)} />
 
       {allowed('salon') && canAny(['billing', 'admin']) && <TodayCharts />}

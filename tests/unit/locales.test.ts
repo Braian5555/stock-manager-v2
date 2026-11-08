@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { db } from '../../src/database/db';
 import { openCash, openSession } from '../../src/services/cashService';
 import { fiscalForLocal } from '../../src/services/fiscalService';
-import { currentOutlet, inLocal, refreshLocalScope, setDeviceLocal } from '../../src/services/localScope';
+import { CENTRAL, currentOutlet, inLocal, refreshLocalScope, setCentralView, setDeviceLocal } from '../../src/services/localScope';
 import { ticketBusiness } from '../../src/services/printService';
 import { addNumberedTables, openTicket, saveMenuItem } from '../../src/services/salonService';
 import { getSettings, updateSettings } from '../../src/services/settingsService';
@@ -50,6 +50,19 @@ describe('locales: cada local con lo suyo, sin cruzarse', () => {
     expect(cajaK.outletId).toBe(kiosco.id);
     expect(fiscalForLocal(await getSettings()).ptoVta).toBe(8);
     expect(ticketBusiness(await getSettings()).split('\n').at(-1)).toBe('Sucursal: Kiosco');
+
+    // La Central: ve todo junto; para cargar algo elige un local.
+    setDeviceLocal(CENTRAL);
+    await refreshLocalScope();
+    expect(currentOutlet()).toBeUndefined();
+    expect(inLocal(pizza) && inLocal(tx) && inLocal(cajaK)).toBe(true);
+    await expect(saveMenuItem({ name: 'Agua', section: 'Bebidas', price: 1500, kitchen: false })).rejects.toThrow(/Central/);
+    setCentralView(kiosco.id);
+    expect(currentOutlet()?.name).toBe('Kiosco');
+    expect(inLocal(pizza)).toBe(false);
+    expect(inLocal(cajaK)).toBe(true);
+    expect((await saveMenuItem({ name: 'Agua', section: 'Bebidas', price: 1500, kitchen: false })).outletId).toBe(kiosco.id);
+    setCentralView(undefined);
 
     // Sin local elegido (o sin locales) todo se ve, como antes.
     setDeviceLocal(undefined);

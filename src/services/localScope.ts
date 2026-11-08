@@ -8,6 +8,8 @@
  * - Las pantallas filtran con inLocal(): sólo ven lo de su local. Lo creado antes de tener locales
  *   (sin outletId) es del "local de antes" (settings.defaultOutletId, o el primero que se creó).
  * - Sin locales cargados, todo funciona como siempre (un solo local).
+ * - La CENTRAL (la "aplicación madre", sólo administradores): ve todos los locales juntos (ventas,
+ *   reportes, comprobantes) o uno por vez; para operar (mesas, caja…) elige primero qué local mirar.
  */
 import { liveQuery } from 'dexie';
 import { useSyncExternalStore } from 'react';
@@ -15,16 +17,28 @@ import { db, remoteTransactions } from '../database/db';
 import type { ID, Outlet } from '../models';
 
 const KEY = 'orillas:local';
+const VIEW_KEY = 'orillas:central-view';
+/** Valor especial del equipo: la Central (todos los locales). */
+export const CENTRAL = 'central';
 /** Tablas que se separan por local. */
 export const LOCAL_TABLES = ['diningTables', 'menuItems', 'tickets', 'cashSessions', 'cashMovements', 'fiscalDocs'] as const;
 
-interface ScopeState { outlets: Outlet[]; deviceId?: ID; defaultId?: ID; current?: Outlet }
-let state: ScopeState = { outlets: [], deviceId: readDevice() };
+interface ScopeState {
+  outlets: Outlet[];
+  deviceId?: ID;
+  defaultId?: ID;
+  /** Local con el que se trabaja: el del equipo, o el que mira la Central (undefined: todos). */
+  current?: Outlet;
+  /** Este equipo es la Central. */
+  central: boolean;
+}
+let state: ScopeState = { outlets: [], deviceId: readDevice(), central: readDevice() === CENTRAL };
 const listeners = new Set<() => void>();
 
 function readDevice(): ID | undefined {
   try { return localStorage.getItem(KEY) ?? undefined; } catch { return undefined; }
 }
+let viewId: ID | undefined = (() => { try { return sessionStorage.getItem(VIEW_KEY) ?? undefined; } catch { return undefined; } })();
 
 let all: Outlet[] = [];
 let defSetting: ID | undefined;
@@ -34,8 +48,10 @@ function recompute(outlets: Outlet[] = all, defaultSetting: ID | undefined = def
   const active = outlets.filter((o) => o.active).sort((a, b) => (a.code ?? '').localeCompare(b.code ?? '', 'es', { numeric: true }) || a.name.localeCompare(b.name, 'es'));
   const oldest = [...outlets].sort((a, b) => a.createdAt.localeCompare(b.createdAt))[0];
   const defaultId = (defaultSetting && outlets.some((o) => o.id === defaultSetting) ? defaultSetting : oldest?.id);
-  const current = state.deviceId ? active.find((o) => o.id === state.deviceId) : undefined;
-  state = { outlets: active, deviceId: state.deviceId, defaultId, current };
+  const central = state.deviceId === CENTRAL;
+  const want = central ? viewId : state.deviceId;
+  const current = want ? active.find((o) => o.id === want) : undefined;
+  state = { outlets: active, deviceId: state.deviceId, defaultId, current, central };
   for (const l of listeners) l();
 }
 
@@ -58,7 +74,10 @@ export function installLocalHooks() {
     db.table(t).hook('creating', (_pk, obj: { outletId?: ID }, trans) => {
       const idb = (trans as unknown as { idbtrans?: IDBTransaction }).idbtrans;
       if (idb && remoteTransactions.has(idb)) return;
-      if (obj.outletId === undefined && state.current) obj.outletId = state.current.id;
+      if (obj.outletId !== undefined) return;
+      if (state.current) obj.outletId = state.current.id;
+      // La Central mirando todos los locales no carga nada: no sabría de qué local es.
+      else if (state.central) throw new Error('Estás en la Central viendo todos los locales: elegí un local arriba para cargar o cobrar.');
     });
   }
 }
@@ -75,12 +94,22 @@ export function inLocal(r: { outletId?: ID }): boolean {
   return (r.outletId ?? state.defaultId) === state.current.id;
 }
 
-/** Elige el local de este equipo. */
+/** Elige el local de este equipo (o CENTRAL). */
 export function setDeviceLocal(id: ID | undefined) {
   try { if (id) localStorage.setItem(KEY, id); else localStorage.removeItem(KEY); } catch { /* sin almacenamiento */ }
   state = { ...state, deviceId: id };
   recompute();
 }
+
+/** La Central elige qué local mirar (undefined: todos juntos). */
+export function setCentralView(id: ID | undefined) {
+  viewId = id;
+  try { if (id) sessionStorage.setItem(VIEW_KEY, id); else sessionStorage.removeItem(VIEW_KEY); } catch { /* sin almacenamiento */ }
+  recompute();
+}
+
+/** El local de un registro (lo de antes de tener locales es del primero). */
+export const outletOf = (r: { outletId?: ID }): ID | undefined => r.outletId ?? state.defaultId;
 
 const subscribe = (l: () => void) => { listeners.add(l); return () => listeners.delete(l); };
 const snapshot = () => state;
@@ -91,7 +120,8 @@ export function useLocalScope() {
 
 /** Para pruebas: vuelve a leer el local del dispositivo. */
 export function resetLocalScopeForTests() {
-  state = { outlets: [], deviceId: readDevice() };
+  state = { outlets: [], deviceId: readDevice(), central: readDevice() === CENTRAL };
+  viewId = undefined;
   all = [];
   defSetting = undefined;
 }

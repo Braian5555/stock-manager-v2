@@ -20,6 +20,7 @@ import { DESKTOP_QUERY, useMediaQuery } from '../hooks/useMediaQuery';
 import { useAssistantAvailable } from '../store/assistant';
 import type { ModuleKey } from '../models';
 import { LocalChip, LocalGate } from '../components/locales/LocalGate';
+import { useLocalScope } from '../services/localScope';
 
 /**
  * Estructura de la app:
@@ -91,7 +92,9 @@ export function AppLayout() {
   const needsLocal = location.pathname === '/' || /^\/(salon(?!\/configuracion)|cocina|comprobantes)/.test(location.pathname);
   const menu = menuGroups(settings, visible, canAny);
   // El logo lleva al Salón (como Fudo); quien no usa el Salón vuelve a su inicio.
-  const brandHome = areas.includes('salon') ? areaHome('salon', visible, canAny) : home;
+  const localScope = useLocalScope();
+  // En la Central (todos los locales) el logo lleva al resumen con todos los locales.
+  const brandHome = localScope.central && !localScope.current ? '/' : areas.includes('salon') ? areaHome('salon', visible, canAny) : home;
   const activeKey = activeMenuKey(location.pathname, location.search);
   // La barra tipo Fudo es de la computadora; en el celular están la barra inferior y "Más".
   const desktop = useMediaQuery(DESKTOP_QUERY);

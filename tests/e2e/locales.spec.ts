@@ -46,3 +46,39 @@ test('locales: cada equipo trabaja en su local y no se cruzan mesas, ventas ni c
   await expect(page.getByRole('button', { name: 'Mesa 2: Libre' })).toBeVisible();
   await expect(page.getByRole('button', { name: /^Mesa 3:/ })).toHaveCount(0);
 });
+
+test('central: la "aplicación madre" ve todos los locales y opera uno por vez', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'la central es la compu de la administración');
+  await loadDemo(page);
+  await go(page, '/configuracion/locales');
+  for (const [name, pv] of [['Xenote', '10'], ['Kiosco', '8']]) {
+    await page.getByRole('button', { name: 'Nuevo local' }).click();
+    const m = dialog(page);
+    await m.getByLabel('Nombre del local').fill(name);
+    await m.getByLabel('Punto de venta de ARCA').fill(pv);
+    await m.getByRole('button', { name: 'Guardar' }).click();
+    await expect(page.getByRole('row', { name: new RegExp(name) })).toBeVisible();
+  }
+  await page.getByRole('combobox', { name: 'Local de este equipo' }).selectOption({ label: 'Central (todos los locales)' });
+
+  // Resumen con todos los locales.
+  await go(page, '/');
+  const table = page.getByRole('table', { name: 'Locales hoy' });
+  await expect(table.getByRole('row', { name: /Xenote/ })).toBeVisible();
+  await expect(table.getByRole('row', { name: /Kiosco/ })).toBeVisible();
+  await expect(page.getByRole('combobox', { name: 'Central: local a mirar' })).toHaveValue('');
+
+  // Para operar, elige el local.
+  await go(page, '/salon');
+  await expect(page.getByRole('heading', { name: '¿Qué local querés operar?' })).toBeVisible();
+  await page.getByRole('button', { name: /Kiosco/ }).click();
+  await expect(page.getByLabel('Cantidad de mesas')).toBeVisible();
+  await page.getByLabel('Cantidad de mesas').fill('1');
+  await page.getByRole('button', { name: 'Crear mesas' }).click();
+  await expect(page.getByRole('button', { name: 'Mesa 1: Libre' })).toBeVisible();
+
+  // Vuelve a "todos": las ventas del día se pueden ver; operar pide local otra vez.
+  await page.getByRole('combobox', { name: 'Central: local a mirar' }).selectOption('');
+  await go(page, '/salon?vista=hoy');
+  await expect(page.getByRole('heading', { name: 'Ventas de hoy', level: 1 })).toBeVisible();
+});

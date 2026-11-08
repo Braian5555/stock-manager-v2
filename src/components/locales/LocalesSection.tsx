@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { db } from '../../database/db';
 import { EMPTY } from '../../hooks/useData';
 import type { Outlet } from '../../models';
-import { setDeviceLocal, useLocalScope } from '../../services/localScope';
+import { CENTRAL, setDeviceLocal, useLocalScope } from '../../services/localScope';
 import { saveOutlet } from '../../services/transferService';
 import { useFeedback } from '../../store/feedback';
 import { useSession } from '../../store/session';
@@ -34,9 +34,10 @@ export function LocalesSection() {
         {scope.outlets.length === 0 ? (
           <p className="small muted" style={{ margin: 0 }}>Todavía no hay locales: Orillas trabaja como un solo local. Cargá los locales abajo.</p>
         ) : (
-          <Field label="Local de este equipo" hint="Lo que se haga en esta compu (mesas, ventas, caja, facturas) queda en este local.">
-            <select className="input" aria-label="Local de este equipo" value={scope.current?.id ?? ''} onChange={(e) => setDeviceLocal(e.target.value || undefined)} disabled={mine.length < 2 && !!scope.current}>
-              {!scope.current && <option value="">Elegí el local…</option>}
+          <Field label="Local de este equipo" hint="Lo que se haga en esta compu (mesas, ventas, caja, facturas) queda en este local. La Central (administración) ve todos los locales.">
+            <select className="input" aria-label="Local de este equipo" value={scope.central ? CENTRAL : scope.current?.id ?? ''} onChange={(e) => setDeviceLocal(e.target.value || undefined)} disabled={!admin && mine.length < 2 && !!scope.current}>
+              {!scope.current && !scope.central && <option value="">Elegí el local…</option>}
+              {admin && <option value={CENTRAL}>Central (todos los locales)</option>}
               {mine.map((o) => <option key={o.id} value={o.id}>{o.code ? `${o.code} · ` : ''}{o.name}</option>)}
             </select>
           </Field>
