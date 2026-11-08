@@ -14,6 +14,7 @@ import { fmtDateTime, fmtMoney, fmtTime } from '../../utils/format';
 import { Badge, EmptyState, Field, Input, NumberInput, Segmented, Select } from '../ui';
 import { Modal } from '../ui/Modal';
 import { useOpenCash } from './hooks';
+import { inLocal, useLocalScope } from '../../services/localScope';
 
 const useSessionData = (id?: string) => {
   const tickets = (useLiveQuery(() => (id ? db.tickets.filter((t) => (t.charges ?? []).some((c) => c.cashSessionId === id)).toArray() : []), [id]) ?? EMPTY) as TableTicket[];
@@ -24,7 +25,8 @@ const useSessionData = (id?: string) => {
 /** Caja: apertura, ingresos y egresos, propinas y cierre con arqueo por medio de pago. */
 export function CashTab() {
   const session = useOpenCash();
-  const history = (useLiveQuery(() => db.cashSessions.where('status').equals('cerrada').reverse().sortBy('closedAt'), []) ?? EMPTY) as CashSession[];
+  const lid = useLocalScope().current?.id;
+  const history = (useLiveQuery(() => db.cashSessions.where('status').equals('cerrada').filter(inLocal).reverse().sortBy('closedAt'), [lid]) ?? EMPTY) as CashSession[];
   const [detail, setDetail] = useState<CashSession | null>(null);
   if (session === undefined) return null;
   return (<>
@@ -56,7 +58,8 @@ function ClosedCash({ lastClose }: { lastClose?: string }) {
   const { run } = useFeedback();
   const [initial, setInitial] = useState<number | undefined>();
   const [register, setRegister] = useState('Caja');
-  const orphans = (useLiveQuery(() => db.tickets.filter((t) => (t.charges ?? []).some((c) => !c.cashSessionId && c.at > (lastClose ?? ''))).toArray(), [lastClose]) ?? EMPTY) as TableTicket[];
+  const lid = useLocalScope().current?.id;
+  const orphans = (useLiveQuery(() => db.tickets.filter((t) => inLocal(t) && (t.charges ?? []).some((c) => !c.cashSessionId && c.at > (lastClose ?? ''))).toArray(), [lastClose, lid]) ?? EMPTY) as TableTicket[];
   const orphanTotal = orphans.reduce((s, t) => s + (t.charges ?? []).filter((c) => !c.cashSessionId && c.at > (lastClose ?? '')).reduce((x, c) => x + c.amount, 0), 0);
   return (
     <section className="card card-pad stack cash-closed" aria-label="Abrir caja">

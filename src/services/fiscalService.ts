@@ -18,6 +18,7 @@ import { paidQty, remainingAmount, ticketLabel } from './salonService';
 import { nowIso, uuid } from '../utils/id';
 import { getSettings } from './settingsService';
 import { getCurrentActor } from './userService';
+import { currentOutlet } from './localScope';
 
 export const IVA_RATES: IvaRate[] = [21, 10.5, 27, 5, 2.5, 0];
 export const IVA_ID: Record<IvaRate, number> = { 0: 3, 2.5: 9, 5: 8, 10.5: 4, 21: 5, 27: 6 };
@@ -91,6 +92,15 @@ export const DEFAULT_FISCAL: FiscalSettings = {
   ptoVta: 0, concepto: 1, ivaDefault: 21, letraA: 'A',
 };
 export const fiscalOf = (s: { fiscal?: FiscalSettings }): FiscalSettings => ({ ...DEFAULT_FISCAL, ...s.fiscal });
+/**
+ * La configuración fiscal con el punto de venta del local del equipo: cada local factura con el suyo
+ * (y su numeración). Sin locales, o si el local no tiene uno cargado, el general.
+ */
+export const fiscalForLocal = (s: { fiscal?: FiscalSettings }): FiscalSettings => {
+  const f = fiscalOf(s);
+  const pv = currentOutlet()?.ptoVta;
+  return pv ? { ...f, ptoVta: pv } : f;
+};
 
 /** ¿Está todo lo necesario para facturar? Devuelve lo que falta. */
 export function fiscalMissing(f: FiscalSettings): string[] {
@@ -189,7 +199,7 @@ export async function createDoc(input: {
   kind: FiscalKind; receptor: FiscalReceptor; lines: FiscalLine[]; ticket?: TableTicket; payments?: Payment[];
   asociado?: FiscalDoc['asociado']; letra?: FiscalLetter; target?: number;
 }): Promise<FiscalDoc> {
-  const f = fiscalOf(await getSettings());
+  const f = fiscalForLocal(await getSettings());
   const missing = fiscalMissing(f);
   if (!f.enabled) throw new Error('La facturación electrónica no está activada (Configuración → Configuración fiscal).');
   if (missing.length) throw new Error(`Falta completar en Configuración fiscal: ${missing.join(', ')}.`);
@@ -231,7 +241,7 @@ export interface EmitResult {
 /** Se reemplaza en las pruebas (sin red). */
 export const transport = {
   async call<T>(path: string, body: Record<string, unknown>): Promise<{ status: number; data: T & { log?: WorkerLog; message?: string } }> {
-    const f = fiscalOf(await getSettings());
+    const f = fiscalForLocal(await getSettings());
     const { token, wsId } = await cloudSession();
     const r = await fetch(`${f.serviceUrl.replace(/\/+$/, '')}${path}`, {
       method: 'POST',
@@ -359,7 +369,7 @@ export async function verifyInArca(doc: FiscalDoc) {
 }
 
 export async function serviceStatus(probar: boolean) {
-  const f = fiscalOf(await getSettings());
+  const f = fiscalForLocal(await getSettings());
   const r = await transport.call<Record<string, unknown>>('/status', { probar, ptoVta: f.ptoVta || undefined });
   await saveLog(r.data.log, undefined, probar ? 'prueba' : 'estado');
   if (r.status !== 200) throw new Error(r.data.message ?? `Error ${r.status}`);
@@ -443,7 +453,7 @@ export async function chargeTicket(ticketId: string, opts: {
   if (opts.invoice && opts.payments.some((p) => p.method === 'invitacion' && p.amount > 0)) throw new Error('Las invitaciones no se facturan: cobrá esa parte por separado o elegí "Sin factura".');
 
   const s = await getSettings();
-  const f = fiscalOf(s);
+  const f = fiscalForLocal(s);
   let doc: FiscalDoc | undefined;
   if (opts.invoice) {
     const items = new Map((await db.menuItems.toArray()).map((m) => [m.id, m]));

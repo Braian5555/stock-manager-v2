@@ -16,6 +16,7 @@ import { nowIso, uuid } from '../utils/id';
 import { round3 } from '../utils/format';
 import { applyMovement } from './stockService';
 import { getCurrentActor } from './userService';
+import { getSettings, updateSettings } from './settingsService';
 
 export const transferCode = (n: number) => `R-${String(n).padStart(4, '0')}`;
 
@@ -73,15 +74,28 @@ export async function setOutletCategories(id: string, categoryIds: string[]): Pr
   await db.outlets.update(id, { categoryIds: [...new Set(categoryIds)], updatedAt: nowIso() });
 }
 
-export async function saveOutlet(d: { id?: string; name: string; maxirestName?: string; active: boolean }): Promise<Outlet> {
+export async function saveOutlet(d: { id?: string; name: string; maxirestName?: string; active: boolean; code?: string; ptoVta?: number; ticketHeader?: string }): Promise<Outlet> {
   const name = d.name.trim();
-  if (!name) throw new Error('Ingresá el nombre del punto.');
+  if (!name) throw new Error('Ingresá el nombre del local.');
   const all = await db.outlets.toArray();
-  if (all.some((o) => o.id !== d.id && o.name.toLocaleLowerCase('es') === name.toLocaleLowerCase('es'))) throw new Error('Ya existe un punto con ese nombre.');
+  if (all.some((o) => o.id !== d.id && o.name.toLocaleLowerCase('es') === name.toLocaleLowerCase('es'))) throw new Error('Ya existe un local con ese nombre.');
+  const code = d.code?.trim() || undefined;
+  if (code && all.some((o) => o.id !== d.id && o.code === code)) throw new Error(`Ya hay un local con el número ${code}.`);
+  const ptoVta = d.ptoVta && d.ptoVta > 0 ? Math.trunc(d.ptoVta) : undefined;
+  if (ptoVta !== undefined && ptoVta > 99998) throw new Error('El punto de venta va de 1 a 99998.');
+  // Dos locales con el mismo punto de venta se pisarían la numeración de las facturas.
+  const twin = ptoVta ? all.find((o) => o.id !== d.id && o.ptoVta === ptoVta) : undefined;
+  if (twin) throw new Error(`El punto de venta ${ptoVta} ya es de ${twin.name}: cada local factura con el suyo.`);
   const prev = d.id ? await db.outlets.get(d.id) : undefined;
   const t = nowIso();
-  const o: Outlet = { id: prev?.id ?? uuid(), createdAt: prev?.createdAt ?? t, updatedAt: t, name, maxirestName: d.maxirestName?.trim() || undefined, active: d.active, ...(prev?.categoryIds ? { categoryIds: prev.categoryIds } : {}), ...(prev?.minStock ? { minStock: prev.minStock } : {}) };
+  const o: Outlet = {
+    id: prev?.id ?? uuid(), createdAt: prev?.createdAt ?? t, updatedAt: t, name, maxirestName: d.maxirestName?.trim() || undefined, active: d.active,
+    ...(prev?.categoryIds ? { categoryIds: prev.categoryIds } : {}), ...(prev?.minStock ? { minStock: prev.minStock } : {}),
+    ...(code ? { code } : {}), ...(ptoVta ? { ptoVta } : {}), ...(d.ticketHeader?.trim() ? { ticketHeader: d.ticketHeader.trim() } : {}),
+  };
   await db.outlets.put(o);
+  // El primer local se queda con lo del Salón que había antes (mesas, carta, ventas…).
+  if (!(await getSettings()).defaultOutletId) await updateSettings({ defaultOutletId: o.id });
   return o;
 }
 

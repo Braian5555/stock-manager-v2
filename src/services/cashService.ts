@@ -10,6 +10,7 @@ import { db } from '../database/db';
 import type { CashMovement, CashSession, SalePaymentMethod, TableTicket, TicketCharge } from '../models';
 import { nowIso, uuid } from '../utils/id';
 import { getCurrentActor } from './userService';
+import { inLocal } from './localScope';
 
 export const METHODS: SalePaymentMethod[] = ['efectivo', 'debito', 'credito', 'transferencia', 'qr', 'otro'];
 const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
@@ -19,7 +20,8 @@ const actor = () => {
 };
 
 export async function openSession(): Promise<CashSession | undefined> {
-  return db.cashSessions.where('status').equals('abierta').first();
+  // Cada local tiene su caja.
+  return db.cashSessions.where('status').equals('abierta').filter(inLocal).first();
 }
 
 /** Cobros de la cuenta (con sus pedidos) que pertenecen a una caja. */
@@ -83,7 +85,7 @@ export async function openCash(initialCash: number, register = 'Caja'): Promise<
   if (!Number.isFinite(initialCash) || initialCash < 0) throw new Error('El efectivo inicial no es válido.');
   return db.transaction('rw', db.cashSessions, db.tickets, async () => {
     if (await openSession()) throw new Error('Ya hay una caja abierta: cerrala antes de abrir otra.');
-    const all = await db.cashSessions.toArray();
+    const all = (await db.cashSessions.toArray()).filter(inLocal);
     const lastClose = all.filter((s) => s.closedAt).map((s) => s.closedAt!).sort().at(-1) ?? '';
     const t = nowIso();
     const by = actor();
@@ -95,7 +97,7 @@ export async function openCash(initialCash: number, register = 'Caja'): Promise<
     };
     await db.cashSessions.add(s);
     // Cobros sin caja (desde el último cierre): pasan a esta caja.
-    const orphans = await db.tickets.filter((x) => (x.charges ?? []).some((c) => !c.cashSessionId && c.at > lastClose)).toArray();
+    const orphans = await db.tickets.filter((x) => inLocal(x) && (x.charges ?? []).some((c) => !c.cashSessionId && c.at > lastClose)).toArray();
     for (const tk of orphans) {
       await db.tickets.put({ ...tk, charges: tk.charges!.map((c) => (!c.cashSessionId && c.at > lastClose ? { ...c, cashSessionId: s.id } : c)), updatedAt: t });
     }

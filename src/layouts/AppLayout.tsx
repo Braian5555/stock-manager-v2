@@ -19,6 +19,7 @@ import { useSession } from '../store/session';
 import { DESKTOP_QUERY, useMediaQuery } from '../hooks/useMediaQuery';
 import { useAssistantAvailable } from '../store/assistant';
 import type { ModuleKey } from '../models';
+import { LocalChip, LocalGate } from '../components/locales/LocalGate';
 
 /**
  * Estructura de la app:
@@ -87,6 +88,7 @@ export function AppLayout() {
   const switchArea = (a: Area) => { writeArea(a); setPicked(a); navigate(areaHome(a, visible, canAny)); };
   const connected = integration && integration.mode !== 'disabled' && integration.mode !== 'excel' && integration.status !== 'desconectado';
   const assistant = useAssistantAvailable();
+  const needsLocal = location.pathname === '/' || /^\/(salon(?!\/configuracion)|cocina|comprobantes)/.test(location.pathname);
   const menu = menuGroups(settings, visible, canAny);
   // El logo lleva al Salón (como Fudo); quien no usa el Salón vuelve a su inicio.
   const brandHome = areas.includes('salon') ? areaHome('salon', visible, canAny) : home;
@@ -122,6 +124,7 @@ export function AppLayout() {
             <span className="asst-trigger-text">Asistente</span>
           </NavLink>
         )}
+        <LocalChip />
         <SyncBadge compact />
         <UserMenu />
       </header>
@@ -151,7 +154,8 @@ export function AppLayout() {
           <Link to="/configuracion" className="back-link"><ChevronLeft size={18} aria-hidden /> Configuración</Link>
         )}
         <Suspense fallback={<p className="muted" aria-busy="true">Cargando…</p>}>
-          <Outlet />
+          {/* Con locales, el Salón (mesas, ventas, caja, comprobantes) sólo se usa en el local del equipo. */}
+          {needsLocal ? <LocalGate><Outlet /></LocalGate> : <Outlet />}
         </Suspense>
       </main>
 

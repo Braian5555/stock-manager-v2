@@ -11,6 +11,7 @@ import { useFeedback } from '../store/feedback';
 import { Modal } from '../components/ui/Modal';
 import { Badge, Field, Input, PageHeader, Select } from '../components/ui';
 import { UserAvatar } from '../components/auth/UserAvatar';
+import { useLocalScope } from '../services/localScope';
 
 const ROLE_HELP: Record<UserRole, string> = {
   production: 'Panadería: sólo Producción. Anota lo que produce, ve el plan del día y las recetas.',
@@ -43,6 +44,7 @@ export function UsersPage() {
   const settings = useSettings();
   const { run, confirm, notify } = useFeedback();
   const [editing, setEditing] = useState<(UserDraft & { pin2?: string }) | null>(null);
+  const outlets = useLocalScope().outlets;
   const [isNew, setIsNew] = useState(false);
   const sorted = [...users].sort((a, b) => Number(b.active) - Number(a.active) || a.name.localeCompare(b.name, 'es'));
 
@@ -53,7 +55,7 @@ export function UsersPage() {
   const openEdit = (u: AppUser) => {
     setIsNew(false);
     // Los permisos que valen hoy (los roles fijos toman siempre la lista actual del rol).
-    setEditing({ id: u.id, name: u.name, role: u.role, permissions: effectivePermissions(u), active: u.active, email: u.email ?? '' });
+    setEditing({ id: u.id, name: u.name, role: u.role, permissions: effectivePermissions(u), active: u.active, email: u.email ?? '', outletIds: u.outletIds ?? [] });
   };
 
   const save = async () => {
@@ -160,6 +162,18 @@ export function UsersPage() {
                 </label>
               ))}
             </fieldset>
+            {outlets.length > 0 && (
+              <fieldset className="stack-sm" style={{ border: 0, padding: 0, margin: 0 }}>
+                <legend className="small" style={{ fontWeight: 600, marginBottom: 6 }}>Locales donde trabaja</legend>
+                <p className="small muted" style={{ margin: 0 }}>Sin marcar ninguno: todos. Sólo puede usar el Salón en estos locales.</p>
+                {outlets.map((o) => (
+                  <label key={o.id} className="check small" style={{ minHeight: 36 }}>
+                    <input type="checkbox" checked={(editing.outletIds ?? []).includes(o.id)} onChange={(e) => setEditing({ ...editing, outletIds: e.target.checked ? [...(editing.outletIds ?? []), o.id] : (editing.outletIds ?? []).filter((x) => x !== o.id) })} />
+                    {o.code ? `${o.code} · ` : ''}{o.name}
+                  </label>
+                ))}
+              </fieldset>
+            )}
             <label className="check"><input type="checkbox" checked={editing.active} onChange={(e) => setEditing({ ...editing, active: e.target.checked })} /> Usuario activo (puede entrar)</label>
           </form>
         )}

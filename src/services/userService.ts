@@ -102,6 +102,8 @@ export interface UserDraft {
   pin?: string;
   /** Email de la cuenta de la nube. undefined = no cambiar; '' = quitar. */
   email?: string;
+  /** Locales donde trabaja. undefined = no cambiar; [] = todos. */
+  outletIds?: string[];
 }
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -142,6 +144,8 @@ export async function saveUser(d: UserDraft): Promise<AppUser> {
     color: prev?.color ?? COLORS[all.length % COLORS.length],
     ...(email ? { email } : {}),
   };
+  const outletIds = d.outletIds === undefined ? prev?.outletIds : d.outletIds;
+  if (outletIds?.length) user.outletIds = [...new Set(outletIds)];
   await db.users.put(user);
   return user;
 }

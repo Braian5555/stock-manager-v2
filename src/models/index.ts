@@ -216,6 +216,8 @@ export interface Settings extends BaseEntity {
   ticketHeader?: string;
   /** Sucursal / local que se imprime debajo del encabezado ("Sucursal: Parador"). */
   sucursal?: string;
+  /** Local "de antes": los registros del Salón sin local (creados antes de tener locales) son de este. */
+  defaultOutletId?: ID;
   subtitle: string;
   logo: { kind: LogoKind; value?: string };
   primaryColor: string;
@@ -336,6 +338,8 @@ export interface AppUser extends BaseEntity {
   color?: string;
   /** Email de la cuenta de la nube con la que entra esta persona (minúsculas). */
   email?: string;
+  /** Locales donde trabaja (vacío o sin definir: todos). */
+  outletIds?: ID[];
 }
 
 // ───────────────────────── Facturas recibidas ─────────────────────────
@@ -428,7 +432,14 @@ export interface InvoiceImage {
 
 /** Punto gastronómico que recibe mercadería del Depósito Central (Parador, Xenote…). */
 export interface Outlet extends BaseEntity {
+  /** Nombre del local (sale como "Sucursal: …" en los tickets). */
   name: string;
+  /** Número de local / sucursal (como en Maxirest). */
+  code?: string;
+  /** Punto de venta de ARCA de este local (cada local factura con el suyo y su numeración). */
+  ptoVta?: number;
+  /** Encabezado propio de los tickets de este local (renglones); si falta, el general. */
+  ticketHeader?: string;
   /** Cómo se llama este depósito/punto en Maxirest (para el Excel de importación). */
   maxirestName?: string;
   active: boolean;
@@ -489,6 +500,8 @@ export interface AccessEntry {
 // ───────────────────────── Salón: mesas, carta y pedidos ─────────────────────────
 
 export interface DiningTable extends BaseEntity {
+  /** Local (sucursal) al que pertenece: cada local tiene sus mesas, carta, ventas, caja y comprobantes. */
+  outletId?: ID;
   name: string;
   /** Sector: "Salón", "Terraza", "Barra"… */
   zone: string;
@@ -514,6 +527,8 @@ export interface MenuExtra {
 
 /** Plato o bebida de la carta (lo que se vende; no es un producto de stock). */
 export interface MenuItem extends BaseEntity {
+  /** Local (sucursal) al que pertenece: cada local tiene sus mesas, carta, ventas, caja y comprobantes. */
+  outletId?: ID;
   name: string;
   /** Sección de la carta: "Desayunos", "Bebidas", "Principales"… */
   section: string;
@@ -595,6 +610,8 @@ export interface TicketCharge {
 
 /** El pedido de una mesa, desde que se abre hasta que se cierra. */
 export interface TableTicket extends BaseEntity {
+  /** Local (sucursal) al que pertenece: cada local tiene sus mesas, carta, ventas, caja y comprobantes. */
+  outletId?: ID;
   tableId: string;
   tableName: string;
   number: number;
@@ -640,6 +657,8 @@ export interface SaleEdit {
 
 /** Turno de caja: se abre con el efectivo inicial y se cierra contando cada medio de pago. */
 export interface CashSession extends BaseEntity {
+  /** Local (sucursal) al que pertenece: cada local tiene sus mesas, carta, ventas, caja y comprobantes. */
+  outletId?: ID;
   number: number;
   register: string;
   openedAt: ISODate;
@@ -656,6 +675,8 @@ export interface CashSession extends BaseEntity {
 }
 
 export interface CashMovement extends BaseEntity {
+  /** Local (sucursal) al que pertenece: cada local tiene sus mesas, carta, ventas, caja y comprobantes. */
+  outletId?: ID;
   sessionId: string;
   at: ISODate;
   kind: 'ingreso' | 'egreso';
@@ -765,6 +786,8 @@ export interface FiscalEmisor {
 
 /** Comprobante fiscal electrónico. Una vez autorizado no se modifica (las reglas de la nube lo impiden). */
 export interface FiscalDoc extends BaseEntity {
+  /** Local (sucursal) al que pertenece: cada local tiene sus mesas, carta, ventas, caja y comprobantes. */
+  outletId?: ID;
   kind: FiscalKind;
   letra: FiscalLetter;
   cbteTipo: number;

@@ -1575,3 +1575,13 @@ a.hm-row:hover { background: var(--surface-2); }
 .hm-quick .hm-action-icon { width: 56px; height: 56px; }
 @media (min-width: 640px) { .hm-now.is-big { grid-column: span 2; } }
 .hm-now-value { overflow-wrap: anywhere; }
+
+/* ───────────────────────── Locales ───────────────────────── */
+.local-chip {
+  flex: none; display: inline-flex; align-items: center; gap: 6px; max-width: 160px; height: 34px; padding: 0 10px;
+  border-radius: 999px; background: var(--bar-2); color: var(--bar-text-strong); text-decoration: none; font-weight: 650; font-size: 0.85rem;
+}
+.local-chip:hover { background: var(--bar-accent); color: var(--bar); }
+.local-pick-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.local-pick-btn { flex-direction: column; align-items: flex-start; gap: 2px; min-height: 76px; padding: 10px 14px; text-align: left; font-weight: 700; }
+.local-pick-code { font-family: var(--font-display, inherit); font-size: 1.3rem; color: var(--primary); }

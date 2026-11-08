@@ -14,6 +14,7 @@ import { fmtMoney } from '../../utils/format';
 import { Field, Input } from '../ui';
 import { Modal } from '../ui/Modal';
 import { useMenu } from './hooks';
+import { inLocal, useLocalScope } from '../../services/localScope';
 
 const ymd = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
@@ -24,8 +25,9 @@ export function DayCloseModal({ onClose }: { onClose: () => void }) {
   const { run, notify } = useFeedback();
   const [date, setDate] = useState(ymd());
   const since = useMemo(() => { const d = new Date(`${date}T00:00:00`); d.setDate(d.getDate() - 1); return d.toISOString(); }, [date]);
-  const tickets = (useLiveQuery(() => db.tickets.where('openedAt').aboveOrEqual(since).toArray(), [since]) ?? EMPTY) as TableTicket[];
-  const docs = (useLiveQuery(() => db.fiscalDocs.where('createdAt').aboveOrEqual(since).toArray(), [since]) ?? EMPTY) as FiscalDoc[];
+  const lid = useLocalScope().current?.id;
+  const tickets = (useLiveQuery(() => db.tickets.where('openedAt').aboveOrEqual(since).filter(inLocal).toArray(), [since, lid]) ?? EMPTY) as TableTicket[];
+  const docs = (useLiveQuery(() => db.fiscalDocs.where('createdAt').aboveOrEqual(since).filter(inLocal).toArray(), [since, lid]) ?? EMPTY) as FiscalDoc[];
   const menu = useMenu();
   const products = useProducts();
   const costs = useCosts();

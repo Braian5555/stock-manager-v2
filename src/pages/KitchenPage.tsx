@@ -11,6 +11,7 @@ import { useMenu } from '../components/salon/hooks';
 import { useFeedback } from '../store/feedback';
 import { EmptyState, PageHeader, Segmented } from '../components/ui';
 import { CloudRulesNote } from '../components/salon/CloudRulesNote';
+import { inLocal, useLocalScope } from '../services/localScope';
 
 const WARN_MIN = KITCHEN_WARN_MIN;
 const LATE_MIN = KITCHEN_LATE_MIN;
@@ -25,7 +26,8 @@ const readStation = (): Filter => { try { const v = localStorage.getItem(STATION
 export function KitchenPage() {
   const { run } = useFeedback();
   const now = useNow(20_000);
-  const open = (useLiveQuery(() => db.tickets.where('status').anyOf('abierta', 'cuenta').toArray(), []) ?? EMPTY) as TableTicket[];
+  const lid = useLocalScope().current?.id;
+  const open = (useLiveQuery(() => db.tickets.where('status').anyOf('abierta', 'cuenta').filter(inLocal).toArray(), [lid]) ?? EMPTY) as TableTicket[];
   // Barra: si hay platos que se preparan en la barra, cada puesto puede ver sólo lo suyo (se recuerda en este equipo).
   const hasBar = useMenu().some((m) => m.kitchen && m.station === 'barra') || open.some((t) => t.lines.some((l) => l.station === 'barra' && l.status === 'cocina'));
   const [stationState, setStationState] = useState<Filter>(readStation);

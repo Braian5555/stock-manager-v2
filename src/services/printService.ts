@@ -7,10 +7,11 @@
  */
 import QRCode from 'qrcode';
 import type { DailyClose } from './closingService';
-import type { CashSession, FiscalDoc, SalePaymentMethod, TableTicket, TicketLine } from '../models';
+import type { CashSession, FiscalDoc, Outlet, SalePaymentMethod, TableTicket, TicketLine } from '../models';
 import type { CashSummary } from './cashService';
 import { CBTE_NAME, COND_IVA, DOC_TIPO_LABEL, EMISOR_COND_LABEL, PAYMENT_LABEL, docNumber, docPlace, fmtCuit, pad, qrUrl, ymdToDate } from './fiscalService';
 import { discountAmount, ticketLabel } from './salonService';
+import { currentOutlet } from './localScope';
 
 const esc = (s: unknown) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const money = (n: number) => n.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -86,10 +87,18 @@ export function printHtml(html: string): Promise<void> {
  * Encabezado de los tickets: renglones del encabezado (el primero grande) y la sucursal.
  * Se arma con ticketBusiness(settings); un texto suelto (sin saltos de línea) es sólo el nombre.
  */
-export function ticketBusiness(st: { businessName: string; ticketHeader?: string; sucursal?: string }): string {
-  const lines = (st.ticketHeader ?? '').split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+export function ticketBusiness(st: { businessName: string; ticketHeader?: string; sucursal?: string }, outlet: Outlet | null | undefined = currentOutlet()): string {
+  // Con locales, cada uno puede tener su encabezado; la sucursal es el nombre del local.
+  const header = outlet?.ticketHeader?.trim() ? outlet.ticketHeader : st.ticketHeader;
+  const sucursal = outlet ? outlet.name : st.sucursal;
+  const lines = (header ?? '').split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
   const head = lines.length ? lines : [st.businessName];
-  return [...head, ...(st.sucursal?.trim() ? [`Sucursal: ${st.sucursal.trim()}`] : [])].join('\n');
+  return [...head, ...(sucursal?.trim() ? [`Sucursal: ${sucursal.trim()}`] : [])].join('\n');
+}
+/** Encabezado para la factura: sólo si hay uno propio (general o del local); si no, el nombre de fantasía. */
+export function fiscalHeader(st: { businessName: string; ticketHeader?: string; sucursal?: string }): string | undefined {
+  const o = currentOutlet();
+  return st.ticketHeader?.trim() || o ? ticketBusiness(st, o) : undefined;
 }
 function headerHtml(business: string): string {
   const [first, ...rest] = business.split('\n');

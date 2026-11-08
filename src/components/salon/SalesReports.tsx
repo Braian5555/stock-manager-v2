@@ -12,6 +12,7 @@ import { useSettings } from '../../store/settings';
 import { fmtMoney } from '../../utils/format';
 import { EmptyState, Field, Input, Segmented } from '../ui';
 import { useMenu } from './hooks';
+import { inLocal, useLocalScope } from '../../services/localScope';
 
 type Period = QuickPeriod | 'rango';
 const PERIODS: { value: Period; label: string }[] = [
@@ -31,7 +32,8 @@ export function SalesReports() {
   const range = period === 'rango' ? custom : periodRange(period);
   // Un día antes por si un pedido abierto antes de medianoche se cerró dentro del período.
   const since = useMemo(() => { const d = new Date(`${range.from}T00:00:00`); d.setDate(d.getDate() - 1); return d.toISOString(); }, [range.from]);
-  const tickets = (useLiveQuery(() => db.tickets.where('openedAt').aboveOrEqual(since).toArray(), [since]) ?? EMPTY) as TableTicket[];
+  const lid = useLocalScope().current?.id;
+  const tickets = (useLiveQuery(() => db.tickets.where('openedAt').aboveOrEqual(since).filter(inLocal).toArray(), [since, lid]) ?? EMPTY) as TableTicket[];
   const menu = useMenu();
   const products = useProducts();
   const costs = useCosts();

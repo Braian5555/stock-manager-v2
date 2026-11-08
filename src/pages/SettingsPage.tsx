@@ -4,6 +4,7 @@ import {
   ArrowDown, ArrowLeft, ArrowUp, Boxes, Building2, ChevronRight, Cloud, Copy, Download, Eye, EyeOff, ImageUp, LayoutGrid, Package, Palette, Plug,
   RefreshCw, RotateCcw, ShieldCheck, Smartphone, Sparkles, Stethoscope, Type, UserCog, type LucideIcon,
   LogIn, ReceiptText, Armchair, Printer, BookOpen, Wallet,
+  Store,
 } from 'lucide-react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Suspense, useEffect, useRef, useState, type ReactNode } from 'react';
@@ -32,6 +33,7 @@ import { useIntegration, useOnline, usePendingJobs } from '../hooks/useData';
 import { syncView } from '../components/SyncBadge';
 import { fmtDateTime } from '../utils/format';
 import { useSession } from '../store/session';
+import { LocalesSection } from '../components/locales/LocalesSection';
 
 const UsersPage = lazyPage(() => import('./UsersPage'), 'UsersPage');
 const CloudPage = lazyPage(() => import('./CloudPage'), 'CloudPage');
@@ -76,6 +78,7 @@ const SECTIONS: Section[] = [
   { key: 'stock-venta', group: 'salon', areas: ['salon'], title: 'Stock al vender', description: 'Descontar del stock las recetas de la carta al cerrar cada pedido.', icon: Boxes, render: () => <SalonStockSection /> },
   { key: 'impresion', group: 'salon', areas: ['salon'], title: 'Impresión de tickets', description: 'Tickets de 80 mm: factura, pre-cuenta, comanda y arqueo.', icon: Printer, render: () => <PrintSection /> },
   // Tu negocio (general)
+  { key: 'locales', group: 'negocio', areas: BOTH, title: 'Locales', description: 'Cada local con su número, su punto de venta de ARCA y su encabezado; el local de este equipo.', icon: Store, render: () => <LocalesSection /> },
   { key: 'empresa', group: 'negocio', areas: BOTH, title: 'Empresa y apariencia', description: 'Nombre, subtítulo, logo, colores y tema claro/oscuro.', icon: Building2, render: () => <CompanySection /> },
   { key: 'accesibilidad', group: 'negocio', areas: BOTH, title: 'Letra y contraste', description: 'Letra más grande y más contraste en este dispositivo.', icon: Type, render: () => <><PageHeader title="Letra y contraste" subtitle="Para leer y tocar más cómodo en este celular o compu." /><section className="card card-pad"><AccessibilitySection /></section></> },
   { key: 'navegacion', group: 'negocio', areas: ['stock'], title: 'Menú y navegación', description: 'Qué módulos del Stock se ven, su orden y nombre, y qué va en cada barra.', icon: LayoutGrid, render: () => <NavigationSection /> },
@@ -218,7 +221,7 @@ function TicketHeaderCard() {
   const [head, setHead] = useState(settings.ticketHeader ?? '');
   const [suc, setSuc] = useState(settings.sucursal ?? '');
   const dirty = head !== (settings.ticketHeader ?? '') || suc !== (settings.sucursal ?? '');
-  const preview = ticketBusiness({ businessName: settings.businessName, ticketHeader: head, sucursal: suc }).split('\n');
+  const preview = ticketBusiness({ businessName: settings.businessName, ticketHeader: head, sucursal: suc }, null).split('\n');
   return (
     <section className="card card-pad stack" aria-labelledby="ticket-head">
       <h2 id="ticket-head" style={{ margin: 0 }}>Encabezado de los tickets</h2>

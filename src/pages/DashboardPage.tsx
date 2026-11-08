@@ -20,6 +20,7 @@ import { BakeryTodayCard, RestockCard, useHomePanels, type HomePanels, type Tone
 import { AttentionCard } from '../components/dashboard/AttentionCard';
 import { negativeProducts } from '../services/attentionService';
 import { fmtMoneyShort, fmtNumber } from '../utils/format';
+import { inLocal, useLocalScope } from '../services/localScope';
 
 /**
  * Inicio, organizado como Fudo: arriba los accesos de todos los días (Mesas, Mostrador, Cocina,
@@ -157,7 +158,8 @@ const todayYmd = () => { const d = new Date(); return `${d.getFullYear()}-${Stri
 /** Ventas de hoy (pedidos cerrados hoy). null si esta persona no las puede ver. */
 function useTodaySales(enabled: boolean): SalesReport | null {
   const since = useMemo(() => { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - 1); return d.toISOString(); }, []);
-  const tickets = (useLiveQuery(() => (enabled ? db.tickets.where('openedAt').aboveOrEqual(since).toArray() : []), [enabled, since]) ?? EMPTY) as TableTicket[];
+  const lid = useLocalScope().current?.id;
+  const tickets = (useLiveQuery(() => (enabled ? db.tickets.where('openedAt').aboveOrEqual(since).filter(inLocal).toArray() : []), [enabled, since, lid]) ?? EMPTY) as TableTicket[];
   const menu = useMenu();
   return useMemo(() => {
     if (!enabled) return null;

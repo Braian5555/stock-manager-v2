@@ -30,6 +30,7 @@ import { useMenu, useOpenCash, useOpenTickets, useTables } from '../components/s
 import { SALON_VIEWS, type SalonView } from '../layouts/modules';
 import { useSettings } from '../store/settings';
 import { fmtMoney, fmtTime, matches } from '../utils/format';
+import { inLocal, useLocalScope } from '../services/localScope';
 
 type Tab = SalonView;
 const TITLE: Record<Tab, { title: string; sub: string }> = {
@@ -393,7 +394,8 @@ function TodayTab() {
   const day = picked ?? today;
   const since = startOfDayIso(day);
   const until = useMemo(() => { const d = new Date(since); d.setDate(d.getDate() + 1); return d.toISOString(); }, [since]);
-  const tickets = (useLiveQuery(() => db.tickets.where('openedAt').between(since, until, true, false).reverse().sortBy('openedAt'), [since, until]) ?? EMPTY) as TableTicket[];
+  const lid = useLocalScope().current?.id;
+  const tickets = (useLiveQuery(() => db.tickets.where('openedAt').between(since, until, true, false).filter(inLocal).reverse().sortBy('openedAt'), [since, until, lid]) ?? EMPTY) as TableTicket[];
   const [detail, setDetail] = useState<TableTicket | null>(null);
   const [closing, setClosing] = useState(false);
   const { can } = useSession();

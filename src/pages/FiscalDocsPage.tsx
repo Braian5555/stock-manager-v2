@@ -9,7 +9,7 @@ import type { FiscalDoc, FiscalLine, FiscalLogEntry, FiscalReceptor, FiscalStatu
 import {
   CBTE_NAME, CONSUMIDOR_FINAL, DOC_TIPO_LABEL, PAYMENT_LABEL, docNumber, docPlace, fiscalOf, fiscalReady, fmtCuit, invoiceLater, issue, letterFor, noteFor, receptorProblems, recentReceptors, verifyInArca, ymdToDate,
 } from '../services/fiscalService';
-import { fiscalTicketHtml, printHtml, ticketBusiness } from '../services/printService';
+import { fiscalTicketHtml, fiscalHeader, printHtml } from '../services/printService';
 import { ticketLabel } from '../services/salonService';
 import { useFeedback } from '../store/feedback';
 import { useSession } from '../store/session';
@@ -19,6 +19,7 @@ import { Modal } from '../components/ui/Modal';
 import { ReceptorForm } from '../components/salon/ChargeModal';
 import { CloudRulesNote } from '../components/salon/CloudRulesNote';
 import { fmtDateTime, fmtMoney, matches } from '../utils/format';
+import { inLocal, useLocalScope } from '../services/localScope';
 
 type Tab = 'emitidos' | 'resolver' | 'sinfactura' | 'libro' | 'registro';
 type Period = '1' | '7' | '30' | 'todo';
@@ -40,8 +41,10 @@ export function FiscalDocsPage() {
   const f = fiscalOf(settings);
   const { can } = useSession();
   const [tab, setTab] = useState<Tab>('emitidos');
-  const docs = (useLiveQuery(() => db.fiscalDocs.orderBy('createdAt').reverse().toArray(), []) ?? EMPTY) as FiscalDoc[];
-  const unbilledTickets = (useLiveQuery(() => db.tickets.filter((t) => !!t.fiscalPending && t.status !== 'anulada').toArray(), []) ?? EMPTY) as TableTicket[];
+  // Cada local ve sus comprobantes (su punto de venta).
+  const lid = useLocalScope().current?.id;
+  const docs = (useLiveQuery(() => db.fiscalDocs.orderBy('createdAt').reverse().filter(inLocal).toArray(), [lid]) ?? EMPTY) as FiscalDoc[];
+  const unbilledTickets = (useLiveQuery(() => db.tickets.filter((t) => !!t.fiscalPending && t.status !== 'anulada' && inLocal(t)).toArray(), [lid]) ?? EMPTY) as TableTicket[];
   const unbilled = unbilledRows(unbilledTickets);
   const pending = docs.filter((d) => PENDING.includes(d.status) && !(d.status === 'rechazada' && docs.some((x) => x.ticketId && x.ticketId === d.ticketId && x.status === 'autorizada')));
   const [open, setOpen] = useState<string | null>(null);
@@ -228,7 +231,7 @@ function DocDetail({ id, onClose, onOpen }: { id: string; onClose: () => void; o
   return (
     <Modal open wide title={`${CBTE_NAME[d.cbteTipo]} ${d.nro ? docNumber(d) : ''}`} onClose={onClose}
       footer={<>
-        {ok && <button type="button" className="btn" onClick={() => void act(async () => printHtml(await fiscalTicketHtml(d, f.pie, settings.ticketHeader?.trim() ? ticketBusiness(settings) : undefined)))}><Printer size={18} aria-hidden /> Imprimir</button>}
+        {ok && <button type="button" className="btn" onClick={() => void act(async () => printHtml(await fiscalTicketHtml(d, f.pie, fiscalHeader(settings))))}><Printer size={18} aria-hidden /> Imprimir</button>}
         {ok && <button type="button" className="btn" disabled={busy} onClick={() => void verify()}><ShieldCheck size={18} aria-hidden /> Verificar en ARCA</button>}
         {!ok && d.status !== 'rechazada' && <button type="button" className="btn btn-primary" disabled={busy} onClick={() => void act(() => issue(d.id))}><RotateCcw size={18} aria-hidden /> {busy ? 'Enviando…' : 'Reintentar'}</button>}
         {ok && d.kind === 'factura' && credited < d.impTotal - 0.009 && <button type="button" className="btn" onClick={() => setNoteKind('nc')}>Nota de crédito</button>}
