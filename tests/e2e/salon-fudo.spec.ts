@@ -67,6 +67,7 @@ test('salón tipo Fudo: caja, plano, adicionales, descuento, cuenta dividida, de
   await page.getByRole('button', { name: 'Editar plano' }).click();
   const t1 = plan.getByRole('button', { name: 'Mesa 1: Libre' });
   const before = await t1.getAttribute('style');
+  await t1.scrollIntoViewIfNeeded();
   const box = (await t1.boundingBox())!;
   const pbox = (await plan.boundingBox())!;
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
@@ -74,7 +75,7 @@ test('salón tipo Fudo: caja, plano, adicionales, descuento, cuenta dividida, de
   await page.mouse.move(pbox.x + pbox.width * 0.5, pbox.y + pbox.height * 0.7, { steps: 6 });
   await page.mouse.up();
   await expect(t1).not.toHaveAttribute('style', before!);
-  await expect(page.getByRole('toolbar', { name: 'Editar mesa' })).toContainText('Mesa 1');
+  await expect(page.getByRole('toolbar', { name: 'Editar plano' })).toContainText('Mesa 1');
   await page.getByRole('button', { name: 'Redonda' }).click();
   await expect(t1).toHaveClass(/shape-redonda/);
   await page.getByRole('button', { name: 'Listo' }).click();

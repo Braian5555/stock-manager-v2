@@ -90,7 +90,7 @@ export async function saveOutlet(d: { id?: string; name: string; maxirestName?: 
   const t = nowIso();
   const o: Outlet = {
     id: prev?.id ?? uuid(), createdAt: prev?.createdAt ?? t, updatedAt: t, name, maxirestName: d.maxirestName?.trim() || undefined, active: d.active,
-    ...(prev?.categoryIds ? { categoryIds: prev.categoryIds } : {}), ...(prev?.minStock ? { minStock: prev.minStock } : {}),
+    ...(prev?.categoryIds ? { categoryIds: prev.categoryIds } : {}), ...(prev?.minStock ? { minStock: prev.minStock } : {}), ...(prev?.floorPlan ? { floorPlan: prev.floorPlan } : {}),
     ...(code ? { code } : {}), ...(ptoVta ? { ptoVta } : {}), ...(d.ticketHeader?.trim() ? { ticketHeader: d.ticketHeader.trim() } : {}),
   };
   await db.outlets.put(o);

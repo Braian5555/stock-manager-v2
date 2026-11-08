@@ -20,6 +20,8 @@ import { CloudRulesNote } from '../components/salon/CloudRulesNote';
 import { ChargeModal } from '../components/salon/ChargeModal';
 import { TicketSheet } from '../components/salon/TicketSheet';
 import { FloorPlan, STATE_LABEL, tableState } from '../components/salon/FloorPlan';
+import { LayoutMenu, LockButton } from '../components/salon/PlanControls';
+import { useFloorPlan } from '../services/floorPlanService';
 import { CounterTab } from '../components/salon/CounterTab';
 import { CashTab } from '../components/salon/CashTab';
 import { AccountsTab } from '../components/salon/AccountsTab';
@@ -103,6 +105,9 @@ function TablesBoard({ tables, byTable, onOpen, onGoMenu }: { tables: DiningTabl
   const zones = useMemo(() => [...new Set(tables.map((t) => t.zone))], [tables]);
   const curZone = zone && zones.includes(zone) ? zone : view === 'plano' ? zones[0] ?? '' : '';
   const shown = curZone ? tables.filter((t) => t.zone === curZone) : tables;
+  const floorCfg = useFloorPlan();
+  const zonePlan = floorCfg.zones?.[curZone] ?? {};
+  const locked = !!floorCfg.locked;
   const ready = [...byTable.values()].filter((t) => t.lines.some((l) => l.status === 'listo' && l.qty > 0));
   const late = [...byTable.values()].map((t) => ({ t, min: Math.floor(minutesSince(waitingSince(t), now)) })).filter((x) => x.min >= KITCHEN_WARN_MIN).sort((a, b) => b.min - a.min);
 
@@ -142,15 +147,19 @@ function TablesBoard({ tables, byTable, onOpen, onGoMenu }: { tables: DiningTabl
             {zones.map((z) => <button key={z} type="button" className="group-chip" aria-pressed={curZone === z} onClick={() => setZone(z)}>{z}</button>)}
           </div>
         ) : <span />}
-        <div className="row" style={{ gap: 6 }}>
+        <div className="salon-bar-actions">
           <Segmented<View> label="Vista de mesas" value={view} onChange={setView} options={[{ value: 'plano', label: 'Plano' }, { value: 'lista', label: 'Lista' }]} />
-          {view === 'plano' && <button type="button" className={`btn btn-sm${editing ? ' btn-primary' : ''}`} aria-pressed={editing} onClick={() => setEditing((e) => !e)}>{editing ? 'Listo' : <><MapIcon size={16} aria-hidden /> Editar plano</>}</button>}
+          {view === 'plano' && (<>
+            <LayoutMenu zone={curZone} plan={zonePlan} tables={shown} locked={locked} />
+            {!locked && <button type="button" className={`btn btn-sm${editing ? ' btn-primary' : ''}`} aria-pressed={editing} onClick={() => setEditing((e) => !e)}>{editing ? 'Listo' : <><MapIcon size={16} aria-hidden /> Editar plano</>}</button>}
+            <LockButton cfg={floorCfg} onLock={() => setEditing(false)} />
+          </>)}
           <button type="button" className="btn btn-sm" onClick={() => setManage(true)}><Pencil size={16} aria-hidden /> Mesas</button>
         </div>
       </div>
 
       {view === 'plano' ? (
-        <FloorPlan tables={shown} byTable={byTable} now={now} editing={editing} onTap={(t) => void tap(t)} />
+        <FloorPlan tables={shown} zone={curZone} plan={zonePlan} byTable={byTable} now={now} editing={editing && !locked} locked={locked} onTap={(t) => void tap(t)} />
       ) : (
         <ul className="salon-floor" aria-label="Mesas">
           {shown.map((t) => {

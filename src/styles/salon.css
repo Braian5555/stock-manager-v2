@@ -7,6 +7,8 @@
 .salon { display: flex; flex-direction: column; gap: 14px; }
 .salon .page-header { margin-bottom: 0; }
 .salon-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.salon-bar-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px; }
+.salon-bar-actions .segmented { flex: none; }
 .salon-search { flex: 1 1 260px; max-width: 420px; }
 .salon-sub { font-size: 0.95rem; margin: 18px 0 8px; }
 .salon-first { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; align-items: end; padding: 0 16px 16px; }
@@ -340,3 +342,150 @@
 .sale-history { margin: 8px 0 4px; }
 .sale-history-list { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .sale-history-list li { padding-left: 10px; border-left: 3px solid var(--border); }
+
+/* ───────────── Plano: pisos, elementos, armados y candado ───────────── */
+/* Pisos: dibujados con los colores de la marca (arena, petróleo), también en modo oscuro. */
+.salon-plan.floor-liso { background-image: none; }
+.salon-plan.floor-madera, .plan-floor-swatch.floor-madera::before {
+  background-color: color-mix(in srgb, var(--bar-accent) 34%, var(--surface));
+  background-image:
+    repeating-linear-gradient(0deg, transparent 0 27px, color-mix(in srgb, var(--text) 13%, transparent) 27px 28px),
+    repeating-linear-gradient(90deg, transparent 0 139px, color-mix(in srgb, var(--text) 9%, transparent) 139px 140px);
+  background-size: auto, auto;
+}
+.salon-plan.floor-baldosas, .plan-floor-swatch.floor-baldosas::before {
+  background-color: var(--surface);
+  background-image:
+    linear-gradient(45deg, color-mix(in srgb, var(--text) 6%, transparent) 25%, transparent 25% 75%, color-mix(in srgb, var(--text) 6%, transparent) 75%),
+    linear-gradient(45deg, color-mix(in srgb, var(--text) 6%, transparent) 25%, transparent 25% 75%, color-mix(in srgb, var(--text) 6%, transparent) 75%);
+  background-size: 48px 48px; background-position: 0 0, 24px 24px;
+}
+.salon-plan.floor-deck, .plan-floor-swatch.floor-deck::before {
+  background-color: color-mix(in srgb, var(--bar-accent) 22%, var(--surface-3));
+  background-image: repeating-linear-gradient(90deg, transparent 0 21px, color-mix(in srgb, var(--text) 18%, transparent) 21px 23px);
+  background-size: auto;
+}
+.salon-plan.floor-arena, .plan-floor-swatch.floor-arena::before {
+  background-color: color-mix(in srgb, var(--bar-accent) 55%, var(--surface));
+  background-image:
+    radial-gradient(circle at 20% 30%, color-mix(in srgb, var(--text) 14%, transparent) 0.8px, transparent 1.4px),
+    radial-gradient(circle at 70% 80%, color-mix(in srgb, #fff 45%, transparent) 0.9px, transparent 1.5px),
+    radial-gradient(circle at 45% 60%, color-mix(in srgb, var(--text) 9%, transparent) 0.7px, transparent 1.2px);
+  background-size: 13px 13px, 17px 17px, 23px 23px;
+}
+.salon-plan.floor-cesped, .plan-floor-swatch.floor-cesped::before {
+  background-color: color-mix(in srgb, var(--ok) 22%, var(--surface));
+  background-image: repeating-linear-gradient(90deg, transparent 0 40px, color-mix(in srgb, var(--ok) 10%, transparent) 40px 80px);
+  background-size: auto;
+}
+.plan-floor-swatch.floor-puntos::before { background-color: var(--surface); background-image: radial-gradient(circle, rgb(31 64 73 / 0.3) 1.2px, transparent 1.6px); background-size: 24px 24px; }
+.plan-floor-swatch.floor-liso::before { background: var(--surface); }
+.salon-plan.is-editing::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none; border-radius: inherit;
+  background-image: radial-gradient(circle, color-mix(in srgb, var(--primary) 35%, transparent) 1.2px, transparent 1.6px);
+  background-size: 5% 10%;
+}
+.salon-ptable { z-index: 2; }
+
+/* Elementos fijos: tranquilos, para ubicarse; las mesas siempre arriba. */
+.salon-fixture {
+  --w: 72px; --h: 52px; --s: 1;
+  position: absolute; z-index: 1; transform: translate(-50%, -50%);
+  width: calc(var(--w) * var(--s)); height: calc(var(--h) * var(--s));
+  display: flex; align-items: center; justify-content: center; gap: 6px; padding: 0 8px; overflow: hidden;
+  border: 1.5px solid var(--border-strong); border-radius: 8px; background: var(--surface-3); color: var(--text-2);
+  font: inherit; font-size: 0.78rem; font-weight: 700; line-height: 1; white-space: nowrap; pointer-events: none;
+  user-select: none; -webkit-user-select: none;
+}
+.salon-fixture.is-vertical { width: calc(var(--h) * var(--s)); height: calc(var(--w) * var(--s)); flex-direction: column; padding: 8px 0; }
+.salon-fixture.is-vertical .salon-fixture-name { writing-mode: vertical-rl; }
+.salon-fixture.fsize-1 { --s: 0.72; }
+.salon-fixture.fsize-3 { --s: 1.45; }
+.salon-fixture.kind-barra { --w: 180px; --h: 42px; background: color-mix(in srgb, var(--bar) 80%, var(--surface)); color: var(--bar-text-strong); border-color: var(--bar); }
+.salon-fixture.kind-caja { --w: 78px; --h: 46px; }
+.salon-fixture.kind-cocina { --w: 124px; --h: 72px; background: repeating-linear-gradient(45deg, var(--surface-3) 0 8px, var(--surface-2) 8px 16px); }
+.salon-fixture.kind-entrada { --w: 96px; --h: 30px; background: transparent; border: 2px dashed var(--primary); color: var(--primary-fg); }
+.salon-fixture.kind-bano { --w: 78px; --h: 58px; }
+.salon-fixture.kind-pared { --w: 220px; --h: 10px; padding: 0; border: 0; border-radius: 3px; background: var(--text-3); }
+.salon-fixture.kind-ventanal { --w: 200px; --h: 12px; padding: 0; border-radius: 2px; border: 2px solid var(--text-3); background: color-mix(in srgb, var(--info) 22%, var(--surface)); }
+.salon-fixture.kind-planta { --w: 40px; --h: 40px; padding: 0; border-radius: 50%; border-color: var(--ok); background: var(--ok-bg); color: var(--ok); }
+.salon-fixture.kind-sombrilla {
+  --w: 58px; --h: 58px; padding: 0; border-radius: 50%; border-color: var(--low);
+  background: repeating-conic-gradient(from 0deg, var(--low-bg) 0 30deg, color-mix(in srgb, var(--surface) 80%, transparent) 30deg 60deg); color: var(--low);
+}
+.salon-fixture.kind-mar {
+  --w: 62%; --h: 58px; border: 0; border-radius: 10px; color: var(--info);
+  background-color: color-mix(in srgb, var(--info) 24%, var(--surface));
+  background-image: radial-gradient(circle at 50% 120%, transparent 13px, color-mix(in srgb, var(--info) 30%, transparent) 14px 16px, transparent 17px);
+  background-size: 28px 22px;
+}
+.salon-plan.is-editing .salon-fixture { pointer-events: auto; cursor: grab; outline: 1px dashed color-mix(in srgb, var(--primary) 45%, transparent); outline-offset: 2px; }
+.salon-plan.is-editing .salon-fixture:active { cursor: grabbing; }
+.salon-fixture.is-selected { outline: 3px solid var(--primary) !important; outline-offset: 3px; }
+.salon-fixture:focus-visible { outline: 3px solid var(--primary-line); outline-offset: 3px; }
+.plan-locked-badge {
+  position: absolute; top: 8px; left: 8px; z-index: 3; display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px;
+  border-radius: 999px; background: var(--bar); color: var(--bar-text-strong); font-size: 0.75rem; font-weight: 700; pointer-events: none;
+}
+
+/* Taller del plano (modo edición). */
+.plan-workshop { display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+.plan-ws-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 8px 12px; }
+.plan-ws-row + .plan-ws-row { border-top: var(--dash); }
+.plan-ws-selected { min-height: 52px; }
+.plan-ws-what { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; }
+.plan-ws-what.muted { font-weight: 500; }
+.plan-ws-actions { margin-left: auto; display: inline-flex; gap: 6px; }
+.plan-ws-remove { color: var(--out); }
+.plan-ws-label { min-width: 64px; font-size: 0.8rem; font-weight: 700; color: var(--text-3); }
+.plan-floors, .plan-adds { display: flex; flex-wrap: wrap; gap: 6px; flex: 1 1 0; min-width: 0; }
+.plan-floor-btn, .plan-add-btn {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 4px 10px 4px 5px; border: 1px solid var(--border);
+  border-radius: 999px; background: var(--surface-2); color: var(--text); font: inherit; font-size: 0.82rem; font-weight: 650; cursor: pointer;
+}
+.plan-add-btn { padding-left: 10px; }
+.plan-floor-btn:hover, .plan-add-btn:hover { border-color: var(--text-3); }
+.plan-floor-btn[aria-pressed='true'] { border-color: var(--primary); box-shadow: inset 0 0 0 1px var(--primary); background: var(--primary-soft); }
+.plan-floor-btn:focus-visible, .plan-add-btn:focus-visible { outline: 3px solid var(--primary-line); outline-offset: 2px; }
+.plan-floor-swatch { position: relative; overflow: hidden; width: 26px; height: 26px; border-radius: 50%; border: 1px solid var(--border-strong); flex: none; }
+.plan-floor-swatch::before { content: ''; position: absolute; left: 0; top: 0; width: 300%; height: 300%; transform: scale(0.3334); transform-origin: 0 0; }
+.plan-add-line { width: 16px; height: 4px; border-radius: 2px; background: var(--text-3); }
+.plan-add-line.kind-ventanal { height: 6px; background: color-mix(in srgb, var(--info) 30%, var(--surface)); border: 1.5px solid var(--text-3); }
+
+/* Armados y candado en la barra del salón. */
+.plan-menu { position: relative; }
+.plan-menu-btn { max-width: 200px; }
+.plan-menu-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--low); flex: none; }
+.plan-menu-panel {
+  position: absolute; right: 0; top: calc(100% + 8px); z-index: 50; width: 340px; max-width: calc(100vw - 24px);
+  display: flex; flex-direction: column; gap: 8px; padding: 10px; border: 1px solid var(--border); border-radius: var(--radius-lg);
+  background: var(--surface); color: var(--text); box-shadow: var(--shadow-lg);
+}
+.plan-menu-title { margin: 0; padding: 2px 4px; font-family: var(--font-display); font-weight: 700; font-size: 1.05rem; }
+.plan-menu-empty, .plan-menu-note { margin: 0; padding: 0 4px; font-size: 0.85rem; color: var(--text-2); display: flex; gap: 6px; align-items: center; }
+.plan-menu-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; max-height: 280px; overflow-y: auto; }
+.plan-menu-item { display: flex; align-items: center; gap: 8px; min-height: 48px; padding: 4px 6px; border-radius: var(--radius-sm); }
+.plan-menu-item.is-current { background: var(--primary-soft); }
+.plan-menu-mark { width: 18px; flex: none; color: var(--primary-fg); display: inline-flex; }
+.plan-menu-name { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; line-height: 1.25; }
+.plan-menu-name b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.plan-menu-sub { font-size: 0.76rem; color: var(--text-3); }
+.plan-menu-form { display: flex; flex-direction: column; gap: 6px; padding: 8px 4px 2px; border-top: var(--dash); }
+.plan-menu-form .input { flex: 1 1 auto; min-width: 0; }
+.plan-menu-label { font-size: 0.8rem; font-weight: 700; color: var(--text-3); }
+.plan-menu-quick { display: flex; flex-wrap: wrap; gap: 6px; }
+.plan-lock.is-locked { background: var(--bar); color: var(--bar-text-strong); border-color: var(--bar); }
+.plan-lock.is-locked:hover { background: color-mix(in srgb, var(--bar) 85%, #fff); }
+.plan-menu-sheet { display: flex; flex-direction: column; gap: 10px; }
+@media (max-width: 639px) {
+  .plan-lock-text { display: none; }
+  .plan-ws-actions { margin-left: 0; }
+  .plan-ws-row { padding: 6px 10px; gap: 6px 8px; flex-wrap: nowrap; }
+  .plan-ws-selected { flex-wrap: wrap; min-height: 0; }
+  .plan-ws-label { min-width: 0; flex: none; }
+  /* En el celular, piso y elementos van en una tira que se corre de costado: el plano queda a la vista. */
+  .plan-floors, .plan-adds { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+  .plan-floors::-webkit-scrollbar, .plan-adds::-webkit-scrollbar { display: none; }
+  .plan-floor-btn, .plan-add-btn { flex: none; min-height: 34px; }
+  .plan-ws-what.muted { font-size: 0.85rem; }
+}

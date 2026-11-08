@@ -218,6 +218,8 @@ export interface Settings extends BaseEntity {
   sucursal?: string;
   /** Local "de antes": los registros del Salón sin local (creados antes de tener locales) son de este. */
   defaultOutletId?: ID;
+  /** Plano del salón cuando todavía no hay locales cargados. */
+  floorPlan?: FloorPlanConfig;
   subtitle: string;
   logo: { kind: LogoKind; value?: string };
   primaryColor: string;
@@ -318,7 +320,7 @@ export type StockStatus = 'normal' | 'bajo' | 'critico' | 'sin_stock';
 export const PERMISSIONS = [
   'stock.view', 'stock.move', 'count.do', 'count.apply', 'orders.manage', 'orders.receive', 'catalog.manage',
   'movements.view', 'export', 'admin', 'invoices', 'transfers', 'production', 'recipes', 'pastry', 'salon', 'billing',
-  'sales.edit', 'sales.void',
+  'sales.edit', 'sales.void', 'salon.plan',
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];
 
@@ -447,6 +449,8 @@ export interface Outlet extends BaseEntity {
   categoryIds?: ID[];
   /** Mínimo de cada producto en este punto (productId → cantidad): por debajo, avisa que falta. */
   minStock?: Record<ID, number>;
+  /** Plano del salón de este local (armados, piso, elementos, candado). */
+  floorPlan?: FloorPlanConfig;
 }
 
 export interface TransferItem {
@@ -518,6 +522,48 @@ export interface DiningTable extends BaseEntity {
 }
 
 export type TableShape = 'cuadrada' | 'redonda' | 'rectangular';
+
+// ───────────────────────── Plano del salón ─────────────────────────
+
+/** Piso (fondo) de un sector del plano. */
+export type FloorStyle = 'puntos' | 'liso' | 'madera' | 'baldosas' | 'deck' | 'arena' | 'cesped';
+/** Elementos fijos del plano: no se tocan en el servicio, sirven para ubicarse. */
+export type FixtureKind = 'barra' | 'caja' | 'cocina' | 'entrada' | 'bano' | 'pared' | 'ventanal' | 'planta' | 'sombrilla' | 'mar';
+export interface FloorFixture {
+  id: string;
+  kind: FixtureKind;
+  /** Posición en % del ancho y alto del plano. */
+  x: number;
+  y: number;
+  /** 1 chico, 2 mediano, 3 grande. */
+  size?: 1 | 2 | 3;
+  /** Girado 90° (barra, pared, ventanal, mar). */
+  vertical?: boolean;
+}
+/** Dónde va una mesa en un armado. */
+export interface FloorTableSpot { x: number; y: number; shape?: TableShape; size?: 1 | 2 | 3 }
+/** Armado guardado de un sector ("Día", "Noche", "Evento"): se cambia el plano entero de un toque. */
+export interface FloorLayout {
+  id: string;
+  name: string;
+  savedAt: string;
+  floor?: FloorStyle;
+  fixtures: FloorFixture[];
+  tables: Record<ID, FloorTableSpot>;
+}
+export interface ZonePlan {
+  floor?: FloorStyle;
+  fixtures?: FloorFixture[];
+  layouts?: FloorLayout[];
+  /** Armado en uso. */
+  layoutId?: string;
+}
+/** Plano del salón de un local: sus sectores y el candado. */
+export interface FloorPlanConfig {
+  /** Plano bloqueado: nadie mueve mesas ni cambia el plano hasta que un encargado lo desbloquee. */
+  locked?: { at: string; by?: string };
+  zones?: Record<string, ZonePlan>;
+}
 
 /** Adicional de un plato ("leche de almendras", "extra queso"): suma al precio. */
 export interface MenuExtra {

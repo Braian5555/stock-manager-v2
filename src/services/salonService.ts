@@ -6,6 +6,7 @@
  * Funciona solo, sin depender de otro sistema. Al cerrar un pedido se descuentan del stock las
  * recetas de los platos (saleStockService), si está activado.
  */
+import { assertPlanUnlocked } from './floorPlanService';
 import { db } from '../database/db';
 import type { DiningTable, IvaRate, MenuExtra, MenuItem, Recipe, Station, TableShape, TableTicket, TicketChannel, TicketDiscount, TicketLine } from '../models';
 import { nowIso, uuid } from '../utils/id';
@@ -62,6 +63,7 @@ export async function saveTable(d: { id?: string; name: string; zone: string; se
 export async function placeTable(id: string, p: { x?: number; y?: number; shape?: TableShape; size?: 1 | 2 | 3 }): Promise<DiningTable> {
   const t = await db.diningTables.get(id);
   if (!t) throw new Error('La mesa no existe.');
+  await assertPlanUnlocked();
   const clamp = (v: number) => Math.round(Math.min(100, Math.max(0, v)) * 10) / 10;
   return saveEntity(db.diningTables, {
     ...t,
