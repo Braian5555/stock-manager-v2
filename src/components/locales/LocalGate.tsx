@@ -1,5 +1,5 @@
-import { Building, Store } from 'lucide-react';
-import { useEffect, type ReactNode } from 'react';
+import { Building, Check, ChevronDown, Store } from 'lucide-react';
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { Link, useLocation } from 'react-router';
 import type { ID, Outlet } from '../../models';
 import { CENTRAL, setCentralView, setDeviceLocal, useLocalScope } from '../../services/localScope';
@@ -82,21 +82,84 @@ function PickList({ outlets, onPick }: { outlets: Outlet[]; onPick: (id: ID) => 
   );
 }
 
+/** Selector de la Central: qué local mirar. Lista propia (no la del sistema) con los colores de Orillas. */
+function CentralPicker({ outlets, current }: { outlets: Outlet[]; current: Outlet | undefined }) {
+  const [open, setOpen] = useState(false);
+  const [hi, setHi] = useState(0);
+  const wrap = useRef<HTMLDivElement>(null);
+  const btn = useRef<HTMLButtonElement>(null);
+  const list = useRef<HTMLUListElement>(null);
+  const sorted = [...outlets].sort((a, b) => (a.code ?? '').localeCompare(b.code ?? '', 'es', { numeric: true }) || a.name.localeCompare(b.name, 'es'));
+  const options: { id: string; outlet?: Outlet }[] = [{ id: '' }, ...sorted.map((o) => ({ id: o.id, outlet: o }))];
+  const selected = Math.max(0, options.findIndex((o) => o.id === (current?.id ?? '')));
+
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: PointerEvent) => { if (!wrap.current?.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener('pointerdown', close);
+    list.current?.focus();
+    return () => document.removeEventListener('pointerdown', close);
+  }, [open]);
+  useEffect(() => { if (open) list.current?.querySelector<HTMLElement>(`[data-i="${hi}"]`)?.scrollIntoView({ block: 'nearest' }); }, [open, hi]);
+
+  const show = () => { setHi(selected); setOpen(true); };
+  const pick = (i: number) => { setCentralView(options[i].id || undefined); setOpen(false); btn.current?.focus(); };
+  const onListKey = (e: KeyboardEvent<HTMLUListElement>) => {
+    const last = options.length - 1;
+    const keys: Record<string, () => void> = {
+      ArrowDown: () => setHi((i) => Math.min(last, i + 1)),
+      ArrowUp: () => setHi((i) => Math.max(0, i - 1)),
+      Home: () => setHi(0),
+      End: () => setHi(last),
+      Enter: () => pick(hi),
+      ' ': () => pick(hi),
+      Escape: () => { setOpen(false); btn.current?.focus(); },
+      Tab: () => setOpen(false),
+    };
+    const fn = keys[e.key];
+    if (!fn) return;
+    if (e.key !== 'Tab') e.preventDefault();
+    fn();
+  };
+
+  return (
+    <div ref={wrap} className="central-picker">
+      <button ref={btn} type="button" className={`local-chip is-central${current ? ' has-local' : ''}`} aria-haspopup="listbox" aria-expanded={open}
+        aria-label={`Central: local a mirar: ${current ? current.name : 'todos los locales'}`} title="Central: qué local mirar"
+        onClick={() => (open ? setOpen(false) : show())}
+        onKeyDown={(e) => { if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); show(); } }}>
+        {current ? <Store size={16} aria-hidden /> : <Building size={16} aria-hidden />}
+        <span className="truncate">{current ? current.name : <><span className="central-picker-pre">Central · </span>todos</>}</span>
+        <ChevronDown size={16} aria-hidden className="central-picker-caret" />
+      </button>
+      {open && (
+        <div className="central-picker-panel">
+          <p className="central-picker-title" id="central-picker-title">¿Qué local mirar?</p>
+          <ul ref={list} role="listbox" tabIndex={-1} aria-labelledby="central-picker-title" aria-activedescendant={`central-opt-${hi}`} onKeyDown={onListKey}>
+            {options.map((o, i) => (
+              <li key={o.id || 'all'} id={`central-opt-${i}`} data-i={i} role="option" aria-selected={i === selected}
+                className={`central-picker-opt${i === hi ? ' is-hi' : ''}${i === selected ? ' is-sel' : ''}${i === 0 ? ' is-all' : ''}`}
+                onPointerMove={() => setHi(i)} onClick={() => pick(i)}>
+                <span className="central-picker-code" aria-hidden>{o.outlet ? o.outlet.code ?? '·' : <Building size={16} />}</span>
+                <span className="central-picker-name">
+                  {o.outlet ? o.outlet.name : 'Todos los locales'}
+                  {o.outlet?.ptoVta ? <span className="central-picker-sub">PV {o.outlet.ptoVta}</span> : null}
+                  {!o.outlet ? <span className="central-picker-sub">Resumen de la Central</span> : null}
+                </span>
+                {i === selected && <Check size={18} aria-hidden className="central-picker-check" />}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /** Chip con el local del equipo (en el encabezado). En la Central, para elegir qué local mirar. */
 export function LocalChip() {
   const scope = useLocalScope();
-  if (scope.central && scope.outlets.length) {
-    return (
-      <label className="local-chip is-central" title="Central: qué local mirar">
-        <Building size={16} aria-hidden />
-        <span className="sr-only">Central: local a mirar</span>
-        <select aria-label="Central: local a mirar" value={scope.current?.id ?? ''} onChange={(e) => setCentralView(e.target.value || undefined)}>
-          <option value="">Central · todos</option>
-          {scope.outlets.map((o) => <option key={o.id} value={o.id}>{o.code ? `${o.code} · ` : ''}{o.name}</option>)}
-        </select>
-      </label>
-    );
-  }
+  if (scope.central && scope.outlets.length) return <CentralPicker outlets={scope.outlets} current={scope.current} />;
   if (!scope.current) return null;
   return (
     <Link to="/configuracion/locales" className="local-chip" title="Local de este equipo" aria-label={`Local de este equipo: ${scope.current.name}`}>

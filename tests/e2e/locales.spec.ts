@@ -66,7 +66,21 @@ test('central: la "aplicación madre" ve todos los locales y opera uno por vez',
   const table = page.getByRole('table', { name: 'Locales hoy' });
   await expect(table.getByRole('row', { name: /Xenote/ })).toBeVisible();
   await expect(table.getByRole('row', { name: /Kiosco/ })).toBeVisible();
-  await expect(page.getByRole('combobox', { name: 'Central: local a mirar' })).toHaveValue('');
+  const picker = page.getByRole('button', { name: /^Central: local a mirar/ });
+  await expect(picker).toHaveAccessibleName('Central: local a mirar: todos los locales');
+  // La lista de la Central: con teclado y con el mouse.
+  await picker.click();
+  const list = page.getByRole('listbox', { name: '¿Qué local mirar?' });
+  await expect(list.getByRole('option', { name: /Todos los locales/ })).toHaveAttribute('aria-selected', 'true');
+  await page.keyboard.press('Escape');
+  await expect(list).toHaveCount(0);
+  await picker.click();
+  await list.getByRole('option', { name: /Xenote/ }).click();
+  await expect(picker).toHaveAccessibleName('Central: local a mirar: Xenote');
+  await picker.press('ArrowDown');
+  await page.keyboard.press('Home');
+  await page.keyboard.press('Enter');
+  await expect(picker).toHaveAccessibleName('Central: local a mirar: todos los locales');
 
   // Para operar, elige el local.
   await go(page, '/salon');
@@ -78,7 +92,9 @@ test('central: la "aplicación madre" ve todos los locales y opera uno por vez',
   await expect(page.getByRole('button', { name: 'Mesa 1: Libre' })).toBeVisible();
 
   // Vuelve a "todos": las ventas del día se pueden ver; operar pide local otra vez.
-  await page.getByRole('combobox', { name: 'Central: local a mirar' }).selectOption('');
+  await page.getByRole('button', { name: /^Central: local a mirar/ }).click();
+  await page.getByRole('option', { name: /Todos los locales/ }).click();
+  await expect(page.getByRole('button', { name: 'Central: local a mirar: todos los locales' })).toBeVisible();
   await go(page, '/salon?vista=hoy');
   await expect(page.getByRole('heading', { name: 'Ventas de hoy', level: 1 })).toBeVisible();
 });
