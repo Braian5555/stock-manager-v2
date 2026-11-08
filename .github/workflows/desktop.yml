@@ -5,8 +5,8 @@ name: Orillas para Windows
 on:
   workflow_dispatch:
   push:
-    branches: [main]
-    paths: ['desktop/package.json']
+    branches: [main, desktop]
+    paths: ['desktop/**', '.github/workflows/desktop.yml']
 
 permissions:
   contents: write
