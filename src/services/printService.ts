@@ -58,7 +58,27 @@ function page(title: string, body: string) {
 }
 
 /** Abre el diálogo de impresión con el documento (iframe oculto: no sale de la app). */
-export function printHtml(html: string): Promise<void> {
+/** Qué se imprime (en el programa de Windows, cada cosa puede ir a su impresora). */
+export type PrintKind = 'ticket' | 'cocina' | 'barra';
+
+/** Lo que agrega Orillas para Windows (programa instalado): impresión directa por impresora. */
+export interface OrillasDesktop {
+  printers(): Promise<{ name: string; displayName: string; isDefault: boolean }[]>;
+  getPrinters(): Promise<Partial<Record<PrintKind, string>>>;
+  setPrinters(p: Partial<Record<PrintKind, string>>): Promise<Partial<Record<PrintKind, string>>>;
+  print(html: string, kind: PrintKind): Promise<{ ok: boolean; printer: string }>;
+  info(): Promise<{ version: string; platform: string }>;
+}
+/** El programa de Windows, si Orillas está abierto ahí (en el navegador: undefined). */
+export const desktopApp = (): OrillasDesktop | undefined => (globalThis as { orillasDesktop?: OrillasDesktop }).orillasDesktop;
+
+/**
+ * Imprime un ticket. En el programa de Windows sale directo (sin cuadro) en la impresora elegida para
+ * ese tipo; en el navegador, con el cuadro de impresión de siempre.
+ */
+export function printHtml(html: string, kind: PrintKind = 'ticket'): Promise<void> {
+  const desk = desktopApp();
+  if (desk) return desk.print(html, kind).then(() => undefined);
   return new Promise((resolve) => {
     const frame = document.createElement('iframe');
     frame.setAttribute('aria-hidden', 'true');
@@ -181,6 +201,18 @@ export function precuentaHtml(t: TableTicket, business: string): string {
 }
 
 /** Comanda para cocina: sin precios. */
+/**
+ * Imprime la comanda. En el programa de Windows, cocina y barra salen cada una en su impresora;
+ * en el navegador, una hoja por puesto en la misma impresión.
+ */
+export async function printComanda(t: TableTicket, lines: TicketLine[]): Promise<void> {
+  if (!desktopApp()) return printHtml(comandaHtml(t, lines));
+  for (const s of ['cocina', 'barra'] as const) {
+    const part = lines.filter((l) => (l.station ?? 'cocina') === s);
+    if (part.length) await printHtml(comandaHtml(t, part), s);
+  }
+}
+
 export function comandaHtml(t: TableTicket, lines: TicketLine[]): string {
   // Si hay platos de cocina y de barra, sale una comanda por puesto (cada una en su hoja).
   const groups = (['cocina', 'barra'] as const).map((s) => ({ s, lines: lines.filter((l) => (l.station ?? 'cocina') === s) })).filter((g) => g.lines.length);

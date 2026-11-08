@@ -7,7 +7,7 @@ import { db } from '../../database/db';
 import { DESKTOP_QUERY, useMediaQuery } from '../../hooks/useMediaQuery';
 import { sinceLabel, useNow } from '../../hooks/useNow';
 import type { DiningTable, MenuExtra, MenuItem, TableTicket, TicketDiscount, TicketLine } from '../../models';
-import { comandaHtml, precuentaHtml, printHtml, ticketBusiness } from '../../services/printService';
+import { precuentaHtml, printComanda as printComandaFor, printHtml, ticketBusiness } from '../../services/printService';
 import {
   addCustomLine, addLine, cancelTicket, channelOf, chargedAmount, discountAmount, isOpen, markDelivered, moveTicket, paidQty, remainingAmount, requestBill, sendToKitchen,
   setComp, setDiscount, ticketLabel, updateCustomer, updateLine, voidLine,
@@ -66,7 +66,7 @@ export function TicketSheet({ ticketId, onClose, onCharge, tables, busy }: { tic
   };
   const printPre = () => void run(() => printHtml(precuentaHtml(ticket, ticketBusiness(settings))));
   const kitchenLines = lines.filter((l) => l.status === 'cocina');
-  const printComanda = () => void run(() => printHtml(comandaHtml(ticket, kitchenLines.length ? kitchenLines : lines.filter((l) => l.kitchen && l.status !== 'nuevo'))));
+  const printComanda = () => void run(() => printComandaFor(ticket, kitchenLines.length ? kitchenLines : lines.filter((l) => l.kitchen && l.status !== 'nuevo')));
   const cancel = async () => {
     if (await confirm({ title: `¿Anular el pedido (${label})?`, message: isTable ? 'Se libera la mesa y el pedido queda como anulado.' : 'El pedido queda como anulado.', confirmLabel: 'Anular pedido', danger: true }))
       if (await run(() => cancelTicket(ticket.id), 'Pedido anulado')) onClose();

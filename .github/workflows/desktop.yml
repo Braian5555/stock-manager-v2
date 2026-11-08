@@ -1,0 +1,30 @@
+# Arma el instalador de Orillas para Windows (Orillas-Setup-x.y.z.exe) y lo publica en GitHub Releases.
+# Se corre a mano (Actions → "Orillas para Windows" → Run workflow) o al cambiar la versión en desktop/.
+name: Orillas para Windows
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['desktop/package.json']
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 20
+      - run: npm install --no-audit --no-fund
+      - run: npm run check
+      - name: Armar y publicar el instalador
+        run: npx electron-builder --win --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

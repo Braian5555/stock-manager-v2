@@ -25,7 +25,7 @@ import { StockResetSection } from '../components/StockResetSection';
 import { AccessibilitySection } from '../components/AccessibilitySection';
 import { AIReaderSection } from '../components/AIReaderSection';
 import { FiscalSettingsSection } from '../components/FiscalSettingsSection';
-import { printHtml, testTicketHtml, ticketBusiness } from '../services/printService';
+import { desktopApp, printHtml, testTicketHtml, ticketBusiness, type PrintKind } from '../services/printService';
 import { salonStockOn } from '../services/saleStockService';
 import { MODULE_ICON, MODULE_PATH, maxirestOn, moduleEnabled, navLabel } from '../layouts/modules';
 import { useCloud } from '../cloud/cloudService';
@@ -209,8 +209,51 @@ function PrintSection() {
         <div><button type="button" className="btn" onClick={() => void run(() => printHtml(testTicketHtml(ticketBusiness(settings))))}><Printer size={18} aria-hidden /> Imprimir ticket de prueba</button></div>
       </section>
       <TicketHeaderCard />
-      <DirectPrintCard />
+      {desktopApp() ? <DesktopPrintersCard /> : <DirectPrintCard />}
     </>
+  );
+}
+
+/** Orillas para Windows: qué impresora usa esta compu para cada cosa (todo sale directo, sin cuadro). */
+function DesktopPrintersCard() {
+  const { run, notify } = useFeedback();
+  const settings = useSettings();
+  const desk = desktopApp()!;
+  const [list, setList] = useState<{ name: string; displayName: string; isDefault: boolean }[] | null>(null);
+  const [sel, setSel] = useState<Partial<Record<PrintKind, string>>>({});
+  useEffect(() => {
+    let alive = true;
+    void Promise.all([desk.printers(), desk.getPrinters()]).then(([l, p]) => { if (alive) { setList(l); setSel(p); } });
+    return () => { alive = false; };
+  }, [desk]);
+  const kinds: { kind: PrintKind; label: string; hint: string }[] = [
+    { kind: 'ticket', label: 'Tickets y facturas', hint: 'Pre-cuenta, factura, arqueo y cierre (la de la caja).' },
+    { kind: 'cocina', label: 'Comandas de cocina', hint: 'Lo que prepara la cocina.' },
+    { kind: 'barra', label: 'Comandas de barra', hint: 'Lo que prepara la barra (cafés, tragos…).' },
+  ];
+  const save = () => void run(async () => { setSel(await desk.setPrinters(sel)); notify('Impresoras guardadas en esta compu'); });
+  const test = (kind: PrintKind) => void run(async () => { await printHtml(testTicketHtml(ticketBusiness(settings)), kind); notify('Ticket de prueba enviado'); });
+  return (
+    <section className="card card-pad stack" aria-labelledby="desk-printers">
+      <h2 id="desk-printers" style={{ margin: 0, fontSize: '1.1rem' }}>Impresoras de este equipo</h2>
+      <p style={{ margin: 0 }}>Estás en <b>Orillas para Windows</b>: todo se imprime directo, sin el cuadro de impresión. Elegí qué impresora usa esta compu para cada cosa (si no elegís, va a la predeterminada de Windows).</p>
+      {!list ? <p className="small muted" aria-busy="true">Buscando impresoras…</p> : (
+        <div className="form-grid cols-2">
+          {kinds.map((k) => (
+            <Field key={k.kind} label={k.label} hint={k.hint}>
+              <div className="row" style={{ gap: 8 }}>
+                <select className="input" aria-label={k.label} value={sel[k.kind] ?? ''} onChange={(e) => setSel({ ...sel, [k.kind]: e.target.value || undefined })}>
+                  <option value="">Predeterminada de Windows</option>
+                  {list.map((p) => <option key={p.name} value={p.name}>{p.displayName}{p.isDefault ? ' (predeterminada)' : ''}</option>)}
+                </select>
+                <button type="button" className="btn btn-sm" onClick={() => test(k.kind)} aria-label={`Probar ${k.label}`}><Printer size={16} aria-hidden /> Probar</button>
+              </div>
+            </Field>
+          ))}
+        </div>
+      )}
+      <div><button type="button" className="btn btn-primary" onClick={save} disabled={!list}>Guardar impresoras</button></div>
+    </section>
   );
 }
 
@@ -307,6 +350,7 @@ function DirectPrintCard() {
         <li>Desde ahí en adelante abrí Orillas con ese acceso (la primera vez pide entrar con tu cuenta). Todos los tickets se imprimen directo al tocar el botón.</li>
       </ol>
       <div><button type="button" className="btn btn-primary" onClick={download}><Download size={18} aria-hidden /> Descargar instalador del acceso (Windows)</button></div>
+      <p style={{ margin: 0 }}><b>Mejor todavía:</b> instalá <a href="https://github.com/Braian5555/stock-manager-v2/releases/latest" target="_blank" rel="noreferrer">Orillas para Windows</a> (bajá <b>Orillas-Setup</b>). Imprime directo y cada cosa en su impresora: tickets en la caja, comandas en cocina y en barra.</p>
       <p className="small muted" style={{ margin: 0 }}>Funciona con Google Chrome o Microsoft Edge. Abierto de la forma normal, Orillas sigue mostrando el cuadro de impresión (sirve para elegir otra impresora).</p>
     </section>
   );

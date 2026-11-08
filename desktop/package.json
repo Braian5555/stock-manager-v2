@@ -1,0 +1,47 @@
+{
+  "name": "orillas-desktop",
+  "productName": "Orillas",
+  "version": "1.0.0",
+  "description": "Orillas para Windows: el sistema gastronómico con impresión directa en las impresoras de cada local.",
+  "author": "EPICURAE AMERICANOSERV SA",
+  "license": "UNLICENSED",
+  "private": true,
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "check": "node --check main.js && node --check preload.js",
+    "dist": "electron-builder --win --publish never",
+    "release": "electron-builder --win --publish always"
+  },
+  "dependencies": {
+    "electron-updater": "6.3.9"
+  },
+  "devDependencies": {
+    "electron": "33.2.1",
+    "electron-builder": "25.1.8"
+  },
+  "build": {
+    "appId": "ar.com.orillas.app",
+    "productName": "Orillas",
+    "copyright": "EPICURAE AMERICANOSERV SA",
+    "files": ["main.js", "preload.js", "build/icon.ico", "package.json"],
+    "directories": { "output": "dist", "buildResources": "build" },
+    "win": {
+      "target": [{ "target": "nsis", "arch": ["x64"] }],
+      "icon": "build/icon.ico",
+      "artifactName": "Orillas-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": "always",
+      "createStartMenuShortcut": true,
+      "shortcutName": "Orillas",
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "language": "3082"
+    },
+    "publish": [{ "provider": "github", "owner": "Braian5555", "repo": "stock-manager-v2", "releaseType": "release" }]
+  }
+}
