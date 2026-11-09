@@ -7,6 +7,7 @@ import { EMPTY, useLookups, useProducts } from '../hooks/useData';
 import { useCosts } from '../hooks/useCosts';
 import { dishCost, type DishCost } from '../services/menuCostService';
 import { RecipeEditor } from '../components/RecipeEditor';
+import { recipesOn } from '../services/settingsService';
 import { minutesSince, sinceLabel, useNow } from '../hooks/useNow';
 import { useToday, startOfDayIso } from '../hooks/useToday';
 import type { DiningTable, FiscalDoc, IvaRate, MenuExtra, MenuItem, Recipe, Station, TableTicket } from '../models';
@@ -266,12 +267,14 @@ type ItemDraft = { id?: string; name: string; section: string; price?: number; k
 
 function MenuTab() {
   const menu = useMenu();
-  const fiscal = fiscalOf(useSettings());
+  const appSettings = useSettings();
+  const fiscal = fiscalOf(appSettings);
+  const withRecipes = recipesOn(appSettings);
   const products = useProducts();
   const costs = useCosts();
   const byId = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
-  const costOfItem = (m: MenuItem) => (costs.visible ? dishCost(m, costs.costOf, byId, fiscal) : undefined);
-  const noRecipe = menu.filter((m) => m.active && !m.recipe?.items.length).length;
+  const costOfItem = (m: MenuItem) => (costs.visible && withRecipes ? dishCost(m, costs.costOf, byId, fiscal) : undefined);
+  const noRecipe = withRecipes ? menu.filter((m) => m.active && !m.recipe?.items.length).length : 0;
   const [edit, setEdit] = useState<ItemDraft | null>(null);
   const [q, setQ] = useState('');
   const sections = useMemo(() => [...new Set(menu.map((m) => m.section))].sort((a, b) => a.localeCompare(b, 'es')), [menu]);
@@ -331,13 +334,15 @@ function CostTag({ c }: { c?: DishCost }) {
 
 function MenuItemModal({ draft, sections, onClose }: { draft: ItemDraft; sections: string[]; onClose: () => void }) {
   const { run } = useFeedback();
-  const fiscal = fiscalOf(useSettings());
+  const appSettings = useSettings();
+  const fiscal = fiscalOf(appSettings);
+  const withRecipes = recipesOn(appSettings);
   const [d, setD] = useState(draft);
   const products = useProducts();
   const lk = useLookups();
   const costs = useCosts();
   const byId = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
-  const cost = costs.visible && d.recipe?.items.length ? dishCost({ price: d.price ?? 0, iva: d.iva, recipe: d.recipe }, costs.costOf, byId, fiscal) : undefined;
+  const cost = costs.visible && withRecipes && d.recipe?.items.length ? dishCost({ price: d.price ?? 0, iva: d.iva, recipe: d.recipe }, costs.costOf, byId, fiscal) : undefined;
   const save = (again: boolean) => void run(async () => {
     await saveMenuItem({ ...d, price: d.price ?? NaN });
     if (again) setD({ ...d, id: undefined, name: '', price: undefined, extras: [], recipe: undefined });
@@ -377,8 +382,8 @@ function MenuItemModal({ draft, sections, onClose }: { draft: ItemDraft; section
           ))}
           <button type="button" className="btn btn-sm" onClick={() => setD({ ...d, extras: [...d.extras, { name: '', price: 0 }] })}><Plus size={16} aria-hidden /> Agregar adicional</button>
         </fieldset>
-        <RecipeEditor value={d.recipe} onChange={(r) => setD({ ...d, recipe: r })} products={products} lk={lk} unit="porción" perPortion
-          legend={<>Receta de una porción <span className="muted small">— opcional: al vender se descuenta del stock y da el costo del plato</span></>} />
+        {withRecipes && <RecipeEditor value={d.recipe} onChange={(r) => setD({ ...d, recipe: r })} products={products} lk={lk} unit="porción" perPortion
+          legend={<>Receta de una porción <span className="muted small">— opcional: al vender se descuenta del stock y da el costo del plato</span></>} />}
         {cost && (
           <div className="salon-dish-cost" role="status" aria-label="Costo del plato">
             <span>Costo <b className="num">{fmtMoney(cost.cost)}</b></span>

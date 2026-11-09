@@ -3,7 +3,9 @@ import { useLookups } from '../../hooks/useData';
 import type { Product } from '../../models';
 import type { ProductionLine } from '../../services/bakeryService';
 import { createQuickProduct, LINE_FAMILY_NAME } from '../../services/lineProductService';
+import { recipesOn } from '../../services/settingsService';
 import { useFeedback } from '../../store/feedback';
+import { useSettings } from '../../store/settings';
 import { Field, Input, Segmented, Select } from '../ui';
 import { Modal } from '../ui/Modal';
 
@@ -23,6 +25,7 @@ export function NewProductModal({ open, line, initialName = '', lineFamilies, on
   onCreated: (p: Product, kind: Kind) => void;
 }) {
   const lk = useLookups();
+  const withRecipes = recipesOn(useSettings());
   const { run } = useFeedback();
   const [name, setName] = useState('');
   const [kind, setKind] = useState<Kind>('elaborado');
@@ -44,7 +47,7 @@ export function NewProductModal({ open, line, initialName = '', lineFamilies, on
 
   return (
     <Modal open={open} title="Producto nuevo" onClose={onClose}
-      footer={<><button type="button" className="btn" onClick={onClose}>Cancelar</button><button type="button" className="btn btn-primary" disabled={!name.trim()} onClick={save}>{kind === 'elaborado' ? 'Crear y cargar receta' : 'Crear insumo'}</button></>}>
+      footer={<><button type="button" className="btn" onClick={onClose}>Cancelar</button><button type="button" className="btn btn-primary" disabled={!name.trim()} onClick={save}>{kind === 'elaborado' ? (withRecipes ? 'Crear y cargar receta' : 'Crear') : 'Crear insumo'}</button></>}>
       <form className="stack" onSubmit={(e) => { e.preventDefault(); if (name.trim()) void save(); }}>
         <Field label="Nombre"><Input value={name} onChange={(e) => setName(e.target.value)} placeholder={line === 'pastry' ? 'Ej.: Torta rogel' : 'Ej.: Pan de campo'} autoFocus /></Field>
         <Segmented<Kind> label="Qué es" value={kind} onChange={setKind}
@@ -62,7 +65,7 @@ export function NewProductModal({ open, line, initialName = '', lineFamilies, on
             </Select>
           </Field>
         ) : (
-          <p className="small muted" style={{ margin: 0 }}>Queda en la familia <b>{lineFamily}</b>{lineFamilies.length ? '' : ' (se crea ahora)'} y después cargás su receta.</p>
+          <p className="small muted" style={{ margin: 0 }}>Queda en la familia <b>{lineFamily}</b>{lineFamilies.length ? '' : ' (se crea ahora)'}{withRecipes ? ' y después cargás su receta' : ''}.</p>
         )}
       </form>
     </Modal>

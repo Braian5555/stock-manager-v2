@@ -9,6 +9,7 @@ import { recipeConsumption, registerProduction, undoProduction } from '../servic
 import { useFeedback } from '../store/feedback';
 import { EmptyState, PageHeader, Segmented } from '../components/ui';
 import { RecipeModal } from '../components/RecipeModal';
+import { recipesOn } from '../services/settingsService';
 import { PlanView, SummaryView } from '../components/bakery/BakeryViews';
 import { NewProductModal } from '../components/bakery/NewProductModal';
 import { lineFamilyIds, planOf, type ProductionLine } from '../services/bakeryService';
@@ -48,7 +49,10 @@ export function ProductionPage({ line = 'production' }: { line?: ProductionLine 
   const { can, canAny } = useSession();
   const settings = useSettings();
   const canEdit = can('catalog.manage');
-  const canRecipes = canAny(['catalog.manage', 'recipes']);
+  // Crear productos de la sección: quien administra el catálogo o tiene el permiso "recetas".
+  const canCreate = canAny(['catalog.manage', 'recipes']);
+  const withRecipes = recipesOn(settings);
+  const canRecipes = withRecipes && canCreate;
   const [famOpen, setFamOpen] = useState(false);
   type View = 'anotar' | 'plan' | 'resumen' | 'recetas';
   const [view, setView] = useState<View>('anotar');
@@ -86,9 +90,10 @@ export function ProductionPage({ line = 'production' }: { line?: ProductionLine 
   // Insumos (harina, levadura…): están en alguna receta y no tienen receta propia. No se "anotan": se ocultan
   // de Anotar, Plan y Resumen aunque estén en la misma familia (siguen en Recetas y en Stock).
   const made = useMemo(() => {
+    if (!withRecipes) return active;
     const ingredients = new Set(products.flatMap((p) => p.recipe?.items.map((i) => i.productId) ?? []));
     return active.filter((p) => p.recipe?.items.length || !ingredients.has(p.id));
-  }, [active, products]);
+  }, [active, products, withRecipes]);
   const activeIds = useMemo(() => new Set(made.map((p) => p.id)), [made]);
   // Movimientos de esta línea para el plan y el resumen: sus productos y lo que se consumió para hacerlos.
   const lineMoves = useMemo(() => {
@@ -158,7 +163,7 @@ export function ProductionPage({ line = 'production' }: { line?: ProductionLine 
         title={menuLabel(settings, line)}
         subtitle={new Date().toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })}
         actions={<>
-          {canRecipes && <button type="button" className="btn btn-sm" onClick={() => setNewName('')}><Plus size={16} aria-hidden /> Nuevo producto</button>}
+          {canCreate && <button type="button" className="btn btn-sm" onClick={() => setNewName('')}><Plus size={16} aria-hidden /> Nuevo producto</button>}
           {can('admin') && <button type="button" className="btn btn-sm btn-ghost" onClick={() => setFamOpen(true)}><Tags size={16} aria-hidden /> Familias</button>}
           <Segmented label="Vista" value={view} onChange={setView} options={views} />
         </>}
@@ -167,12 +172,12 @@ export function ProductionPage({ line = 'production' }: { line?: ProductionLine 
       {pastry && !famIds.size ? (
         <div className="card">
           <EmptyState icon={<CakeSlice size={40} />} title="Todavía no hay familias de pastelería"
-            action={can('admin') || canRecipes ? <div className="row wrap" style={{ gap: 8, justifyContent: 'center' }}>
-              {canRecipes && <button type="button" className="btn btn-primary" onClick={() => setNewName('')}><Plus size={18} aria-hidden /> Nuevo producto</button>}
+            action={can('admin') || canCreate ? <div className="row wrap" style={{ gap: 8, justifyContent: 'center' }}>
+              {canCreate && <button type="button" className="btn btn-primary" onClick={() => setNewName('')}><Plus size={18} aria-hidden /> Nuevo producto</button>}
               {can('admin') && <button type="button" className="btn" onClick={() => setFamOpen(true)}><Tags size={18} aria-hidden /> Elegir familias</button>}
             </div> : undefined}>
-            {canRecipes
-              ? 'Creá lo que se elabora (tortas, budines, alfajores…) con “Nuevo producto”: queda en la familia “Pastelería” y le cargás la receta.' + (can('admin') ? ' O elegí qué familias que ya existen son de pastelería.' : '')
+            {canCreate
+              ? `Creá lo que se elabora (tortas, budines, alfajores…) con “Nuevo producto”: queda en la familia “Pastelería”${withRecipes ? ' y le cargás la receta' : ''}.` + (can('admin') ? ' O elegí qué familias que ya existen son de pastelería.' : '')
               : can('admin')
                 ? 'Elegí qué familias son de pastelería (por ejemplo, creá la familia “Pastelería” en Familias y pasale las tortas, budines, alfajores…). Sus productos aparecen acá para anotar, planificar y ver sus recetas.'
                 : 'Pedile a un administrador que elija qué familias son de pastelería.'}
@@ -207,7 +212,7 @@ export function ProductionPage({ line = 'production' }: { line?: ProductionLine 
       {list.length === 0 ? (
         <div className="production-empty">
           <p className="muted">{q.trim() ? 'No hay productos con ese nombre.' : 'No hay productos en esta familia.'}</p>
-          {canRecipes && q.trim() && <button type="button" className="btn" onClick={() => setNewName(q.trim())}><Plus size={16} aria-hidden /> Crear “{q.trim()}”</button>}
+          {canCreate && q.trim() && <button type="button" className="btn" onClick={() => setNewName(q.trim())}><Plus size={16} aria-hidden /> Crear “{q.trim()}”</button>}
         </div>
       ) : (
         <div className="production-grid" role="list" aria-label="Productos">
@@ -272,7 +277,7 @@ export function ProductionPage({ line = 'production' }: { line?: ProductionLine 
                 <button key={n} type="button" className="btn" onClick={() => setQty(round3((qty ?? 0) + n))}>+{fmtNumber(n)}</button>
               ))}
             </div>
-            {picked.recipe?.items.length ? (
+            {!withRecipes ? null : picked.recipe?.items.length ? (
               <div className="production-uses" aria-live="polite">
                 <div className="small muted">{qty ? 'Se descuenta del stock:' : 'Según la receta se descuenta:'}</div>
                 <ul>
@@ -295,7 +300,7 @@ export function ProductionPage({ line = 'production' }: { line?: ProductionLine 
       </Modal>
       <RecipeModal product={editing} onClose={() => setEditing(null)} />
       <NewProductModal open={newName !== null} line={line} initialName={newName ?? ''} lineFamilies={[...famIds]} onClose={() => setNewName(null)}
-        onCreated={(p, kind) => { setNewName(null); setQ(''); setRq(''); if (kind === 'elaborado') setEditing(p); }} />
+        onCreated={(p, kind) => { setNewName(null); setQ(''); setRq(''); if (kind === 'elaborado' && withRecipes) setEditing(p); }} />
       <FamiliesModal open={famOpen} onClose={() => setFamOpen(false)} current={famIds} line={line} />
     </div>
   );

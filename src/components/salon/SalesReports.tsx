@@ -9,6 +9,7 @@ import { fiscalOf } from '../../services/fiscalService';
 import { periodRange, salesReport, type Bucket, type QuickPeriod, type SalesReport } from '../../services/salesReportService';
 import { useFeedback } from '../../store/feedback';
 import { useSettings } from '../../store/settings';
+import { recipesOn } from '../../services/settingsService';
 import { fmtMoney } from '../../utils/format';
 import { EmptyState, Field, Input, Segmented } from '../ui';
 import { useMenu } from './hooks';
@@ -37,18 +38,20 @@ export function SalesReports() {
   const menu = useMenu();
   const products = useProducts();
   const costs = useCosts();
+  // El costo de lo vendido sale de las recetas de la carta: sin recetas, no se muestra.
+  const showCost = costs.visible && recipesOn(settings);
   const [allItems, setAllItems] = useState(false);
 
   const report = useMemo(() => salesReport(tickets, range, {
     menu: new Map(menu.map((m) => [m.id, m])),
-    costOf: costs.visible ? costs.costOf : undefined,
+    costOf: showCost ? costs.costOf : undefined,
     products: new Map(products.map((p) => [p.id, p])),
     fiscal,
-  }), [tickets, range.from, range.to, menu, products, costs, fiscal.enabled, fiscal.condicionIva, fiscal.ivaDefault]); // eslint-disable-line react-hooks/exhaustive-deps
+  }), [tickets, range.from, range.to, menu, products, costs, showCost, fiscal.enabled, fiscal.condicionIva, fiscal.ivaDefault]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const exportXlsx = () => void run(async () => {
     const [{ toXlsx }, { downloadBlob }] = await Promise.all([import('../../exports/writers'), import('../../exports/download')]);
-    const blob = await toXlsx(`Ventas del salón ${range.from} a ${range.to}`, reportDatasets(report, costs.visible));
+    const blob = await toXlsx(`Ventas del salón ${range.from} a ${range.to}`, reportDatasets(report, showCost));
     downloadBlob(blob, `ventas-salon_${range.from}_${range.to}.xlsx`);
     notify('Excel de ventas descargado');
   });
@@ -73,12 +76,12 @@ export function SalesReports() {
         <div className="salon-stat"><span className="num">{report.orders}</span><span>{report.orders === 1 ? 'pedido' : 'pedidos'}</span></div>
         <div className="salon-stat"><span className="num">{report.orders ? fmtMoney(report.avg) : '—'}</span><span>ticket promedio</span></div>
         <div className="salon-stat"><span className="num">{report.guests || '—'}</span><span>comensales</span></div>
-        {costs.visible && <div className="salon-stat"><span className="num">{report.cost ? fmtMoney(report.cost) : '—'}</span><span>costo de lo vendido</span></div>}
-        {costs.visible && <div className="salon-stat"><span className="num">{pct(report.foodCostPct)}</span><span>costo sobre ventas</span></div>}
+        {showCost && <div className="salon-stat"><span className="num">{report.cost ? fmtMoney(report.cost) : '—'}</span><span>costo de lo vendido</span></div>}
+        {showCost && <div className="salon-stat"><span className="num">{pct(report.foodCostPct)}</span><span>costo sobre ventas</span></div>}
       </div>
       <p className="small muted">
         Descuentos {fmtMoney(report.discounts)} · cortesías {fmtMoney(report.compValue)} · propinas {fmtMoney(report.tips)}{report.cancelled ? ` · ${report.cancelled} anulado${report.cancelled === 1 ? '' : 's'}` : ''}
-        {costs.visible && report.orders > 0 && report.costCoverage < 100 && ` · el costo cubre el ${report.costCoverage}% de lo vendido (faltan recetas o costos de insumos)`}
+        {showCost && report.orders > 0 && report.costCoverage < 100 && ` · el costo cubre el ${report.costCoverage}% de lo vendido (faltan recetas o costos de insumos)`}
       </p>
 
       {report.orders === 0 ? (
@@ -89,14 +92,14 @@ export function SalesReports() {
             <div className="card-head"><h2 id="sales-items">Por plato</h2><span className="small muted">antes de descuentos</span></div>
             <div className="table-wrap">
               <table className="table sales-table">
-                <thead><tr><th>Plato</th><th className="num">Cant.</th><th className="num">Vendido</th>{costs.visible && <><th className="num">Costo</th><th className="num">Margen</th><th className="num">Costo %</th></>}</tr></thead>
+                <thead><tr><th>Plato</th><th className="num">Cant.</th><th className="num">Vendido</th>{showCost && <><th className="num">Costo</th><th className="num">Margen</th><th className="num">Costo %</th></>}</tr></thead>
                 <tbody>
                   {items.map((r) => (
                     <tr key={r.key}>
                       <td>{r.name}{r.comp ? <span className="small muted"> · {r.comp} cortesía{r.comp === 1 ? '' : 's'}</span> : null}</td>
                       <td className="num">{r.qty}</td>
                       <td className="num">{fmtMoney(r.revenue)}</td>
-                      {costs.visible && <><td className="num">{r.cost !== undefined ? fmtMoney(r.cost) : '—'}</td><td className="num">{r.margin !== undefined ? fmtMoney(r.margin) : '—'}</td><td className="num">{pct(r.pct)}</td></>}
+                      {showCost && <><td className="num">{r.cost !== undefined ? fmtMoney(r.cost) : '—'}</td><td className="num">{r.margin !== undefined ? fmtMoney(r.margin) : '—'}</td><td className="num">{pct(r.pct)}</td></>}
                     </tr>
                   ))}
                 </tbody>

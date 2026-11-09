@@ -253,6 +253,6 @@ const ACTIONS: Action[] = [
   { label: 'Foto de factura', hint: 'Para el administrativo', to: '/facturas?nueva=1', icon: Camera, tone: 'amber', perms: ['invoices'], module: 'invoices' },
   { label: 'Contar stock', hint: 'Conteo o control', to: '/conteo', icon: ClipboardCheck, tone: 'petrol', perms: ['count.do'], module: 'count' },
   { label: 'Ver stock', hint: 'Existencias y alertas', to: '/stock', icon: Boxes, tone: 'slate', perms: ['stock.view'], module: 'stock' },
-  { label: 'Productos', hint: 'Catálogo y recetas', to: '/productos', icon: Package, tone: 'slate', perms: MODULE_PERMISSIONS.products, module: 'products' },
+  { label: 'Productos', hint: 'Catálogo de productos', to: '/productos', icon: Package, tone: 'slate', perms: MODULE_PERMISSIONS.products, module: 'products' },
   { label: 'Asistente IA', hint: 'Preguntá o pedí cosas', to: '/asistente', icon: Sparkles, tone: 'petrol', perms: [...PERMISSIONS] },
 ];

@@ -255,6 +255,11 @@ export interface Settings extends BaseEntity {
   maxirest?: boolean;
   /** Descontar del stock las recetas de la carta al cerrar cada pedido (si falta: sí). */
   salonStock?: boolean;
+  /**
+   * Usar recetas (productos elaborados, Panadería y carta). Si falta: no. Sin recetas el stock
+   * es sólo de productos (harinas, bebidas…) y se mueve con conteos, remitos, compras y consumos.
+   */
+  recipes?: boolean;
 }
 
 export type IntegrationMode = 'disabled' | 'mock' | 'gateway' | 'excel';

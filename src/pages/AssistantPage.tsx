@@ -12,8 +12,10 @@ import { compressImage } from '../services/imageService';
 import { deleteConversation, newConversation, openConversation, useAssistant, useAssistantAvailable, useAssistantHistory } from '../store/assistant';
 import { useFeedback } from '../store/feedback';
 import { useSession } from '../store/session';
+import { useSettings } from '../store/settings';
+import { recipesOn } from '../services/settingsService';
 
-interface Suggestion { text: string; perms: Permission[]; photo?: boolean }
+interface Suggestion { text: string; perms: Permission[]; photo?: boolean; /** Sólo si se usan recetas. */ recipes?: boolean }
 
 /** Ideas para empezar, según lo que cada perfil puede hacer. */
 const SUGGESTIONS: Suggestion[] = [
@@ -24,7 +26,7 @@ const SUGGESTIONS: Suggestion[] = [
   { text: 'Anotá en el conteo: 12 cocas y 3 cajas de aceite', perms: ['count.do'] },
   { text: 'Te mando la foto de una factura: guardala y cargala al stock', perms: ['invoices'], photo: true },
   { text: 'Llegó mercadería: te mando la foto del remito para cargarla', perms: ['stock.move'], photo: true },
-  { text: 'Pasá a la app la receta de esta foto', perms: ['recipes', 'catalog.manage'], photo: true },
+  { text: 'Pasá a la app la receta de esta foto', perms: ['recipes', 'catalog.manage'], photo: true, recipes: true },
   { text: 'Anotá que salieron 40 medialunas', perms: ['production'] },
   { text: 'Anotá que salieron 2 tortas', perms: ['pastry'] },
   { text: '¿Qué productos están en negativo?', perms: ['stock.view'] },
@@ -79,6 +81,7 @@ export function AssistantPage() {
   };
   useEffect(() => () => stopMic(), []);
   // Altura según el texto (para navegadores sin "field-sizing").
+  const withRecipes = recipesOn(useSettings());
   useEffect(() => {
     const el = inputRef.current;
     if (!el || CSS.supports?.('field-sizing', 'content')) return;
@@ -101,7 +104,7 @@ export function AssistantPage() {
   const offline = !testing && cloud.phase !== 'linked';
   const busy = state.busy || busyImg > 0;
   const canSend = !busy && !offline && (text.trim().length > 0 || images.length > 0);
-  const suggestions = SUGGESTIONS.filter((x) => canAny(x.perms)).slice(0, 6);
+  const suggestions = SUGGESTIONS.filter((x) => canAny(x.perms) && (!x.recipes || withRecipes)).slice(0, 6);
 
   const send = async (value = text) => {
     if (!engine || busy || offline || (!value.trim() && !images.length)) return;

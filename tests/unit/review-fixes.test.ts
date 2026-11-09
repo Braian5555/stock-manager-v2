@@ -68,6 +68,7 @@ describe('sincronización: lo borrado no revive', () => {
   });
 
   it('vinculado a la nube no se siembran configuración ni catálogos', async () => {
+    await db.settings.clear(); // equipo nuevo, sin nada
     await db.meta.put({ key: CLOUD_LINK_KEY, value: { wsId: 'w', uid: 'u' } });
     await ensureBaseData();
     expect(await db.settings.count()).toBe(0);

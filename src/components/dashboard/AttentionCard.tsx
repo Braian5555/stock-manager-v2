@@ -11,6 +11,8 @@ import { useFeedback } from '../../store/feedback';
 import { useSession } from '../../store/session';
 import { fmtMoney, fmtNumber } from '../../utils/format';
 import { recipesGettingPricier } from '../../services/costService';
+import { recipesOn } from '../../services/settingsService';
+import { useSettings } from '../../store/settings';
 import { Modal } from '../ui/Modal';
 
 /**
@@ -39,7 +41,8 @@ export function AttentionCard({ hideNegatives = false, negOpen: negOpenProp, onN
   const setNegOpen = onNegOpen ?? setNegOpenOwn;
   const [costOpen, setCostOpen] = useState(false);
   const seeCosts = can('catalog.manage') || can('invoices') || can('admin');
-  const pricier = useMemo(() => (seeCosts ? recipesGettingPricier(products, invoices) : []), [products, invoices, seeCosts]);
+  const withRecipes = recipesOn(useSettings());
+  const pricier = useMemo(() => (seeCosts && withRecipes ? recipesGettingPricier(products, invoices) : []), [products, invoices, seeCosts, withRecipes]);
 
   const negatives = useMemo(() => negativeProducts(products), [products]);
   const pending = useMemo(() => (can('invoices') ? pendingInvoices(invoices) : []), [invoices, can]);

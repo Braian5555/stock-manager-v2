@@ -6,6 +6,7 @@ import { unlink } from '../integrations/core/linking';
 import { useLookups, useProducts } from '../hooks/useData';
 import { RecipeEditor } from './RecipeEditor';
 import { useSettings } from '../store/settings';
+import { recipesOn } from '../services/settingsService';
 import { maxirestOn } from '../layouts/modules';
 import { useFeedback } from '../store/feedback';
 import { Modal } from './ui/Modal';
@@ -51,7 +52,8 @@ export function ProductForm({ product, open, onClose, preset }: { product?: Prod
     if (owner) return { error: true, text: `Ya lo tiene “${owner.name}”.` };
     return check.warning ? { error: false, text: check.warning } : null;
   })();
-  const mxOn = maxirestOn(useSettings());
+  const appSettings = useSettings();
+  const mxOn = maxirestOn(appSettings);
   const link = mxOn ? product?.externalSystems?.maxirest : undefined;
 
   return (
@@ -150,7 +152,7 @@ export function ProductForm({ product, open, onClose, preset }: { product?: Prod
             </div>
           </fieldset>
         )}
-        <RecipeEditor value={d.recipe} onChange={(r) => set('recipe', r)} products={products} lk={lk} selfId={product?.id} unit={lk.unit(d.unitId)} />
+        {recipesOn(appSettings) && <RecipeEditor value={d.recipe} onChange={(r) => set('recipe', r)} products={products} lk={lk} selfId={product?.id} unit={lk.unit(d.unitId)} />}
         <Field label="Observaciones" className="span-all">
           <Textarea value={d.notes ?? ''} onChange={(e) => set('notes', e.target.value)} />
         </Field>

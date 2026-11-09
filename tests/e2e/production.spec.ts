@@ -1,8 +1,9 @@
 import { expect, test } from '@playwright/test';
-import { dialog, go, loadDemo, login } from './helpers';
+import { dialog, go, loadDemo, login, enableRecipes } from './helpers';
 
 test('producción: usuario panadero ve sólo Producción, anota con dos toques y suma al stock', async ({ page, isMobile }) => {
   await loadDemo(page);
+  await enableRecipes(page);
   await go(page, '/usuarios');
   await page.getByRole('button', { name: 'Nuevo usuario' }).click();
   const d = dialog(page);
@@ -68,6 +69,7 @@ test('producción: usuario panadero ve sólo Producción, anota con dos toques y
 
 test('producción con receta: al anotar se descuentan los insumos del stock', async ({ page }) => {
   await loadDemo(page);
+  await enableRecipes(page);
   const stockOf = (name: string) => page.evaluate(async (n) => {
     const open = indexedDB.open('stock-manager');
     const dbi: IDBDatabase = await new Promise((r) => { open.onsuccess = () => r(open.result); });
@@ -106,6 +108,7 @@ test('producción con receta: al anotar se descuentan los insumos del stock', as
 
 test('recetas desde Producción: cargar, cambiar y quitar sin ir a Productos', async ({ page }) => {
   await loadDemo(page);
+  await enableRecipes(page);
   await go(page, '/produccion');
   await page.getByRole('group', { name: 'Vista' }).getByRole('button', { name: 'Recetas' }).click();
   await page.getByLabel('Buscar receta').fill('Tomate');
@@ -249,6 +252,7 @@ test('pastelera: entra directo a Pastelería y no ve Producción', async ({ page
 
 test('pastelería: crear un producto nuevo y su receta (con un insumo nuevo) sin entrar a Productos', async ({ page }) => {
   await loadDemo(page);
+  await enableRecipes(page);
   await go(page, '/pasteleria');
   await page.getByRole('button', { name: 'Nuevo producto' }).first().click();
   const d = dialog(page);

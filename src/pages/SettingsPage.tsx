@@ -12,7 +12,7 @@ import { Link, NavLink, useParams } from 'react-router';
 import { CURRENT_DB_VERSION, db } from '../database/db';
 import type { MenuItemSetting, ModuleKey, Settings, ThemeMode } from '../models';
 import {
-  DEFAULT_NAV_BOTTOM, DEFAULT_NAV_TOP, MAX_NAV_BOTTOM, MODULES, defaultMenu, defaultSettings, updateSettings,
+  DEFAULT_NAV_BOTTOM, DEFAULT_NAV_TOP, MAX_NAV_BOTTOM, MODULES, defaultMenu, defaultSettings, recipesOn, updateSettings,
 } from '../services/settingsService';
 import { imageFileToLogo } from '../pwa/logoIcon';
 import { useFeedback } from '../store/feedback';
@@ -54,6 +54,8 @@ interface Section {
   render: () => ReactNode;
   /** En qué configuración aparece: la del Stock, la del Salón o las dos (lo general). */
   areas: Area[];
+  /** Sólo si se cumple (p. ej. lo de recetas, si se usan recetas). */
+  when?: (s: Settings) => boolean;
 }
 
 type GroupKey = 'salon' | 'negocio' | 'inventario' | 'personas' | 'sistema';
@@ -75,7 +77,7 @@ const SECTIONS: Section[] = [
   // Salón
   { key: 'facturacion', group: 'salon', areas: ['salon'], title: 'Facturación electrónica', description: 'ARCA: emisor, punto de venta, ambiente y conexión.', icon: ReceiptText, render: () => <FiscalSettingsSection /> },
   { key: 'mesas', group: 'salon', areas: ['salon'], title: 'Mesas, carta y caja', description: 'Mesas y plano, carta con adicionales y caja.', icon: Armchair, render: () => <SalonShortcuts /> },
-  { key: 'stock-venta', group: 'salon', areas: ['salon'], title: 'Stock al vender', description: 'Descontar del stock las recetas de la carta al cerrar cada pedido.', icon: Boxes, render: () => <SalonStockSection /> },
+  { key: 'stock-venta', group: 'salon', areas: ['salon'], title: 'Stock al vender', description: 'Descontar del stock las recetas de la carta al cerrar cada pedido.', icon: Boxes, render: () => <SalonStockSection />, when: recipesOn },
   { key: 'impresion', group: 'salon', areas: ['salon'], title: 'Impresión de tickets', description: 'Tickets de 80 mm: factura, pre-cuenta, comanda y arqueo.', icon: Printer, render: () => <PrintSection /> },
   // Tu negocio (general)
   { key: 'locales', group: 'negocio', areas: BOTH, title: 'Locales', description: 'Cada local con su número, su punto de venta de ARCA y su encabezado; el local de este equipo.', icon: Store, render: () => <LocalesSection /> },
@@ -83,7 +85,7 @@ const SECTIONS: Section[] = [
   { key: 'accesibilidad', group: 'negocio', areas: BOTH, title: 'Letra y contraste', description: 'Letra más grande y más contraste en este dispositivo.', icon: Type, render: () => <><PageHeader title="Letra y contraste" subtitle="Para leer y tocar más cómodo en este celular o compu." /><section className="card card-pad"><AccessibilitySection /></section></> },
   { key: 'navegacion', group: 'negocio', areas: ['stock'], title: 'Menú y navegación', description: 'Qué módulos del Stock se ven, su orden y nombre, y qué va en cada barra.', icon: LayoutGrid, render: () => <NavigationSection /> },
   // Inventario
-  { key: 'stock', group: 'inventario', areas: ['stock'], title: 'Stock', description: 'Alertas y stock crítico; familias, unidades y ubicaciones.', icon: Boxes, render: () => <StockSection /> },
+  { key: 'stock', group: 'inventario', areas: ['stock'], title: 'Stock', description: 'Alertas y stock crítico, recetas; familias, unidades y ubicaciones.', icon: Boxes, render: () => <StockSection /> },
   { key: 'productos', group: 'inventario', areas: ['stock'], title: 'Productos', description: 'Productos e importación desde Excel.', icon: Package, render: () => <ProductsSection /> },
   { key: 'ia', group: 'inventario', areas: ['stock'], title: 'IA (facturas y asistente)', description: 'Servidor de la IA (Gemini): leer facturas con fotos y el Asistente.', icon: Sparkles, render: () => <AIReaderSection /> },
   // Personas (general)
@@ -100,7 +102,8 @@ const SECTIONS: Section[] = [
 export function SettingsPage({ area = 'stock' }: { area?: Area }) {
   const { section } = useParams();
   const base = area === 'salon' ? '/salon/configuracion' : '/configuracion';
-  const sections = SECTIONS.filter((s) => s.areas.includes(area));
+  const appSettings = useSettings();
+  const sections = SECTIONS.filter((s) => s.areas.includes(area) && (!s.when || s.when(appSettings)));
   const groups = GROUPS.filter((g) => sections.some((s) => s.group === g.key));
   const current = sections.find((s) => s.key === section);
   const title = area === 'salon' ? 'Configuración del salón' : 'Configuración';
@@ -537,6 +540,18 @@ function StockSection() {
             <StatusBadge status="normal" /> <StatusBadge status="bajo" /> hasta el mínimo <StatusBadge status="critico" /> hasta el {Math.round(form.criticalRatio * 100)}% del mínimo <StatusBadge status="sin_stock" />
           </div>
           <p className="small muted">El stock mínimo y máximo se define en cada producto.</p>
+        </section>
+        <section className="card card-pad stack" aria-labelledby="recetas-modo">
+          <h2 id="recetas-modo">Recetas</h2>
+          <label className="check">
+            <input type="checkbox" checked={recipesOn(form)} onChange={(e) => save({ recipes: e.target.checked })} /> Usar recetas
+          </label>
+          <p className="small muted" style={{ margin: 0 }}>
+            {recipesOn(form)
+              ? 'Cada producto elaborado y cada plato de la carta puede tener su receta: al anotar lo producido o al vender, se descuentan sus insumos del stock.'
+              : 'Apagado: el stock es sólo de productos (harinas, bebidas, carnes…) y se mueve con conteos, remitos, compras y lo que se anota como consumo o merma. Producir sólo suma lo producido y vender no descuenta insumos.'}
+          </p>
+          {recipesOn(form) && <p className="small muted" style={{ margin: 0 }}>Si lo apagás, las recetas cargadas no se borran: quedan guardadas por si se vuelven a usar.</p>}
         </section>
         <section className="stack" aria-label="Catálogos de stock">
           <h2 className="settings-subtitle">Catálogos</h2>

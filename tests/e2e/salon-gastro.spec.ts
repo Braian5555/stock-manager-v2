@@ -1,8 +1,9 @@
 import { expect, test } from '@playwright/test';
-import { dialog, go, loadDemo } from './helpers';
+import { dialog, go, loadDemo, enableRecipes } from './helpers';
 
 test('software gastronómico: receta en la carta, la venta descuenta stock, reportes y compras', async ({ page }) => {
   await loadDemo(page);
+  await enableRecipes(page);
   await go(page, '/salon');
   await page.getByLabel('Cantidad de mesas').fill('2');
   await page.getByRole('button', { name: 'Crear mesas' }).click();

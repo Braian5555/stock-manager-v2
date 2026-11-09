@@ -71,3 +71,10 @@ export async function enableMaxirest(page: Page) {
   await page.getByRole('button', { name: 'Activar la conexión con Maxirest' }).click();
   await expect(page.getByText('Conexión con Maxirest activada')).toBeVisible();
 }
+
+/** Las recetas vienen apagadas (el stock es sólo de productos): para probarlas, primero se prenden. */
+export async function enableRecipes(page: Page) {
+  await go(page, '/configuracion/stock');
+  await page.getByRole('checkbox', { name: 'Usar recetas' }).click();
+  await expect(page.getByRole('checkbox', { name: 'Usar recetas' })).toBeChecked();
+}

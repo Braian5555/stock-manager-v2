@@ -329,7 +329,7 @@ export class AssistantEngine {
     // Los permisos se consultan en el momento (si un administrador los cambia, vale enseguida,
     // también para cambios que ya estaban esperando confirmación).
     const ctx: ToolContext = { can: (p) => this.deps.can(p), settings: this.deps.settings, today: this.deps.today(), refs: this.refs, images: this.lastImages, lastText: this.lastText };
-    const tools = toolsFor(this.deps.can);
+    const tools = toolsFor(this.deps.can, this.deps.settings);
     return { ctx, tools, system: await systemPrompt(this.deps, ctx, tools) };
   }
 

@@ -60,6 +60,7 @@ describe('productos y movimientos', () => {
   });
 
   it('eliminar una familia deja los productos sin familia y se puede deshacer', async () => {
+    await db.settings.clear(); // equipo nuevo: se siembran las familias
     await ensureBaseData();
     const cat = (await db.categories.toArray())[0];
     const p = await saveProduct({ ...emptyProduct(), name: 'P', categoryId: cat.id });

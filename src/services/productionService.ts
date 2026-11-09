@@ -2,6 +2,7 @@ import { db } from '../database/db';
 import type { Product, StockMovement } from '../models';
 import { round3 } from '../utils/format';
 import { uuid } from '../utils/id';
+import { getSettings, recipesOn } from './settingsService';
 import { applyMovement, revertMovement } from './stockService';
 
 export interface ConsumptionLine {
@@ -25,12 +26,14 @@ export function recipeConsumption(product: Pick<Product, 'recipe'>, qty: number,
  */
 export async function registerProduction(productId: string, qty: number): Promise<{ movement: StockMovement; consumed: ConsumptionLine[] }> {
   if (!(qty > 0)) throw new Error('Ingresá cuánto se produjo.');
+  // Sin recetas, producir sólo suma lo producido (los insumos se anotan como consumo aparte).
+  const useRecipes = recipesOn(await getSettings());
   return db.transaction('rw', db.products, db.movements, async () => {
     const product = await db.products.get(productId);
     if (!product) throw new Error('El producto no existe.');
-    const ids = (product.recipe?.items ?? []).map((i) => i.productId);
+    const ids = useRecipes ? (product.recipe?.items ?? []).map((i) => i.productId) : [];
     const ingredients = (await db.products.bulkGet(ids)).filter((p): p is Product => !!p);
-    const consumed = recipeConsumption(product, qty, new Map(ingredients.map((p) => [p.id, p])));
+    const consumed = useRecipes ? recipeConsumption(product, qty, new Map(ingredients.map((p) => [p.id, p]))) : [];
     const key = `prod:${uuid()}`;
     const { movement } = await applyMovement({ productId, type: 'produccion', delta: round3(qty), origin: 'manual', reason: 'Producción', idempotencyKey: key });
     for (const c of consumed) {

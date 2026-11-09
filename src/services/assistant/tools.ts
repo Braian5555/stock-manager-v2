@@ -10,7 +10,7 @@ import { db } from '../../database/db';
 import type { InventoryCount, InvoiceItem, MovementType, Outlet, Permission, Product, Settings, StockMovement, Unit } from '../../models';
 import { MODULE_PATH, MODULE_PERMISSIONS, moduleEnabled } from '../../layouts/modules';
 import { fmtDay, fmtMoney, fmtNumber, matches, normalize, round3 } from '../../utils/format';
-import { MODULES } from '../settingsService';
+import { MODULES, recipesOn } from '../settingsService';
 import { discardCount, setCounted, startCount } from '../countService';
 import { needsPackSize, pendingCount, similarity, toStockQty } from '../invoiceAI';
 import { fixQuantity } from '../../../functions/reader.mjs';
@@ -122,6 +122,8 @@ export interface ToolDef {
   parameters: Schema;
   /** Alcanza con tener uno. */
   perms: Permission[];
+  /** Sólo si se cumple (p. ej. lo de recetas, si se usan recetas). */
+  when?: (s: Settings) => boolean;
   /** Consulta: se ejecuta sola. */
   run?: (args: Args, ctx: ToolContext) => Promise<unknown>;
   /** Cambio: arma la propuesta para confirmar. */
@@ -1041,6 +1043,7 @@ export const TOOLS: ToolDef[] = [
       insumos: arr(obj({ producto: str('Insumo (referencia o nombre).'), cantidad: num('Cantidad por tanda, en la unidad de stock del insumo.'), unidad: str('"stock" o "compra".', ['stock', 'compra']) }, ['producto', 'cantidad']), 'Insumos.'),
     }, ['producto', 'rinde', 'insumos']),
     perms: ['recipes', 'catalog.manage'],
+    when: recipesOn,
     prepare: async (a, ctx) => {
       const p = await resolveProduct(a.producto, ctx);
       const yieldQty = n(a.rinde);
@@ -1118,12 +1121,13 @@ export const TOOLS: ToolDef[] = [
         throw new ToolError('La persona está diciendo cuánto HAY (stock actual / contado), no lo que se produjo. Para eso usá registrar_movimientos con tipo "ajuste" (deja el stock en esa cantidad). Si es producción nueva, preguntale primero.');
       if (missing.length) throw new ToolError(`No anoté nada todavía. Hay que resolver: ${missing.join(' ')} Si un producto no existe, se puede crear con crear_producto (en la familia de panadería o pastelería) y después anotar todo junto.`);
       const consumed = new Map<string, { name: string; qty: number; unitId?: string }>();
-      for (const { p, qty } of plan) for (const c of recipeConsumption(p, qty, products)) {
+      const withRecipes = recipesOn(ctx.settings);
+      for (const { p, qty } of plan) for (const c of withRecipes ? recipeConsumption(p, qty, products) : []) {
         const cur = consumed.get(c.productId) ?? { name: c.name, qty: 0, unitId: products.get(c.productId)?.unitId };
         cur.qty = round3(cur.qty + c.quantity);
         consumed.set(c.productId, cur);
       }
-      const noRecipe = plan.filter((x) => !x.p.recipe?.items.length).map((x) => x.p.name);
+      const noRecipe = withRecipes ? plan.filter((x) => !x.p.recipe?.items.length).map((x) => x.p.name) : [];
       const one = plan.length === 1 ? plan[0] : undefined;
       return {
         title: one ? `Anotar producción de “${one.p.name}”` : `Anotar producción de ${plan.length} productos`,
@@ -1164,5 +1168,5 @@ function findUnit(units: Unit[], text: string): Unit | undefined {
 }
 
 /** Herramientas que esta persona puede usar. */
-export const toolsFor = (can: (p: Permission) => boolean) => TOOLS.filter((t) => t.perms.some((p) => can(p)));
+export const toolsFor = (can: (p: Permission) => boolean, settings?: Settings) => TOOLS.filter((t) => t.perms.some((p) => can(p)) && (!t.when || !settings || t.when(settings)));
 

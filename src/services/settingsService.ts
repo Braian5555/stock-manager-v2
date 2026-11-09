@@ -58,6 +58,9 @@ const LEGACY_SECONDARY = ['#0ea5e9', '#22282b', '#3a2315'];
 
 export const defaultMenu = (): MenuItemSetting[] => MODULES.map((m) => ({ key: m.key, label: m.label, visible: true }));
 
+/** ¿Se usan recetas? (si no se activó: no). */
+export const recipesOn = (s: { recipes?: boolean } | undefined) => s?.recipes === true;
+
 export function defaultSettings(): Settings {
   const t = nowIso();
   return {

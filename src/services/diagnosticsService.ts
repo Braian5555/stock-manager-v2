@@ -229,9 +229,9 @@ export async function runDiagnostics(cloud: CloudInfo): Promise<DiagnosticReport
       : ok('dup-names', 'Nombres únicos', 'No hay productos activos con el mismo nombre.'),
   );
 
-  // 7. Recetas
+  // 7. Recetas (sólo si se usan)
   const recipeIssues: string[] = [];
-  for (const p of products) {
+  for (const p of settings.recipes ? products : []) {
     const r = p.recipe;
     if (!r?.items.length) continue;
     if (!(r.yield > 0)) recipeIssues.push(`${nameOf(p)}: rinde ${r.yield} (debe ser mayor a 0)`);
@@ -243,7 +243,7 @@ export async function runDiagnostics(cloud: CloudInfo): Promise<DiagnosticReport
       if (!(i.quantity > 0)) recipeIssues.push(`${nameOf(p)}: cantidad ${i.quantity} de ${nameOf(ing)}`);
     }
   }
-  checks.push(
+  if (settings.recipes) checks.push(
     recipeIssues.length
       ? { id: 'recipes', title: 'Recetas con problemas', level: 'warn', count: recipeIssues.length, summary: `${recipeIssues.length} problemas en recetas: al anotar producción se descontaría mal.`, items: sample(recipeIssues) }
       : ok('recipes', 'Recetas', `${products.filter((p) => p.recipe?.items.length).length} recetas revisadas, sin problemas.`),

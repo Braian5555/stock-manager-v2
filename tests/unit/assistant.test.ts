@@ -45,7 +45,7 @@ function engine(perms: Permission[], transport: Transport) {
   const set = new Set(perms);
   return new AssistantEngine({
     user: { name: 'Nico', role: 'custom' }, can: (p) => set.has(p), permissions: perms,
-    settings: normalizeSettings(undefined), transport, today: () => '2026-10-17',
+    settings: { ...normalizeSettings(undefined), recipes: true }, transport, today: () => '2026-10-17',
   });
 }
 const lastResponse = (req: { contents: GContent[] }) => req.contents[req.contents.length - 1].parts.find((p) => p.functionResponse)?.functionResponse?.response as Record<string, unknown>;
@@ -116,7 +116,7 @@ describe('asistente: consultas y cambios', () => {
       call({ name: 'registrar_movimientos', args: { referencia: 'Remito 123', movimientos: [{ producto: ref, tipo: 'ingreso', cantidad: 2, unidad: 'compra' }, { producto: 'coca cola 2,25', tipo: 'ingreso', cantidad: 6 }] } }),
       say('Listo, cargué el remito.'),
     ]);
-    e.setDeps({ user: { name: 'Nico', role: 'custom' }, can: () => true, permissions: ROLE_PERMISSIONS.manager, settings: normalizeSettings(undefined), transport: s2.transport, today: () => '2026-10-17' });
+    e.setDeps({ user: { name: 'Nico', role: 'custom' }, can: () => true, permissions: ROLE_PERMISSIONS.manager, settings: { ...normalizeSettings(undefined), recipes: true }, transport: s2.transport, today: () => '2026-10-17' });
     await e.send('Cargá este remito');
     const msg = e.getState().messages.at(-1)!;
     expect(msg.proposals?.[0]).toMatchObject({ title: 'Sumar al stock: 2 productos', status: 'pending' });
@@ -294,7 +294,7 @@ describe('asistente: revisión a fondo', () => {
     await seed();
     await saveProduct({ ...emptyProduct(), name: 'Coca-Cola 1,5 L', unitId: 'u', sku: 'COC15' });
     const { resolveProduct, RefMap } = await import('../../src/services/assistant/tools');
-    const ctx = { can: () => true, settings: normalizeSettings(undefined), today: '2026-10-17', refs: new RefMap(await db.products.toArray()) };
+    const ctx = { can: () => true, settings: { ...normalizeSettings(undefined), recipes: true }, today: '2026-10-17', refs: new RefMap(await db.products.toArray()) };
     await expect(resolveProduct('coca cola', ctx)).rejects.toThrow(/No sé cuál es “coca cola”: puede ser .*Coca-Cola 2,25 L.*Coca-Cola 1,5 L|No sé cuál es “coca cola”: puede ser .*Coca-Cola 1,5 L.*Coca-Cola 2,25 L/);
     expect((await resolveProduct('coca-cola 1,5 l', ctx)).name).toBe('Coca-Cola 1,5 L');
     expect((await resolveProduct('COC15', ctx)).name).toBe('Coca-Cola 1,5 L');
@@ -371,10 +371,10 @@ describe('asistente: revisión a fondo', () => {
     const { harina } = await seed();
     const { transport } = scripted([call({ name: 'registrar_movimientos', args: { movimientos: [{ producto: 'Harina 000', tipo: 'salida', cantidad: 5 }] } }), say('No se pudo.')]);
     let perms = new Set<Permission>(ROLE_PERMISSIONS.manager);
-    const e = new AssistantEngine({ user: { name: 'Nico', role: 'custom' }, can: (p) => perms.has(p), permissions: [...perms], settings: normalizeSettings(undefined), transport, today: () => '2026-10-17' });
+    const e = new AssistantEngine({ user: { name: 'Nico', role: 'custom' }, can: (p) => perms.has(p), permissions: [...perms], settings: { ...normalizeSettings(undefined), recipes: true }, transport, today: () => '2026-10-17' });
     await e.send('Sacá 5 kilos de harina');
     perms = new Set<Permission>(ROLE_PERMISSIONS.staff);
-    e.setDeps({ user: { name: 'Nico', role: 'custom' }, can: (p) => perms.has(p), permissions: [...perms], settings: normalizeSettings(undefined), transport, today: () => '2026-10-17' });
+    e.setDeps({ user: { name: 'Nico', role: 'custom' }, can: (p) => perms.has(p), permissions: [...perms], settings: { ...normalizeSettings(undefined), recipes: true }, transport, today: () => '2026-10-17' });
     const msg = e.getState().messages.at(-1)!;
     await e.confirm(msg.id);
     expect(e.getState().messages.find((m) => m.id === msg.id)?.proposals?.[0].status).toBe('error');
@@ -456,7 +456,7 @@ describe('asistente: facturas por foto quedan en Facturas', () => {
       } }),
       say('Listo: guardé la factura y cargué el stock.'),
     ]);
-    e.setDeps({ user: { name: 'Braian', role: 'custom' }, can: () => true, permissions: ROLE_PERMISSIONS.manager, settings: normalizeSettings(undefined), transport: s2.transport, today: () => '2026-10-17' });
+    e.setDeps({ user: { name: 'Braian', role: 'custom' }, can: () => true, permissions: ROLE_PERMISSIONS.manager, settings: { ...normalizeSettings(undefined), recipes: true }, transport: s2.transport, today: () => '2026-10-17' });
     await e.send('Guardá esta factura', [img]);
     const msg = e.getState().messages.at(-1)!;
     expect(msg.proposals?.[0].title).toBe('Guardar la factura y cargarla al stock');
@@ -552,7 +552,7 @@ describe('asistente: reponer con muchos productos en cero', () => {
     for (let i = 0; i < 120; i++) await saveProduct({ ...emptyProduct(), name: `Verdura ${String(i).padStart(3, '0')}`, unitId: 'kg', categoryId: 'beb' });
     const { TOOLS, RefMap } = await import('../../src/services/assistant/tools');
     const reponer = TOOLS.find((t) => t.name === 'reponer')!;
-    const ctx = { can: () => true, settings: normalizeSettings(undefined), today: '2026-10-19', refs: new RefMap(await db.products.toArray()) };
+    const ctx = { can: () => true, settings: { ...normalizeSettings(undefined), recipes: true }, today: '2026-10-19', refs: new RefMap(await db.products.toArray()) };
     const r = await reponer.run!({}, ctx) as { total_a_reponer: number; grupos: { grupo: string; productos: { nombre: string; pedir: string }[] }[]; otros_en_cero_sin_movimiento?: { cantidad: number; por_familia: Record<string, number> }; link: { to: string } };
     // 120 verduras + aceite (0, bajo mínimo) + coca (bajo mínimo) + pan (0) en cero/bajo.
     expect(r.total_a_reponer).toBe(123);
@@ -667,7 +667,7 @@ describe('cantidades con coma decimal ("1,000" es 1)', () => {
       call({ name: 'cargar_factura', args: { proveedor: 'Santarossa', numero: 'A-1', total: 2400, renglones: [{ descripcion: 'ACEITE 900', producto: ref, cantidad: 1000, unidad: 'u', precio_unitario: 2400, total_renglon: 2400 }] } }),
       say('Listo.'),
     ]);
-    e.setDeps({ user: { name: 'Braian', role: 'custom' }, can: () => true, permissions: ROLE_PERMISSIONS.manager, settings: normalizeSettings(undefined), transport: s2.transport, today: () => '2026-10-17' });
+    e.setDeps({ user: { name: 'Braian', role: 'custom' }, can: () => true, permissions: ROLE_PERMISSIONS.manager, settings: { ...normalizeSettings(undefined), recipes: true }, transport: s2.transport, today: () => '2026-10-17' });
     await e.send('Cargá esta factura', [{ data: 'QUJDRA==', type: 'image/jpeg', thumb: 'data:image/jpeg;base64,QUJDRA==' }]);
     const msg = e.getState().messages.at(-1)!;
     expect(msg.proposals?.[0].lines[1]).toBe('+1 u · Aceite de girasol 900 ml');

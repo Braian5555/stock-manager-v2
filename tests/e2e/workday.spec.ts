@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { dialog, go, loadDemo, login, open } from './helpers';
+import { dialog, go, loadDemo, login, open, enableRecipes } from './helpers';
 
 /**
  * Un día real de trabajo, de punta a punta: nube, receta, el panadero anota, el Inicio y la
@@ -60,6 +60,7 @@ test('día de trabajo completo: receta, panadero, Inicio, vitrina, sin conexión
   page.on('pageerror', (e) => errors.push(e.message));
   await page.route('**/firebase-config.json', (r) => r.fulfill({ contentType: 'application/json', body: JSON.stringify({ provider: 'fake' }) }));
   await loadDemo(page);
+  await enableRecipes(page);
 
   // 1. Receta: 2 "Sal fina" llevan 1 kg de Harina 000.
   await go(page, '/productos');

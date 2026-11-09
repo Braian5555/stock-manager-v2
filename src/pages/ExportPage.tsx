@@ -6,7 +6,7 @@ import { buildDatasets, EXPORT_SCOPES, SCOPE_LABEL, type ExportScope } from '../
 import { downloadBlob, safeFilename, stamp } from '../exports/download';
 import { toDocx, toJsonBlob, toPdf, toXlsx } from '../exports/writers';
 import { createBackup, restoreBackup, validateBackup, type BackupFile } from '../services/backupService';
-import { menuLabel } from '../services/settingsService';
+import { menuLabel, recipesOn } from '../services/settingsService';
 import { readTabularFile } from '../importers/tabular';
 import { planProductImport, type ProductImportPlan } from '../importers/productImport';
 import { planRecipeImport } from '../importers/recipeImport';
@@ -166,14 +166,14 @@ export function ExportPage() {
         </div>
       </section>
 
-      <section className="card card-pad stack" style={{ marginTop: 16 }} aria-labelledby="imp-rec">
+      {recipesOn(settings) && <section className="card card-pad stack" style={{ marginTop: 16 }} aria-labelledby="imp-rec">
         <h2 id="imp-rec" className="row"><FileSpreadsheet size={18} aria-hidden /> Importar recetas</h2>
         <p className="muted small">Un Excel de recetas (.xlsx o .csv; sirve el que exporta Maxirest u otro sistema). Cada receta se vincula por código con su producto y cada insumo con el suyo; las cantidades se pasan a la unidad de stock (gr → kg, ml → l). Al anotar una producción se descuentan los insumos.</p>
         <div className="row wrap">
           {can('catalog.manage') ? <button type="button" className="btn" onClick={() => recipeRef.current?.click()}><Upload size={18} aria-hidden /> Elegir archivo de recetas</button> : <span className="small muted">Necesitás permiso para administrar productos.</span>}
           <input ref={recipeRef} type="file" accept=".xlsx,.xls,.csv,text/csv" hidden aria-label="Archivo de recetas" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void onRecipeFile(f); }} />
         </div>
-      </section>
+      </section>}
     </>
   );
 }

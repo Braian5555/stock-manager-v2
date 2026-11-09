@@ -9,7 +9,7 @@
 import { db } from '../database/db';
 import type { MenuItem, Recipe, TableTicket } from '../models';
 import { applyMovement } from './stockService';
-import { getSettings } from './settingsService';
+import { getSettings, recipesOn } from './settingsService';
 
 const round3 = (n: number) => Math.round(n * 1000) / 1000;
 
@@ -51,7 +51,8 @@ async function saleKey(ticketId: string, productId: string): Promise<string> {
 
 /** Descuenta el stock de un pedido cerrado. Devuelve cuántos productos se descontaron. */
 export async function consumeTicketStock(ticket: TableTicket, label: string): Promise<number> {
-  if (!salonStockOn(await getSettings())) return 0;
+  const st = await getSettings();
+  if (!recipesOn(st) || !salonStockOn(st)) return 0;
   const items = new Map((await db.menuItems.toArray()).map((m) => [m.id, m]));
   const use = ticketConsumption(ticket, items);
   let n = 0;
