@@ -25,7 +25,8 @@ import { StockResetSection } from '../components/StockResetSection';
 import { AccessibilitySection } from '../components/AccessibilitySection';
 import { AIReaderSection } from '../components/AIReaderSection';
 import { FiscalSettingsSection } from '../components/FiscalSettingsSection';
-import { desktopApp, printHtml, testTicketHtml, ticketBusiness, type PrintKind } from '../services/printService';
+import { fiscalForLocal, fiscalOf } from '../services/fiscalService';
+import { desktopApp, fiscalHeader, printHtml, sampleInvoiceHtml, testTicketHtml, ticketBusiness, type PrintKind } from '../services/printService';
 import { salonStockOn } from '../services/saleStockService';
 import { MODULE_ICON, MODULE_PATH, maxirestOn, moduleEnabled, navLabel } from '../layouts/modules';
 import { useCloud } from '../cloud/cloudService';
@@ -209,7 +210,11 @@ function PrintSection() {
           <li><b>Arqueo de caja</b>: al cerrar la caja o desde el historial.</li>
         </ul>
         <p className="small muted" style={{ margin: 0 }}>La impresora térmica tiene que estar instalada en el celular, tablet o compu. En el diálogo de impresión elegí esa impresora, papel de 80 mm y márgenes “Ninguno”.</p>
-        <div><button type="button" className="btn" onClick={() => void run(() => printHtml(testTicketHtml(ticketBusiness(settings))))}><Printer size={18} aria-hidden /> Imprimir ticket de prueba</button></div>
+        <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+          <button type="button" className="btn" onClick={() => void run(() => printHtml(testTicketHtml(ticketBusiness(settings))))}><Printer size={18} aria-hidden /> Imprimir ticket de prueba</button>
+          <button type="button" className="btn" onClick={() => void run(() => printHtml(sampleInvoiceHtml(fiscalForLocal(settings), fiscalOf(settings).pie, fiscalHeader(settings))))}><Printer size={18} aria-hidden /> Factura B de muestra</button>
+        </div>
+        <p className="small muted" style={{ margin: 0 }}>La Factura B de muestra sale igual que una real (con los datos del emisor y el encabezado), pero con datos de ejemplo, sin CAE ni QR y con la leyenda “MUESTRA — NO VÁLIDO COMO FACTURA”. No pasa por ARCA.</p>
       </section>
       <TicketHeaderCard />
       {desktopApp() ? <DesktopPrintersCard /> : <DirectPrintCard />}

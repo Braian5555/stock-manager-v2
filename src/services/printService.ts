@@ -7,9 +7,9 @@
  */
 import QRCode from 'qrcode';
 import type { DailyClose } from './closingService';
-import type { CashSession, FiscalDoc, Outlet, SalePaymentMethod, TableTicket, TicketLine } from '../models';
+import type { CashSession, FiscalDoc, FiscalLine, FiscalSettings, Outlet, SalePaymentMethod, TableTicket, TicketLine } from '../models';
 import type { CashSummary } from './cashService';
-import { CBTE_NAME, COND_IVA, DOC_TIPO_LABEL, EMISOR_COND_LABEL, PAYMENT_LABEL, docNumber, docPlace, fmtCuit, pad, qrUrl, ymdToDate } from './fiscalService';
+import { CBTE_NAME, COND_IVA, DOC_TIPO_LABEL, EMISOR_COND_LABEL, PAYMENT_LABEL, computeAmounts, docNumber, docPlace, fmtCuit, pad, qrUrl, ymdToDate } from './fiscalService';
 import { discountAmount, ticketLabel } from './salonService';
 import { currentOutlet } from './localScope';
 
@@ -50,6 +50,7 @@ body {
 .muted { color: #000; font-weight: 700; }
 .warn { border: 2px solid #000; padding: 4px; text-align: center; font-weight: 700; margin: 6px 0; }
 .qr { display: block; margin: 6px auto 2px; width: 38mm; height: 38mm; image-rendering: pixelated; }
+.sample-qr { display: flex; align-items: center; justify-content: center; text-align: center; border: 2px dashed #000; font-size: 11px; }
 p { margin: 0; overflow-wrap: anywhere; }
 `;
 
@@ -128,6 +129,37 @@ function headerHtml(business: string): string {
 export async function fiscalTicketHtml(d: FiscalDoc, pie?: string, header?: string): Promise<string> {
   if (d.status !== 'autorizada' || !d.cae || !d.nro) throw new Error('Sólo se imprime un comprobante autorizado por ARCA.');
   const qr = await QRCode.toDataURL(qrUrl(d), { errorCorrectionLevel: 'M', margin: 1, width: 300 });
+  return fiscalBody(d, pie, header, qr);
+}
+
+/**
+ * Muestra de cómo sale una Factura B en la impresora, sin pasar por ARCA: datos de ejemplo,
+ * sin CAE ni QR, y con "MUESTRA — NO VÁLIDO COMO FACTURA" arriba y abajo.
+ */
+export function sampleInvoiceHtml(f: FiscalSettings, pie?: string, header?: string): string {
+  const lines: FiscalLine[] = [
+    { name: 'Café con leche', qty: 2, unitPrice: 3000, iva: 21, total: 6000 },
+    { name: 'Medialunas (x3)', qty: 1, unitPrice: 2700, iva: 21, total: 2700 },
+    { name: 'Agua mineral 500 ml', qty: 1, unitPrice: 1500, iva: 21, total: 1500 },
+  ];
+  const now = new Date();
+  const ymd = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
+  const d = {
+    id: 'muestra', createdAt: now.toISOString(), updatedAt: now.toISOString(),
+    kind: 'factura', letra: 'B', cbteTipo: 6, ptoVta: f.ptoVta || 1, ambiente: f.ambiente, concepto: f.concepto ?? 1,
+    emisor: {
+      cuit: (f.cuit ?? '').replace(/\D/g, ''), razonSocial: f.razonSocial?.trim() || 'Razón social', nombreFantasia: f.nombreFantasia?.trim() || undefined,
+      domicilio: f.domicilio?.trim() || 'Domicilio fiscal', condicionIva: f.condicionIva, iibb: f.iibb?.trim() || undefined, inicioActividades: f.inicioActividades || undefined,
+    },
+    receptor: { docTipo: 99, docNro: '0', condicionIva: 5 },
+    lines, ...computeAmounts(lines, 'B'), status: 'autorizada', nro: 0, fecha: ymd, authorizedAt: now.toISOString(),
+    tableName: 'Mesa 1', payments: [{ method: 'efectivo', amount: 10200, received: 11000 }],
+  } as FiscalDoc;
+  return fiscalBody(d, pie, header, null);
+}
+
+function fiscalBody(d: FiscalDoc, pie: string | undefined, header: string | undefined, qr: string | null): string {
+  const sample = qr === null;
   const e = d.emisor;
   const r = d.receptor;
   const name = CBTE_NAME[d.cbteTipo] ?? `Comprobante ${d.cbteTipo}`;
@@ -147,7 +179,7 @@ export async function fiscalTicketHtml(d: FiscalDoc, pie?: string, header?: stri
     : '';
   const asoc = d.asociado ? `<p class="note">Comprobante asociado: ${esc(CBTE_NAME[d.asociado.cbteTipo] ?? '')} ${pad(d.asociado.ptoVta, 5)}-${pad(d.asociado.nro, 8)}${d.asociado.fecha ? ` del ${ymdToDate(d.asociado.fecha)}` : ''}</p>` : '';
   const body = `
-    ${homo ? '<div class="warn">HOMOLOGACIÓN — COMPROBANTE DE PRUEBA SIN VALIDEZ FISCAL</div>' : ''}
+    ${sample ? '<div class="warn">MUESTRA DE IMPRESIÓN<br>NO VÁLIDO COMO FACTURA</div>' : homo ? '<div class="warn">HOMOLOGACIÓN — COMPROBANTE DE PRUEBA SIN VALIDEZ FISCAL</div>' : ''}
     ${header ? headerHtml(header) : e.nombreFantasia ? `<p class="c big">${esc(e.nombreFantasia)}</p>` : ''}
     <p class="c b">${esc(e.razonSocial)}</p>
     <p class="c">CUIT ${esc(fmtCuit(e.cuit))}${e.iibb ? ` · IIBB ${esc(e.iibb)}` : ''}</p>
@@ -155,7 +187,7 @@ export async function fiscalTicketHtml(d: FiscalDoc, pie?: string, header?: stri
     ${e.inicioActividades ? `<p class="c note">Inicio de actividades: ${esc(e.inicioActividades.split('-').reverse().join('/'))}</p>` : ''}
     <p class="c b">${esc(EMISOR_COND_LABEL[e.condicionIva])}</p>
     <div class="box"><div class="row"><span class="huge">${esc(name.toUpperCase())}</span><span class="b">Cód. ${pad(d.cbteTipo, 3)}</span></div>
-    <div class="row"><span>P. de venta ${pad(d.ptoVta, 5)}</span><span class="b">Nº ${pad(d.nro, 8)}</span></div>
+    <div class="row"><span>P. de venta ${pad(d.ptoVta, 5)}</span><span class="b">Nº ${sample ? '— muestra —' : pad(d.nro, 8)}</span></div>
     <div class="row"><span>Fecha ${ymdToDate(d.fecha)}</span><span>${time(d.authorizedAt)}</span></div></div>
     ${asoc}
     <p class="b">${r.docTipo === 99 ? 'A CONSUMIDOR FINAL' : esc(r.nombre ?? '')}</p>
@@ -172,13 +204,14 @@ export async function fiscalTicketHtml(d: FiscalDoc, pie?: string, header?: stri
     ${transparency}
     ${payments}
     <div class="hr"></div>
-    <div class="row b"><span>CAE</span><span>${esc(d.cae)}</span></div>
+    ${sample ? `<div class="row b"><span>CAE</span><span>— muestra —</span></div>
+    <div class="qr sample-qr">QR de ARCA<br>(sale al facturar)</div>` : `<div class="row b"><span>CAE</span><span>${esc(d.cae)}</span></div>
     <div class="row"><span>Vto. CAE</span><span>${ymdToDate(d.caeVto)}</span></div>
     <img class="qr" src="${qr}" alt="QR de ARCA">
-    <p class="c note">Comprobante autorizado por ARCA</p>
+    <p class="c note">Comprobante autorizado por ARCA</p>`}
     ${pie ? `<p class="c" style="margin-top:6px">${esc(pie)}</p>` : ''}
-    ${homo ? '<div class="warn">SIN VALIDEZ FISCAL (PRUEBA)</div>' : ''}`;
-  return page(`${name} ${docNumber(d)}`, body);
+    ${sample ? '<div class="warn">MUESTRA<br>NO VÁLIDO COMO FACTURA</div>' : homo ? '<div class="warn">SIN VALIDEZ FISCAL (PRUEBA)</div>' : ''}`;
+  return page(sample ? `${name} (muestra)` : `${name} ${docNumber(d)}`, body);
 }
 
 /** Pre-cuenta: lo consumido con precios. No es un comprobante fiscal. */
