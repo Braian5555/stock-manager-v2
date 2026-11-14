@@ -110,6 +110,31 @@ export async function deleteProduct(id: string): Promise<UndoSnapshot> {
   };
 }
 
+/** Puntos donde el producto todavía tiene stock (impide eliminarlo) y si está en un remito en camino. */
+export async function deleteBlockers(id: string): Promise<{ outlets: { id: string; name: string; qty: number }[]; inTransfer: boolean }> {
+  const byOutlet = stockByOutlet(await db.movements.where('productId').equals(id).toArray());
+  const outlets: { id: string; name: string; qty: number }[] = [];
+  for (const [outletId, m] of byOutlet) {
+    const qty = m.get(id) ?? 0;
+    if (qty !== 0) outlets.push({ id: outletId, name: (await db.outlets.get(outletId))?.name ?? 'Punto', qty });
+  }
+  const inTransfer = (await db.transfers.where('status').equals('enviado').toArray()).some((t) => t.items.some((i) => i.productId === id));
+  return { outlets, inTransfer };
+}
+
+/**
+ * Pone en 0 el stock que le queda en los puntos (con un ajuste en cada uno, que queda en el
+ * historial) y después lo elimina. No sirve si está en un remito en camino.
+ */
+export async function zeroOutletsAndDelete(id: string): Promise<UndoSnapshot> {
+  const { outlets, inTransfer } = await deleteBlockers(id);
+  if (inTransfer) throw new Error('Este producto está en un remito en camino: esperá a que se reciba o anulalo.');
+  for (const o of outlets) {
+    await applyMovement({ productId: id, type: 'ajuste', newQuantity: 0, reason: 'Puesto en 0 para eliminar el producto', origin: 'manual', outletId: o.id });
+  }
+  return deleteProduct(id);
+}
+
 /** Producto (distinto de `exceptId`) que ya tiene ese código de barras, incluidos los inactivos. */
 export async function barcodeOwner(code: string, exceptId?: string): Promise<Product | undefined> {
   return (await db.products.toArray()).find((p) => p.id !== exceptId && sameBarcode(p.barcode, code));

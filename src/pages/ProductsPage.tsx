@@ -2,7 +2,7 @@ import { CheckSquare, Copy, Package, Pencil, Plus, Tag, Trash2, X } from 'lucide
 import { Fragment, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router';
 import { useLookups, useProducts } from '../hooks/useData';
-import { deleteProduct, duplicateProduct } from '../services/productService';
+import { deleteBlockers, deleteProduct, duplicateProduct, zeroOutletsAndDelete } from '../services/productService';
 import { menuLabel } from '../services/settingsService';
 import { statusOf } from '../services/stockService';
 import { useFeedback } from '../store/feedback';
@@ -68,6 +68,21 @@ export function ProductsPage() {
   const remove = async (id: string, name: string) => {
     const ok = await confirm({ title: 'Eliminar producto', message: <p>¿Eliminar <strong>{name}</strong>? El historial de movimientos se conserva.</p>, confirmLabel: 'Eliminar', danger: true });
     if (!ok) return;
+    // Si todavía le queda stock en algún punto, se ofrece ponerlo en 0 ahí y eliminarlo.
+    const blockers = await deleteBlockers(id);
+    if (!blockers.inTransfer && blockers.outlets.length) {
+      const where = blockers.outlets.map((o) => `${o.name} (${o.qty})`).join(', ');
+      const zero = await confirm({
+        title: 'Le queda stock en un punto',
+        message: <p><strong>{name}</strong> todavía tiene stock en {where}. ¿Lo pongo en 0 ahí (queda un ajuste en el historial) y lo elimino?</p>,
+        confirmLabel: 'Poner en 0 y eliminar',
+        danger: true,
+      });
+      if (!zero) return;
+      const undoZero = await run(() => zeroOutletsAndDelete(id));
+      if (undoZero) notify(`"${name}" eliminado`, { undo: undoZero.restore });
+      return;
+    }
     const undo = await run(() => deleteProduct(id));
     if (undo) notify(`"${name}" eliminado`, { undo: undo.restore });
   };
