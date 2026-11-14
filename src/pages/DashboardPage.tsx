@@ -5,7 +5,7 @@ import { useMemo, useState, type ReactNode } from 'react';
 import { Link } from 'react-router';
 import { EMPTY, useProducts } from '../hooks/useData';
 import { DESKTOP_QUERY, useMediaQuery } from '../hooks/useMediaQuery';
-import { MODULE_PERMISSIONS, menuGroups, moduleEnabled, visibleModules, writeArea } from '../layouts/modules';
+import { MODULE_PERMISSIONS, menuGroups, moduleOn, visibleModules, writeArea } from '../layouts/modules';
 import { useMenu, useOpenCash, useOpenTickets, useTables } from '../components/salon/hooks';
 import { Bars, Hours } from '../components/salon/SalesReports';
 import { salesReport, type SalesReport } from '../services/salesReportService';
@@ -38,8 +38,8 @@ export function DashboardPage() {
   const d = useHomePanels();
   const assistantOn = useAssistantAvailable();
   const [negOpen, setNegOpen] = useState(false);
-  const allowed = (m: ModuleKey) => moduleEnabled(m) && canAny(MODULE_PERMISSIONS[m]);
-  const actions = ACTIONS.filter((a) => canAny(a.perms) && (!a.module || moduleEnabled(a.module)) && (a.to !== '/asistente' || assistantOn))
+  const allowed = (m: ModuleKey) => moduleOn(settings, m) && canAny(MODULE_PERMISSIONS[m]);
+  const actions = ACTIONS.filter((a) => canAny(a.perms) && (!a.module || moduleOn(settings, a.module)) && (a.to !== '/asistente' || assistantOn))
     // Con la lectura con IA configurada, la foto de factura ya abre con la IA.
     .map((a) => (a.to === '/facturas?nueva=1' && settings.aiReaderUrl ? { ...a, to: '/facturas?nueva=1&ia=1', hint: 'La IA lee los productos' } : a));
 
@@ -74,7 +74,7 @@ export function DashboardPage() {
         </section>
       )}
 
-      {canAny(['admin']) && <LocalsOverview />}
+      {canAny(['admin']) && allowed('salon') && <LocalsOverview />}
       <NowStrip d={d} allowed={allowed} onNegatives={() => setNegOpen(true)} />
 
       {allowed('salon') && canAny(['billing', 'admin']) && <TodayCharts />}

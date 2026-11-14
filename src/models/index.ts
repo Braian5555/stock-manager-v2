@@ -260,6 +260,11 @@ export interface Settings extends BaseEntity {
    * es sólo de productos (harinas, bebidas…) y se mueve con conteos, remitos, compras y consumos.
    */
   recipes?: boolean;
+  /**
+   * Usar el Salón (mesas, mostrador, cocina, caja, carta y comprobantes). Si falta: no, y la app
+   * queda sólo de stock. Apagado no se borra nada: mesas, carta, ventas y caja quedan guardadas.
+   */
+  salon?: boolean;
 }
 
 export type IntegrationMode = 'disabled' | 'mock' | 'gateway' | 'excel';

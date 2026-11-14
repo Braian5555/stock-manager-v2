@@ -8,6 +8,7 @@ import { CLOUD_LINK_KEY, db, SYNC_TABLES } from '../database/db';
 import { createBackup } from '../services/backupService';
 import { loadCloudConfig, type CloudConfig } from './config';
 import { SyncEngine, type SyncStatus } from './syncEngine';
+import { reloadForNewVersion } from '../utils/chunkReload';
 import type { CloudBackend, CloudImage, CloudUser, Workspace, WorkspaceRole } from './types';
 
 const LINK_KEY = CLOUD_LINK_KEY;
@@ -79,6 +80,8 @@ export async function initCloud() {
   try {
     backend = await createBackend(await loadCloudConfig());
   } catch (e) {
+    // El navegador tenía guardada una versión vieja de la app: se recarga sola y entra.
+    if (reloadForNewVersion(e)) return;
     set({ phase: 'unconfigured', error: friendly(e) });
     return;
   }

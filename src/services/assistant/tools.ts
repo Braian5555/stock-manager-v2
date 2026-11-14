@@ -8,7 +8,7 @@
  */
 import { db } from '../../database/db';
 import type { InventoryCount, InvoiceItem, MovementType, Outlet, Permission, Product, Settings, StockMovement, Unit } from '../../models';
-import { MODULE_PATH, MODULE_PERMISSIONS, moduleEnabled } from '../../layouts/modules';
+import { MODULE_PATH, MODULE_PERMISSIONS, moduleOn } from '../../layouts/modules';
 import { fmtDay, fmtMoney, fmtNumber, matches, normalize, round3 } from '../../utils/format';
 import { MODULES, recipesOn } from '../settingsService';
 import { discardCount, setCounted, startCount } from '../countService';
@@ -456,7 +456,7 @@ export const TOOLS: ToolDef[] = [
     run: async (a, ctx) => {
       const key = SCREENS[s(a.pantalla)];
       if (!key) throw new ToolError('Esa pantalla no existe.');
-      if (!moduleEnabled(key) || !MODULE_PERMISSIONS[key].some((p) => ctx.can(p))) throw new ToolError('Esta persona no tiene acceso a esa pantalla.');
+      if (!moduleOn(ctx.settings, key) || !MODULE_PERMISSIONS[key].some((p) => ctx.can(p))) throw new ToolError('Esta persona no tiene acceso a esa pantalla.');
       const label = ctx.settings.menu.find((m) => m.key === key)?.label ?? MODULES.find((m) => m.key === key)?.label ?? key;
       return { link: { to: MODULE_PATH[key], label } };
     },

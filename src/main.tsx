@@ -4,11 +4,14 @@ import { App } from './App';
 import { installErrorLog } from './services/diagnosticsService';
 import { applyA11y } from './services/a11yService';
 import { startLocalScope } from './services/localScope';
+import { installChunkReload } from './utils/chunkReload';
 import './styles/fonts.css';
 import './styles/global.css';
 import './styles/salon.css';
 
 installErrorLog();
+// Si quedó guardada una versión vieja de la app y falta un archivo, se recarga sola una vez.
+installChunkReload();
 applyA11y();
 // Cada equipo trabaja en su local (mesas, carta, ventas, caja y comprobantes separados).
 startLocalScope();

@@ -1,12 +1,7 @@
 import { lazy, type ComponentType } from 'react';
+import { reloadForNewVersion } from './chunkReload';
 
-const KEY = 'sm:chunk-reload-at';
-
-/** Error típico al pedir una pantalla con el nombre de archivo de una versión anterior. */
-export const isChunkLoadError = (e: unknown) =>
-  /Failed to fetch dynamically imported module|Importing a module script failed|error loading dynamically imported module|ChunkLoadError|Loading chunk/i.test(
-    e instanceof Error ? e.message : String(e),
-  );
+export { isChunkLoadError } from './chunkReload';
 
 /**
  * Pantalla que se descarga al entrar. Si la app se actualizó mientras estaba abierta, el archivo
@@ -19,21 +14,7 @@ export function lazyPage<K extends string, M extends Record<K, ComponentType<any
     loader()
       .then((m) => ({ default: m[name] }))
       .catch((e: unknown) => {
-        let last = 0;
-        try {
-          last = Number(sessionStorage.getItem(KEY) ?? 0);
-        } catch {
-          /* sin sessionStorage */
-        }
-        if (isChunkLoadError(e) && navigator.onLine !== false && Date.now() - last > 30_000) {
-          try {
-            sessionStorage.setItem(KEY, String(Date.now()));
-          } catch {
-            /* sin sessionStorage */
-          }
-          location.reload();
-          return new Promise<{ default: M[K] }>(() => undefined); // la página se recarga
-        }
+        if (reloadForNewVersion(e)) return new Promise<{ default: M[K] }>(() => undefined); // la página se recarga
         throw e;
       }),
   );

@@ -6,7 +6,7 @@ export const ADMIN = { name: 'Admin Prueba', pin: '1234' };
  * Si la app muestra "Crear usuario administrador" (base vacía) lo crea; si muestra
  * la pantalla de bloqueo, entra con el administrador de prueba.
  */
-export async function ensureSession(page: Page) {
+export async function ensureSession(page: Page, { salon = true }: { salon?: boolean } = {}) {
   const setup = page.getByRole('heading', { name: 'Crear usuario administrador' });
   const cloudLogin = page.getByRole('heading', { name: 'Iniciar sesión' });
   const lock = page.locator('.pinpad, .user-grid');
@@ -23,6 +23,9 @@ export async function ensureSession(page: Page) {
     await page.getByLabel(/^PIN( ·|$)/).fill(ADMIN.pin);
     await page.getByLabel('Repetí el PIN').fill(ADMIN.pin);
     await page.getByRole('button', { name: 'Crear y entrar' }).click();
+    await expect(app).toBeVisible();
+    // El Salón viene apagado (la app es sólo de stock): las pruebas de siempre lo prenden al crear la base.
+    if (salon) await enableSalon(page);
   } else if (await lock.first().isVisible()) {
     await login(page, ADMIN.name, ADMIN.pin);
   }
@@ -36,6 +39,16 @@ export async function login(page: Page, name: string, pin: string) {
   for (const d of pin) await page.getByRole('button', { name: `Número ${d}` }).click();
   await page.getByRole('button', { name: 'Entrar' }).click();
   await expect(page.locator('main#contenido')).toBeVisible();
+}
+
+/** Prende el Salón (en Configuración → Menú y navegación) y vuelve a la pantalla donde estaba. */
+export async function enableSalon(page: Page) {
+  const back = page.url();
+  await page.goto('./#/configuracion/navegacion');
+  const box = page.getByRole('checkbox', { name: /Usar el Salón/ });
+  if (!(await box.isChecked())) await box.click();
+  await expect(box).toBeChecked();
+  await page.goto(back);
 }
 
 export async function open(page: Page, hash = '') {

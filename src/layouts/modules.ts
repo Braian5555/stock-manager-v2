@@ -4,7 +4,7 @@ import { BookUser, Snowflake, UtensilsCrossed, CookingPot, ReceiptText, Store, W
   type LucideIcon,
 } from 'lucide-react';
 import type { ModuleKey, Permission, Settings } from '../models';
-import { MODULES } from '../services/settingsService';
+import { MODULES, salonOn } from '../services/settingsService';
 
 export const MODULE_PATH: Record<ModuleKey, string> = {
   dashboard: '/',
@@ -82,6 +82,8 @@ const SHORT_LABEL: Partial<Record<ModuleKey, string>> = {
  */
 export const RETIRED_MODULES: ReadonlySet<ModuleKey> = new Set<ModuleKey>(['transfers', 'reports', 'reconciliation']);
 export const moduleEnabled = (k: ModuleKey) => !RETIRED_MODULES.has(k);
+/** ¿Se muestra el módulo? Además de los retirados, el Salón entero se oculta si no se usa. */
+export const moduleOn = (s: Pick<Settings, 'salon'> | undefined, k: ModuleKey) => moduleEnabled(k) && (!SALON_MODULES.has(k) || salonOn(s));
 /** ¿Está activada la conexión opcional con Maxirest? Apagada, Maxirest no aparece en la app. */
 export const maxirestOn = (s: Pick<Settings, 'maxirest'> | undefined) => s?.maxirest === true;
 /** Permisos que sólo servían a los módulos retirados (se ocultan al editar usuarios). */
@@ -139,7 +141,7 @@ export function navLabel(settings: Settings, key: ModuleKey): string {
 
 /** Módulos visibles para esta persona, en el orden del menú configurado. */
 export function visibleModules(settings: Settings, canAny: (p: Permission[]) => boolean): ModuleKey[] {
-  return settings.menu.filter((m) => m.visible && moduleEnabled(m.key) && (m.key !== 'integrations' || maxirestOn(settings)) && canAny(MODULE_PERMISSIONS[m.key])).map((m) => m.key);
+  return settings.menu.filter((m) => m.visible && moduleOn(settings, m.key) && (m.key !== 'integrations' || maxirestOn(settings)) && canAny(MODULE_PERMISSIONS[m.key])).map((m) => m.key);
 }
 
 const PRODUCTION_LINES: ModuleKey[] = ['production', 'pastry'];

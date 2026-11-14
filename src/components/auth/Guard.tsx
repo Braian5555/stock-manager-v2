@@ -2,7 +2,7 @@ import { ShieldOff } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Link, Navigate } from 'react-router';
 import type { ModuleKey } from '../../models';
-import { MODULE_PATH, MODULE_PERMISSIONS, moduleEnabled, soleModule } from '../../layouts/modules';
+import { MODULE_PATH, MODULE_PERMISSIONS, moduleOn, soleModule } from '../../layouts/modules';
 import { useSession } from '../../store/session';
 import { useSettings } from '../../store/settings';
 import { EmptyState } from '../ui';
@@ -11,7 +11,7 @@ import { EmptyState } from '../ui';
 export function useFirstAllowedPath(): string {
   const { canAny } = useSession();
   const settings = useSettings();
-  const m = settings.menu.find((x) => x.visible && moduleEnabled(x.key) && canAny(MODULE_PERMISSIONS[x.key]));
+  const m = settings.menu.find((x) => x.visible && moduleOn(settings, x.key) && canAny(MODULE_PERMISSIONS[x.key]));
   return m ? MODULE_PATH[m.key] : '/';
 }
 
@@ -20,13 +20,13 @@ export function Guard({ module, children }: { module: ModuleKey; children: React
   const { canAny } = useSession();
   const settings = useSettings();
   const first = useFirstAllowedPath();
-  // Secciones de compras retiradas (pedidos, proveedores, facturas): un enlace viejo lleva al stock.
-  if (!moduleEnabled(module)) return <Navigate to={canAny(MODULE_PERMISSIONS.stock) ? MODULE_PATH.stock : first} replace />;
+  // Secciones retiradas o apagadas (p. ej. el Salón si la app es sólo de stock): un enlace viejo lleva al stock.
+  if (!moduleOn(settings, module)) return <Navigate to={canAny(MODULE_PERMISSIONS.stock) ? MODULE_PATH.stock : first} replace />;
   if (canAny(MODULE_PERMISSIONS[module])) return <>{children}</>;
   // Inicio sin permiso de stock (p. ej. un usuario que sólo hace remitos): ir a su primera sección.
   if (module === 'dashboard' && first !== MODULE_PATH.dashboard) return <Navigate to={first} replace />;
   // Quien usa una sola sección (p. ej. el panadero, sólo Producción) siempre cae ahí.
-  const allowed = settings.menu.filter((x) => x.visible && moduleEnabled(x.key) && canAny(MODULE_PERMISSIONS[x.key])).map((x) => x.key);
+  const allowed = settings.menu.filter((x) => x.visible && moduleOn(settings, x.key) && canAny(MODULE_PERMISSIONS[x.key])).map((x) => x.key);
   if (soleModule(allowed) && first !== MODULE_PATH[module]) return <Navigate to={first} replace />;
   return (
     <EmptyState icon={<ShieldOff size={40} />} title="No tenés permiso para esta sección" action={first !== MODULE_PATH[module] ? <Link to={first} className="btn btn-primary">Ir a mi inicio</Link> : undefined}>

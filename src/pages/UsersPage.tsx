@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { PERMISSIONS, type AppUser, type Permission, type UserRole } from '../models';
 import { PERMISSION_LABEL, PIN_RE, ROLE_LABEL, ROLE_PERMISSIONS, deleteUser, effectivePermissions, saveUser, type UserDraft } from '../services/userService';
 import { inviteEmail, useCloud } from '../cloud/cloudService';
-import { updateSettings } from '../services/settingsService';
+import { salonOn, updateSettings } from '../services/settingsService';
 import { RETIRED_PERMISSIONS } from '../layouts/modules';
 import { useSession } from '../store/session';
 import { useSettings } from '../store/settings';
@@ -12,6 +12,9 @@ import { Modal } from '../components/ui/Modal';
 import { Badge, Field, Input, PageHeader, Select } from '../components/ui';
 import { UserAvatar } from '../components/auth/UserAvatar';
 import { useLocalScope } from '../services/localScope';
+
+/** Permisos que sólo sirven al Salón: si la app es sólo de stock no se muestran (si un usuario los tiene, se conservan). */
+const SALON_PERMISSIONS: ReadonlySet<Permission> = new Set<Permission>(['salon', 'billing', 'sales.edit', 'sales.void', 'salon.plan']);
 
 const ROLE_HELP: Record<UserRole, string> = {
   production: 'Panadería: sólo Producción. Anota lo que produce, ve el plan del día y las recetas.',
@@ -137,7 +140,7 @@ export function UsersPage() {
               <Field label="Nombre"><Input value={editing.name} onChange={(e) => setEditing({ ...editing, name: e.target.value })} maxLength={40} data-autofocus /></Field>
               <Field label="Rol">
                 <Select value={editing.role} onChange={(e) => { const role = e.target.value as UserRole; setEditing({ ...editing, role, permissions: role === 'custom' ? editing.permissions : ROLE_PERMISSIONS[role] }); }}>
-                  {(Object.keys(ROLE_LABEL) as UserRole[]).map((r) => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}
+                  {(Object.keys(ROLE_LABEL) as UserRole[]).filter((r) => r !== 'waiter' || salonOn(settings) || editing.role === r).map((r) => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}
                 </Select>
               </Field>
               <Field label="Email para entrar" hint="opcional: con este email y su contraseña entra desde cualquier dispositivo vinculado a la nube">
@@ -155,14 +158,14 @@ export function UsersPage() {
             <fieldset className="stack-sm" style={{ border: 0, padding: 0, margin: 0 }}>
               <legend className="small" style={{ fontWeight: 600, marginBottom: 6 }}>Permisos</legend>
               {/* Permisos de secciones retiradas (pedidos, remitos) no se muestran; si un usuario los tiene, se conservan. */}
-              {PERMISSIONS.filter((p) => !RETIRED_PERMISSIONS.has(p)).map((p) => (
+              {PERMISSIONS.filter((p) => !RETIRED_PERMISSIONS.has(p) && (salonOn(settings) || !SALON_PERMISSIONS.has(p))).map((p) => (
                 <label key={p} className="check small" style={{ minHeight: 36 }}>
                   <input type="checkbox" checked={editing.permissions.includes(p)} onChange={(e) => setPerm(p, e.target.checked)} />
                   {PERMISSION_LABEL[p]}
                 </label>
               ))}
             </fieldset>
-            {outlets.length > 0 && (
+            {outlets.length > 0 && salonOn(settings) && (
               <fieldset className="stack-sm" style={{ border: 0, padding: 0, margin: 0 }}>
                 <legend className="small" style={{ fontWeight: 600, marginBottom: 6 }}>Locales donde trabaja</legend>
                 <p className="small muted" style={{ margin: 0 }}>Sin marcar ninguno: todos. Sólo puede usar el Salón en estos locales.</p>

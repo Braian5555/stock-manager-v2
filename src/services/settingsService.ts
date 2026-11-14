@@ -60,6 +60,8 @@ export const defaultMenu = (): MenuItemSetting[] => MODULES.map((m) => ({ key: m
 
 /** ¿Se usan recetas? (si no se activó: no). */
 export const recipesOn = (s: { recipes?: boolean } | undefined) => s?.recipes === true;
+/** ¿Se usa el Salón? (si no se activó: no; la app es sólo de stock). */
+export const salonOn = (s: { salon?: boolean } | undefined) => s?.salon === true;
 
 export function defaultSettings(): Settings {
   const t = nowIso();

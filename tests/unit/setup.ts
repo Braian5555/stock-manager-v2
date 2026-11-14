@@ -12,8 +12,8 @@ beforeEach(async () => {
   db.close();
   await db.delete();
   await db.open();
-  // Las pruebas de siempre usan recetas (en la app vienen apagadas: se prueban aparte, en recipes-off.test).
-  await db.settings.put({ ...defaultSettings(), recipes: true });
+  // Las pruebas de siempre usan recetas y el Salón (en la app vienen apagados: se prueban aparte, en recipes-off.test y stock-only.test).
+  await db.settings.put({ ...defaultSettings(), recipes: true, salon: true });
   setDeviceLocal(undefined);
   resetLocalScopeForTests();
 });

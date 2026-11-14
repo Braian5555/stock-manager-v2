@@ -12,7 +12,7 @@ import { Link, NavLink, useParams } from 'react-router';
 import { CURRENT_DB_VERSION, db } from '../database/db';
 import type { MenuItemSetting, ModuleKey, Settings, ThemeMode } from '../models';
 import {
-  DEFAULT_NAV_BOTTOM, DEFAULT_NAV_TOP, MAX_NAV_BOTTOM, MODULES, defaultMenu, defaultSettings, recipesOn, updateSettings,
+  DEFAULT_NAV_BOTTOM, DEFAULT_NAV_TOP, MAX_NAV_BOTTOM, MODULES, defaultMenu, defaultSettings, recipesOn, salonOn, updateSettings,
 } from '../services/settingsService';
 import { imageFileToLogo } from '../pwa/logoIcon';
 import { useFeedback } from '../store/feedback';
@@ -28,7 +28,7 @@ import { FiscalSettingsSection } from '../components/FiscalSettingsSection';
 import { fiscalForLocal, fiscalOf } from '../services/fiscalService';
 import { desktopApp, fiscalHeader, printHtml, sampleInvoiceHtml, testTicketHtml, ticketBusiness, type PrintKind } from '../services/printService';
 import { salonStockOn } from '../services/saleStockService';
-import { MODULE_ICON, MODULE_PATH, maxirestOn, moduleEnabled, navLabel } from '../layouts/modules';
+import { MODULE_ICON, MODULE_PATH, maxirestOn, moduleOn, navLabel } from '../layouts/modules';
 import { useCloud } from '../cloud/cloudService';
 import { useIntegration, useOnline, usePendingJobs } from '../hooks/useData';
 import { syncView } from '../components/SyncBadge';
@@ -84,7 +84,7 @@ const SECTIONS: Section[] = [
   { key: 'locales', group: 'negocio', areas: BOTH, title: 'Locales', description: 'Cada local con su número, su punto de venta de ARCA y su encabezado; el local de este equipo.', icon: Store, render: () => <LocalesSection /> },
   { key: 'empresa', group: 'negocio', areas: BOTH, title: 'Empresa y apariencia', description: 'Nombre, subtítulo, logo, colores y tema claro/oscuro.', icon: Building2, render: () => <CompanySection /> },
   { key: 'accesibilidad', group: 'negocio', areas: BOTH, title: 'Letra y contraste', description: 'Letra más grande y más contraste en este dispositivo.', icon: Type, render: () => <><PageHeader title="Letra y contraste" subtitle="Para leer y tocar más cómodo en este celular o compu." /><section className="card card-pad"><AccessibilitySection /></section></> },
-  { key: 'navegacion', group: 'negocio', areas: ['stock'], title: 'Menú y navegación', description: 'Qué módulos del Stock se ven, su orden y nombre, y qué va en cada barra.', icon: LayoutGrid, render: () => <NavigationSection /> },
+  { key: 'navegacion', group: 'negocio', areas: ['stock'], title: 'Menú y navegación', description: 'Usar o no el Salón; qué módulos se ven, su orden y nombre, y qué va en cada barra.', icon: LayoutGrid, render: () => <NavigationSection /> },
   // Inventario
   { key: 'stock', group: 'inventario', areas: ['stock'], title: 'Stock', description: 'Alertas y stock crítico, recetas; familias, unidades y ubicaciones.', icon: Boxes, render: () => <StockSection /> },
   { key: 'productos', group: 'inventario', areas: ['stock'], title: 'Productos', description: 'Productos e importación desde Excel.', icon: Package, render: () => <ProductsSection /> },
@@ -486,6 +486,18 @@ function NavigationSection() {
     <>
       <PageHeader title="Menú y navegación" />
       <div className="stack">
+        <section className="card card-pad stack" aria-labelledby="salon-modo">
+          <h2 id="salon-modo">Salón</h2>
+          <label className="check">
+            <input type="checkbox" checked={salonOn(form)} onChange={(e) => save({ salon: e.target.checked })} /> Usar el Salón (mesas, mostrador, cocina, caja y comprobantes)
+          </label>
+          <p className="small muted" style={{ margin: 0 }}>
+            {salonOn(form)
+              ? 'La app tiene dos partes: el Salón (vender, cobrar y facturar) y el Stock.'
+              : 'Apagado: la app es sólo de stock (inventario, conteos, panadería, cámara y facturas de proveedores). No se pide el local del equipo y el Inicio no muestra ventas.'}
+          </p>
+          <p className="small muted" style={{ margin: 0 }}>Al apagarlo no se borra nada: mesas, carta, ventas, caja y comprobantes quedan guardados por si se vuelve a usar.</p>
+        </section>
         <section className="card card-pad stack" aria-labelledby="menu">
           <div className="row between wrap">
             <h2 id="menu">Módulos</h2>
@@ -497,7 +509,7 @@ function NavigationSection() {
               <span>Nombre</span><span>Visible</span><span>Barra celular</span><span>Orden</span>
             </div>
             {form.menu.map((m, i) => {
-              if (!moduleEnabled(m.key)) return null;
+              if (!moduleOn(form, m.key)) return null;
               const locked = MODULES.find((x) => x.key === m.key)?.locked;
               const isSettings = m.key === 'settings';
               return (

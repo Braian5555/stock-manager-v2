@@ -1,9 +1,10 @@
 import type { ModuleKey } from '../models';
-import { MODULE_PERMISSIONS, moduleEnabled } from '../layouts/modules';
+import { MODULE_PERMISSIONS, moduleOn } from '../layouts/modules';
 import { MapPin, Package, Ruler, Tags, Truck } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useSession } from '../store/session';
+import { useSettings } from '../store/settings';
 import { globalSearch, type SearchHit, type SearchKind } from '../services/searchService';
 import { Modal } from './ui/Modal';
 import { SearchInput } from './ui';
@@ -19,7 +20,8 @@ export function GlobalSearch({ open, onClose }: { open: boolean; onClose: () => 
   const [scanning, setScanning] = useState(false);
   const navigate = useNavigate();
   const { canAny } = useSession();
-  const allowed = (m: ModuleKey) => moduleEnabled(m) && canAny(MODULE_PERMISSIONS[m]);
+  const settings = useSettings();
+  const allowed = (m: ModuleKey) => moduleOn(settings, m) && canAny(MODULE_PERMISSIONS[m]);
   // Destino de cada resultado según los permisos (sin permiso, el resultado no se muestra).
   const target = (h: SearchHit): string | null => {
     if (h.kind === 'product') return allowed('products') ? h.to : allowed('stock') ? '/stock' : null;

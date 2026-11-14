@@ -8,6 +8,7 @@ import { syncPending } from '../integrations/integrationService';
 import { UpdatePrompt } from '../pwa/UpdatePrompt';
 import { useFeedback } from '../store/feedback';
 import { useSettings } from '../store/settings';
+import { salonOn } from '../services/settingsService';
 import {
   AREA_ICON, AREA_LABEL, MODULE_ICON, MODULE_PATH, SALON_MODULES, activeMenuKey, activeSalonItem, areaHome, areaOfModule, areasFor, bottomNavModules, menuGroups, moduleOfPath, navLabel, readArea, salonItems,
   soleModule, visibleModules, visibleSections, writeArea, type Area, type MenuEntry, type MenuGroup, type MenuGroupEntries, type SalonItem,
@@ -89,7 +90,8 @@ export function AppLayout() {
   const switchArea = (a: Area) => { writeArea(a); setPicked(a); navigate(areaHome(a, visible, canAny)); };
   const connected = integration && integration.mode !== 'disabled' && integration.mode !== 'excel' && integration.status !== 'desconectado';
   const assistant = useAssistantAvailable();
-  const needsLocal = location.pathname === '/' || /^\/(salon(?!\/configuracion)|cocina|comprobantes)/.test(location.pathname);
+  // El local del equipo sólo importa para el Salón (mesas, carta, ventas, caja): sin Salón no se pide.
+  const needsLocal = salonOn(settings) && (location.pathname === '/' || /^\/(salon(?!\/configuracion)|cocina|comprobantes)/.test(location.pathname));
   const menu = menuGroups(settings, visible, canAny);
   // El logo lleva al Salón (como Fudo); quien no usa el Salón vuelve a su inicio.
   const localScope = useLocalScope();
@@ -127,7 +129,7 @@ export function AppLayout() {
             <span className="asst-trigger-text">Asistente</span>
           </NavLink>
         )}
-        <LocalChip />
+        {salonOn(settings) && <LocalChip />}
         <SyncBadge compact />
         <UserMenu />
       </header>
