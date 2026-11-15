@@ -210,8 +210,8 @@ export const MENU_GROUPS: { key: MenuGroup; label: string }[] = [
 export const SECTIONS: Section[] = [
   { key: 'inicio', icon: Home, modules: ['dashboard'] },
   { key: 'stock', icon: Boxes, modules: ['stock', 'movements', 'count', 'reconciliation'], group: 'stock' },
-  { key: 'produccion', icon: ChefHat, modules: ['production'], group: 'stock' },
-  { key: 'pasteleria', icon: CakeSlice, modules: ['pastry'], group: 'stock' },
+  // Panadería y Pastelería van juntas: una sola entrada en el menú y, adentro, se elige cuál.
+  { key: 'produccion', icon: ChefHat, modules: ['production', 'pastry'], group: 'stock' },
   { key: 'camara', icon: Snowflake, modules: ['showcase'], group: 'stock' },
   { key: 'productos', icon: Package, modules: ['products', 'categories', 'units', 'locations'], group: 'productos' },
   { key: 'compras', icon: Receipt, label: 'Compras', modules: ['invoices', 'orders', 'suppliers'], group: 'compras' },
@@ -342,6 +342,11 @@ export function menuGroups(settings: Settings, visible: ModuleKey[], canAny: (p:
   if (visible.includes('dashboard')) groups.get('reportes')!.push({ key: 'resumen', label: 'Resumen del día', icon: LayoutDashboard, to: MODULE_PATH.dashboard, area: 'stock', group: 'reportes' });
   for (const sec of visibleSections(settings, visible.filter((k) => !SALON_MODULES.has(k)))) {
     if (!sec.group) continue;
+    // Panadería y Pastelería: una sola entrada que lleva a la primera (adentro se cambia).
+    if (sec.key === 'produccion' && sec.tabs.length > 1) {
+      groups.get(sec.group)!.push({ key: sec.tabs[0], label: bakeryLabel(settings), icon: MODULE_ICON[sec.tabs[0]], to: MODULE_PATH[sec.tabs[0]], area: 'stock', group: sec.group });
+      continue;
+    }
     for (const k of sec.tabs) {
       groups.get(sec.group)!.push({ key: k, label: k === 'settings' ? 'Configuración general' : k === 'products' ? 'Productos e insumos' : navLabel(settings, k), icon: MODULE_ICON[k], to: MODULE_PATH[k], area: 'stock', group: sec.group });
     }
@@ -349,6 +354,16 @@ export function menuGroups(settings: Settings, visible: ModuleKey[], canAny: (p:
   }
   // Si se renombró el menú de stock (p. ej. "Inventario"), el grupo usa ese nombre.
   return MENU_GROUPS.map((g) => ({ ...g, label: g.key === 'stock' ? navLabel(settings, 'stock') : g.label, entries: groups.get(g.key)! })).filter((g) => g.entries.length);
+}
+
+/** Nombre de la entrada que junta Panadería y Pastelería (respeta los nombres personalizados). */
+export const bakeryLabel = (settings: Settings) => `${navLabel(settings, 'production')} y ${navLabel(settings, 'pastry').toLocaleLowerCase('es')}`;
+
+/** Si la pantalla no tiene entrada propia (Pastelería, que va junto con Panadería), la de su sección. */
+export function resolveMenuKey(groups: MenuGroupEntries[], key: string | undefined): string | undefined {
+  if (!key || groups.some((g) => g.entries.some((e) => e.key === key))) return key;
+  const sec = SECTIONS.find((s) => (s.modules as string[]).includes(key));
+  return sec?.modules.find((m) => groups.some((g) => g.entries.some((e) => e.key === m))) ?? key;
 }
 
 /** Entrada del menú que corresponde a la pantalla actual. */

@@ -35,7 +35,7 @@ test('inicio: ahora, menú completo (Salón primero), accesos y lo del día con 
     const menu = (g: string) => page.getByRole('navigation', { name: `Menú: ${g}` });
     for (const n of ['Mesas', 'Mostrador', 'Cocina', 'Caja', 'Ventas de hoy', 'Comprobantes']) await expect(menu('Ventas').getByRole('link', { name: n, exact: true })).toBeVisible();
     for (const n of ['Carta', 'Productos e insumos']) await expect(menu('Productos').getByRole('link', { name: n, exact: true })).toBeVisible();
-    for (const n of ['Stock', 'Conteo', 'Movimientos', 'Panadería', 'Cámara']) await expect(menu('Stock').getByRole('link', { name: n, exact: true })).toBeVisible();
+    for (const n of ['Stock', 'Conteo', 'Movimientos', 'Panadería y pastelería', 'Cámara']) await expect(menu('Stock').getByRole('link', { name: n, exact: true })).toBeVisible();
     for (const n of ['Facturas', 'Pedidos', 'Proveedores']) await expect(menu('Compras y gastos').getByRole('link', { name: n, exact: true })).toBeVisible();
     for (const n of ['Reportes', 'Consumo y mermas']) await expect(menu('Reportes').getByRole('link', { name: n, exact: true })).toBeVisible();
     for (const n of ['Configuración del salón', 'Configuración general', 'Usuarios']) await expect(menu('Administración').getByRole('link', { name: n, exact: true })).toBeVisible();

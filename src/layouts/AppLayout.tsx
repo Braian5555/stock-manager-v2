@@ -10,7 +10,7 @@ import { useFeedback } from '../store/feedback';
 import { useSettings } from '../store/settings';
 import { salonOn } from '../services/settingsService';
 import {
-  AREA_ICON, AREA_LABEL, MODULE_ICON, MODULE_PATH, SALON_MODULES, activeMenuKey, activeSalonItem, areaHome, areaOfModule, areasFor, bottomNavModules, menuGroups, moduleOfPath, navLabel, readArea, salonItems,
+  AREA_ICON, AREA_LABEL, MODULE_ICON, MODULE_PATH, SALON_MODULES, activeMenuKey, resolveMenuKey, activeSalonItem, areaHome, areaOfModule, areasFor, bottomNavModules, menuGroups, moduleOfPath, navLabel, readArea, salonItems,
   soleModule, visibleModules, visibleSections, writeArea, type Area, type MenuEntry, type MenuGroup, type MenuGroupEntries, type SalonItem,
 } from './modules';
 import { useAutoSync } from '../hooks/useAutoSync';
@@ -97,7 +97,7 @@ export function AppLayout() {
   const localScope = useLocalScope();
   // En la Central (todos los locales) el logo lleva al resumen con todos los locales.
   const brandHome = localScope.central && !localScope.current ? '/' : areas.includes('salon') ? areaHome('salon', visible, canAny) : home;
-  const activeKey = activeMenuKey(location.pathname, location.search);
+  const activeKey = resolveMenuKey(menu, activeMenuKey(location.pathname, location.search));
   // La barra tipo Fudo es de la computadora; en el celular están la barra inferior y "Más".
   const desktop = useMediaQuery(DESKTOP_QUERY);
 
@@ -136,7 +136,7 @@ export function AppLayout() {
 
       {desktop && <SubNav groups={menu} active={activeKey} />}
       {/* Configuración no lleva pestañas: todo se elige desde sus tarjetas (antes estaba repetido arriba y abajo). */}
-      {!desktop && section && section.key !== 'config' && section.tabs.length > 1 && <SectionTabs tabs={section.tabs} label={section.label} />}
+      {!desktop && section && section.key !== 'config' && section.key !== 'produccion' && section.tabs.length > 1 && <SectionTabs tabs={section.tabs} label={section.label} />}
 
       <UpdatePrompt />
       {!online && (

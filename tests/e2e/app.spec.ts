@@ -196,7 +196,7 @@ test('22-23 · navegación adaptada al dispositivo', async ({ page, isMobile }) 
     const sub = (g: string) => page.getByRole('navigation', { name: `Menú: ${g}` });
     await top.getByRole('link', { name: 'Stock', exact: true }).click();
     await expect(top.getByRole('link', { name: 'Stock', exact: true })).toHaveClass(/active/);
-    for (const l of ['Stock', 'Conteo', 'Movimientos', 'Panadería', 'Cámara']) await expect(sub('Stock').getByRole('link', { name: l, exact: true })).toBeVisible();
+    for (const l of ['Stock', 'Conteo', 'Movimientos', 'Panadería y pastelería', 'Cámara']) await expect(sub('Stock').getByRole('link', { name: l, exact: true })).toBeVisible();
     for (const l of ['Remitos']) await expect(sub('Stock').getByRole('link', { name: l })).toHaveCount(0);
     await top.getByRole('link', { name: 'Productos', exact: true }).click();
     for (const l of ['Carta', 'Productos e insumos', 'Familias', 'Unidades', 'Ubicaciones']) await expect(sub('Productos').getByRole('link', { name: l, exact: true })).toBeVisible();

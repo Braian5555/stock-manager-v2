@@ -91,3 +91,18 @@ test('computadora: la sección activa y sus pestañas siguen a la página', asyn
     expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), `ancho ${width}`).toBeLessThanOrEqual(0);
   }
 });
+
+test('computadora: Panadería y Pastelería van juntas en el menú y adentro se elige cuál', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'sólo computadora');
+  await loadDemo(page);
+  await go(page, '/stock');
+  const tabs = page.getByRole('navigation', { name: 'Menú: Stock' });
+  await expect(tabs.getByRole('link', { name: 'Pastelería', exact: true })).toHaveCount(0);
+  await tabs.getByRole('link', { name: 'Panadería y pastelería' }).click();
+  await expect(page).toHaveURL(/#\/produccion$/);
+  const pick = page.getByRole('group', { name: 'Panadería o pastelería' });
+  await pick.getByRole('button', { name: 'Pastelería' }).click();
+  await expect(page).toHaveURL(/#\/pasteleria$/);
+  await expect(page.locator('main h1').first()).toHaveText('Pastelería');
+  await expect(tabs.getByRole('link', { name: 'Panadería y pastelería' })).toHaveClass(/active/);
+});

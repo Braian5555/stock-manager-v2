@@ -16,6 +16,8 @@ import { lineFamilyIds, planOf, type ProductionLine } from '../services/bakerySe
 import { menuLabel, updateSettings } from '../services/settingsService';
 import { useSettings } from '../store/settings';
 import { useSession } from '../store/session';
+import { useNavigate } from 'react-router';
+import { MODULE_PATH, navLabel, visibleModules } from '../layouts/modules';
 import { Modal } from '../components/ui/Modal';
 import { Stepper } from '../components/Stepper';
 import { fmtMoney, fmtNumber, fmtTime, matches, round3 } from '../utils/format';
@@ -48,6 +50,10 @@ export function ProductionPage({ line = 'production' }: { line?: ProductionLine 
   // Plan (armarlo) y resumen: el encargado. Qué familias se ven: el administrador.
   const { can, canAny } = useSession();
   const settings = useSettings();
+  const navigate = useNavigate();
+  // Panadería y Pastelería van juntas: si la persona usa las dos, arriba elige cuál.
+  const shown = visibleModules(settings, canAny);
+  const bothLines = shown.includes('production') && shown.includes('pastry');
   const canEdit = can('catalog.manage');
   // Crear productos de la sección: quien administra el catálogo o tiene el permiso "recetas".
   const canCreate = canAny(['catalog.manage', 'recipes']);
@@ -159,6 +165,12 @@ export function ProductionPage({ line = 'production' }: { line?: ProductionLine 
 
   return (
     <div className="production">
+      {bothLines && (
+        <div style={{ marginBottom: 12 }}>
+          <Segmented<ProductionLine> label="Panadería o pastelería" value={line} onChange={(v) => navigate(MODULE_PATH[v])}
+            options={[{ value: 'production', label: navLabel(settings, 'production') }, { value: 'pastry', label: navLabel(settings, 'pastry') }]} />
+        </div>
+      )}
       <PageHeader
         title={menuLabel(settings, line)}
         subtitle={new Date().toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })}
