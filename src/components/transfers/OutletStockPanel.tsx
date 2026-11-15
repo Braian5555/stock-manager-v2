@@ -1,5 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks';
-import { AlertTriangle, ClipboardCheck, Copy, SlidersHorizontal, Store, Tags } from 'lucide-react';
+import { AlertTriangle, ArrowLeftRight, ClipboardCheck, Copy, SlidersHorizontal, Store, Tags } from 'lucide-react';
+import type { Product } from '../../models';
+import { MovementModal } from '../MovementModal';
 import { Fragment, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { db } from '../../database/db';
@@ -30,6 +32,7 @@ export function OutletStockPanel({ outletId: fixedId }: { outletId?: string } = 
   const outlet = outlets.find((o) => o.id === current);
   const cats = new Set(outletCategoryIds(outlet, lk.categories));
   const [editCats, setEditCats] = useState(false);
+  const [moving, setMoving] = useState<Product | null>(null);
   const [editMins, setEditMins] = useState(false);
   const [onlyMissing, setOnlyMissing] = useState(false);
   // Mínimos que se están escribiendo: se guardan al salir del campo (no en cada tecla).
@@ -118,7 +121,8 @@ export function OutletStockPanel({ outletId: fixedId }: { outletId?: string } = 
       <p className="small muted" style={{ margin: '0 0 8px' }}>
         Familias que se cuentan acá: <b>{lk.categories.filter((c) => cats.has(c.id)).map((c) => c.name).join(', ') || 'ninguna'}</b>.
       </p>
-      <p className="small muted" style={{ margin: '0 0 8px' }}>Stock según los remitos recibidos y los conteos del punto. Lo que se vende en el punto no se descuenta solo: hacé conteos periódicos para mantenerlo al día.</p>
+      <p className="small muted" style={{ margin: '0 0 8px' }}>Stock según los remitos recibidos, los movimientos y los conteos del punto. Lo que se vende no se descuenta solo: anotalo con <ArrowLeftRight size={13} aria-label="Registrar movimiento" /> (consumo, salida, rotura) o hacé un conteo.</p>
+      {moving && outlet && <MovementModal product={moving} initialType="consumo" outlet={{ id: outlet.id, name: outlet.name, stock: stock?.get(moving.id) ?? 0 }} onClose={() => setMoving(null)} />}
       <div className="card">
         {rows.length === 0 ? (
           <EmptyState icon={<Store size={40} />} title={q ? 'Sin resultados' : 'Este punto todavía no tiene productos'}>{q ? undefined : 'Elegí qué familias maneja en “Familias del punto”, o mandale mercadería por remito.'}</EmptyState>
@@ -142,6 +146,9 @@ export function OutletStockPanel({ outletId: fixedId }: { outletId?: string } = 
                     onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} />
                 )}
                 <strong className={`num ${qty < 0 ? 'neg' : ''}`}>{fmtNumber(qty)} {lk.unit(p.unitId)}</strong>
+                {can('stock.move') && outlet && !editMins && (
+                  <button type="button" className="btn btn-sm btn-ghost icon-btn" aria-label={`Registrar movimiento de ${p.name} en ${outlet.name}`} title="Registrar movimiento" onClick={() => setMoving(p)}><ArrowLeftRight size={16} aria-hidden /></button>
+                )}
               </div>
               </Fragment>
             ))}

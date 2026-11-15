@@ -165,10 +165,10 @@ export function UsersPage() {
                 </label>
               ))}
             </fieldset>
-            {outlets.length > 0 && salonOn(settings) && (
+            {outlets.length > 0 && (
               <fieldset className="stack-sm" style={{ border: 0, padding: 0, margin: 0 }}>
-                <legend className="small" style={{ fontWeight: 600, marginBottom: 6 }}>Locales donde trabaja</legend>
-                <p className="small muted" style={{ margin: 0 }}>Sin marcar ninguno: todos. Sólo puede usar el Salón en estos locales.</p>
+                <legend className="small" style={{ fontWeight: 600, marginBottom: 6 }}>{salonOn(settings) ? 'Locales donde trabaja' : 'Puntos donde trabaja'}</legend>
+                <p className="small muted" style={{ margin: 0 }}>Sin marcar ninguno: todos. Si marcás alguno, en Stock ve sólo el stock de esos puntos (no el del Depósito Central){salonOn(settings) ? ' y sólo puede usar el Salón en esos locales' : ''}. Los administradores ven todo igual.</p>
                 {outlets.map((o) => (
                   <label key={o.id} className="check small" style={{ minHeight: 36 }}>
                     <input type="checkbox" checked={(editing.outletIds ?? []).includes(o.id)} onChange={(e) => setEditing({ ...editing, outletIds: e.target.checked ? [...(editing.outletIds ?? []), o.id] : (editing.outletIds ?? []).filter((x) => x !== o.id) })} />

@@ -29,7 +29,7 @@ const rowProduct = (r: { p: Product }) => r.p;
 
 export function StockPage() {
   const settings = useSettings();
-  const { can } = useSession();
+  const { can, user } = useSession();
   const products = useProducts();
   const lk = useLookups();
   const [params, setParams] = useSearchParams();
@@ -41,7 +41,11 @@ export function StockPage() {
     return new Map(outlets.map((o) => [o.id, outletAlerts(o, st.get(o.id), products).length]));
   }, [outletMoves, outlets, products]);
   // Dónde mirar: Depósito Central (el stock de siempre) o un punto (lo que recibió por remitos).
-  const punto = outlets.some((o) => o.id === params.get('punto')) ? params.get('punto')! : '';
+  // Quien trabaja en ciertos puntos (y no es administrador) ve sólo el stock de esos puntos.
+  const mineIds = !can('admin') && user?.outletIds?.length ? new Set(user.outletIds) : null;
+  const shownOutlets = mineIds ? outlets.filter((o) => mineIds.has(o.id)) : outlets;
+  const asked = params.get('punto');
+  const punto = shownOutlets.some((o) => o.id === asked) ? asked! : mineIds ? shownOutlets[0]?.id ?? '' : '';
   const setPunto = (id: string) => {
     const next = new URLSearchParams(params);
     if (id) next.set('punto', id);
@@ -114,16 +118,16 @@ export function StockPage() {
     <>
       <PageHeader
         title={menuLabel(settings, 'stock')}
-        subtitle={punto ? `Stock en ${outlets.find((o) => o.id === punto)?.name ?? 'el punto'} según los remitos recibidos` : `${rows.length} productos`}
+        subtitle={punto ? `Stock en ${outlets.find((o) => o.id === punto)?.name ?? 'el punto'}` : `${rows.length} productos`}
         actions={<><ScanButton /><Link to="/stock/consumo" className="btn"><TrendingDown size={18} aria-hidden /> Consumo</Link>{outlets.length > 0 && can('transfers') && <Link to={punto ? `/remitos/nuevo?punto=${punto}` : '/remitos/nuevo'} className="btn"><Forklift size={18} aria-hidden /> {punto ? `Enviar a ${outlets.find((o) => o.id === punto)?.name ?? 'el punto'}` : 'Enviar a un punto'}</Link>}{can('catalog.manage') && <Link to="/productos?nuevo=1" className="btn btn-primary"><Plus size={18} aria-hidden /> Producto</Link>}</>}
       />
-      {outlets.length > 0 && (can('transfers') || can('stock.view')) && (
+      {shownOutlets.length > (mineIds ? 1 : 0) && (can('transfers') || can('stock.view')) && (
         <div style={{ marginBottom: 12, overflowX: 'auto' }}>
           <Segmented<string> label="Dónde" value={punto || 'central'} onChange={(v) => setPunto(v === 'central' ? '' : v)}
-            options={[{ value: 'central', label: 'Depósito Central' }, ...outlets.map((o) => ({ value: o.id, label: missingByOutlet.get(o.id) ? `${o.name} · faltan ${missingByOutlet.get(o.id)}` : o.name }))]} />
+            options={[...(mineIds ? [] : [{ value: 'central', label: 'Depósito Central' }]), ...shownOutlets.map((o) => ({ value: o.id, label: missingByOutlet.get(o.id) ? `${o.name} · faltan ${missingByOutlet.get(o.id)}` : o.name }))]} />
         </div>
       )}
-      {punto ? <OutletStockPanel key={punto} outletId={punto} /> : (<>
+      {mineIds && !punto ? <p className="muted">Los puntos donde trabajás no están activos. Pedile a un administrador que lo revise en Usuarios.</p> : punto ? <OutletStockPanel key={punto} outletId={punto} /> : (<>
       <div className="toolbar">
         <SearchInput value={q} onChange={setQ} placeholder="Buscar producto o código" label="Buscar productos" />
         <button type="button" className="btn filters-toggle" aria-expanded={showFilters} aria-controls="stock-filters" onClick={() => setShowFilters((v) => !v)}>

@@ -15,7 +15,8 @@ import { Field, NumberInput, Select, Input } from './ui';
 
 const TYPES: MovementType[] = ['ingreso', 'salida', 'ajuste', 'consumo', 'perdida', 'devolucion'];
 
-export function MovementModal({ product, onClose, initialType = 'ingreso' }: { product: Product | null; onClose: () => void; initialType?: MovementType }) {
+/** `outlet`: el movimiento es en ese punto (su stock, no el del Depósito Central). */
+export function MovementModal({ product, onClose, initialType = 'ingreso', outlet }: { product: Product | null; onClose: () => void; initialType?: MovementType; outlet?: { id: string; name: string; stock: number } }) {
   const lk = useLookups();
   const { run, notify, confirm } = useFeedback();
   const integration = useIntegration();
@@ -43,18 +44,20 @@ export function MovementModal({ product, onClose, initialType = 'ingreso' }: { p
   }, [product?.id]); // eslint-disable-line react-hooks/exhaustive-deps -- reiniciar sólo al cambiar de producto
 
   if (!product) return null;
+  // En un punto se parte de lo que hay en ese punto.
+  const base = outlet ? outlet.stock : product.stock;
   const unit = lk.unit(product.unitId);
   const isAdjust = type === 'ajuste';
-  const newQty = qty === undefined ? undefined : isAdjust ? qty : round3(product.stock + (OUTGOING_TYPES.includes(type) ? -qty : qty));
+  const newQty = qty === undefined ? undefined : isAdjust ? qty : round3(base + (OUTGOING_TYPES.includes(type) ? -qty : qty));
   // Sin stock negativo, una salida no baja de 0: lo que se ve es cómo va a quedar.
-  const floor = Math.min(product.stock, 0);
+  const floor = Math.min(base, 0);
   const shownQty = newQty !== undefined && !isAdjust && !allowNegative && newQty < floor ? floor : newQty;
-  const integrated = mxOn && integration && integration.mode !== 'disabled' && integration.status !== 'desconectado' && !!link;
+  const integrated = !outlet && mxOn && integration && integration.mode !== 'disabled' && integration.status !== 'desconectado' && !!link;
 
   const submit = async () => {
     if (newQty === undefined || qty === undefined || qty < 0) return notify('Ingresá una cantidad válida.', { tone: 'error' });
     if (!isAdjust && qty === 0) return notify('La cantidad tiene que ser mayor a 0.', { tone: 'error' });
-    if (isAdjust && newQty === product.stock) return notify('El stock ya tiene esa cantidad: no hay nada que ajustar.', { tone: 'error' });
+    if (isAdjust && newQty === base) return notify('El stock ya tiene esa cantidad: no hay nada que ajustar.', { tone: 'error' });
     if (isAdjust && mode === 'sync') {
       const ok = await confirm({
         title: '¿Confirmar ajuste sincronizado?',
@@ -81,8 +84,8 @@ export function MovementModal({ product, onClose, initialType = 'ingreso' }: { p
     const r = await run(() =>
       applyMovement(
         isAdjust
-          ? { productId: product.id, type, newQuantity: newQty, reason, origin: 'manual' }
-          : { productId: product.id, type, delta: round3(newQty - product.stock), reason, origin: 'manual' },
+          ? { productId: product.id, type, newQuantity: newQty, reason, origin: 'manual', outletId: outlet?.id }
+          : { productId: product.id, type, delta: round3(newQty - base), reason, origin: 'manual', outletId: outlet?.id },
       ),
     );
     if (r) {
@@ -96,7 +99,7 @@ export function MovementModal({ product, onClose, initialType = 'ingreso' }: { p
   return (
     <Modal
       open
-      title={`Movimiento · ${product.name}`}
+      title={outlet ? `Movimiento en ${outlet.name} · ${product.name}` : `Movimiento · ${product.name}`}
       onClose={onClose}
       footer={
         <>
@@ -138,12 +141,12 @@ export function MovementModal({ product, onClose, initialType = 'ingreso' }: { p
         )}
         {shownQty !== newQty && (
           <div className="alert alert-warn" role="status">
-            <span>No alcanza: hay {fmtNumber(Math.max(0, product.stock))} {unit}. Queda en <strong>0</strong> y el movimiento anota cuánto faltaba.</span>
+            <span>No alcanza: hay {fmtNumber(Math.max(0, base))} {unit}{outlet ? ` en ${outlet.name}` : ''}. Queda en <strong>0</strong> y el movimiento anota cuánto faltaba.</span>
           </div>
         )}
         <div className="alert">
-          <span>Stock actual <strong className="num">{fmtNumber(product.stock)}</strong> → nuevo <strong className="num">{fmtNumber(shownQty)}</strong> {unit}
-            {shownQty !== undefined && <> (<span className={shownQty - product.stock >= 0 ? 'pos' : 'neg'}>{fmtSigned(round3(shownQty - product.stock))}</span>)</>}
+          <span>{outlet ? `Stock en ${outlet.name}` : 'Stock actual'} <strong className="num">{fmtNumber(base)}</strong> → nuevo <strong className="num">{fmtNumber(shownQty)}</strong> {unit}
+            {shownQty !== undefined && <> (<span className={shownQty - base >= 0 ? 'pos' : 'neg'}>{fmtSigned(round3(shownQty - base))}</span>)</>}
           </span>
         </div>
       </form>
