@@ -265,6 +265,11 @@ export interface Settings extends BaseEntity {
    * queda sólo de stock. Apagado no se borra nada: mesas, carta, ventas y caja quedan guardadas.
    */
   salon?: boolean;
+  /**
+   * Dejar que el stock quede en negativo cuando sale más de lo que hay. Si falta: no, el stock
+   * nunca baja de 0 (el movimiento resta sólo lo que había y anota cuánto faltaba).
+   */
+  negativeStock?: boolean;
 }
 
 export type IntegrationMode = 'disabled' | 'mock' | 'gateway' | 'excel';

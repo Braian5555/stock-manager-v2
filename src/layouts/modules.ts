@@ -80,18 +80,18 @@ const SHORT_LABEL: Partial<Record<ModuleKey, string>> = {
  * Sus datos se conservan (los proveedores siguen en cada producto); sólo dejan de mostrarse.
  * Para reactivarlos alcanza con sacarlos de esta lista.
  */
-export const RETIRED_MODULES: ReadonlySet<ModuleKey> = new Set<ModuleKey>(['transfers', 'reports', 'reconciliation']);
+export const RETIRED_MODULES: ReadonlySet<ModuleKey> = new Set<ModuleKey>(['reports', 'reconciliation']);
 export const moduleEnabled = (k: ModuleKey) => !RETIRED_MODULES.has(k);
 /** ¿Se muestra el módulo? Además de los retirados, el Salón entero se oculta si no se usa. */
 export const moduleOn = (s: Pick<Settings, 'salon'> | undefined, k: ModuleKey) => moduleEnabled(k) && (!SALON_MODULES.has(k) || salonOn(s));
 /** ¿Está activada la conexión opcional con Maxirest? Apagada, Maxirest no aparece en la app. */
 export const maxirestOn = (s: Pick<Settings, 'maxirest'> | undefined) => s?.maxirest === true;
 /** Permisos que sólo servían a los módulos retirados (se ocultan al editar usuarios). */
-export const RETIRED_PERMISSIONS: ReadonlySet<Permission> = new Set<Permission>(['transfers']);
+export const RETIRED_PERMISSIONS: ReadonlySet<Permission> = new Set<Permission>([]);
 
 /** Grupos para "Más" (celular y computadora). */
 export const MODULE_GROUPS: { title: string; keys: ModuleKey[] }[] = [
-  { title: 'Operación diaria', keys: ['dashboard', 'stock', 'count', 'production', 'pastry', 'showcase', 'movements'] },
+  { title: 'Operación diaria', keys: ['dashboard', 'stock', 'transfers', 'count', 'production', 'pastry', 'showcase', 'movements'] },
   { title: 'Compras', keys: ['invoices', 'orders', 'suppliers'] },
   { title: 'Catálogo', keys: ['products', 'categories', 'units', 'locations'] },
   { title: 'Administración', keys: ['cloud', 'users', 'export', 'integrations', 'diagnostics', 'settings'] },

@@ -23,7 +23,7 @@ import { priceHistory, priceIncreases } from '../priceService';
 import { RESTOCK_LEVEL_LABEL, restockList, usageSinceIso } from '../restockService';
 import { deleteProduct, emptyProduct, saveProduct } from '../productService';
 import { recipeConsumption, registerProduction, undoProduction } from '../productionService';
-import { applyMovement, MOVEMENT_LABEL, revertMovement, statusOf, STATUS_LABEL, stockByOutlet } from '../stockService';
+import { applyMovement, MOVEMENT_LABEL, negativeStockAllowed, revertMovement, statusOf, STATUS_LABEL, stockByOutlet } from '../stockService';
 import { createTransfer, outletAlerts, outletCategoryIds, transferCode, voidTransfer } from '../transferService';
 import { lineFamilyIds, ymdAdd, type ProductionLine } from '../bakeryService';
 
@@ -721,7 +721,9 @@ export const TOOLS: ToolDef[] = [
         const there = outletStock?.get(p.id) ?? 0;
         return `${p.name}: ${fmtNumber(qty)} ${lk.unit(p.unitId)} · Depósito ${fmtNumber(p.stock)} → ${fmtNumber(round3(p.stock - qty))} · ${outlet.name} ${fmtNumber(there)} → ${fmtNumber(round3(there + qty))}`;
       });
-      for (const { p, qty } of plan) if (p.stock - qty < 0) notes.push(`“${p.name}” queda en negativo en el Depósito (hay ${fmtNumber(p.stock)}).`);
+      const short = plan.filter(({ p, qty }) => p.stock - qty < 0);
+      if (short.length && !negativeStockAllowed()) throw new ToolError(`No alcanza el stock del Depósito Central: ${short.map(({ p }) => `${p.name} (hay ${fmtNumber(Math.max(0, p.stock))})`).join(', ')}. Al punto sólo se puede mandar lo que hay.`);
+      for (const { p } of short) notes.push(`“${p.name}” queda en negativo en el Depósito (hay ${fmtNumber(p.stock)}).`);
       return {
         title: `Remito a ${outlet.name} (${plan.length} ${plan.length === 1 ? 'producto' : 'productos'})`,
         lines, notes,
@@ -781,8 +783,9 @@ export const TOOLS: ToolDef[] = [
         execute: async (key) => {
           if (!ctx.can('stock.move')) throw new ToolError('Ya no tenés permiso para mover stock.');
           const done = sentTransfers.get(key);
-          const { transfer, fixes } = done ? { transfer: done, fixes: [] as StockMovement[] } : await db.transaction('rw', [db.transfers, db.products, db.movements, db.outlets], async () => {
-            const { transfer: tr } = await createTransfer({ date, outletId: outlet.id, items: [...items].map(([productId, quantity]) => ({ productId, quantity })), notes: `Salidas “${s(a.buscar)}” pasadas a remito desde el Asistente IA` });
+          const { transfer, fixes } = done ? { transfer: done, fixes: [] as StockMovement[] } : await db.transaction('rw', [db.transfers, db.products, db.movements, db.outlets, db.settings], async () => {
+            // Las salidas ya se descontaron del depósito: el remito no controla el stock (se devuelven abajo).
+            const { transfer: tr } = await createTransfer({ date, outletId: outlet.id, items: [...items].map(([productId, quantity]) => ({ productId, quantity })), notes: `Salidas “${s(a.buscar)}” pasadas a remito desde el Asistente IA` }, { allowShort: true });
             const out: StockMovement[] = [];
             for (const m of usable) {
               // Devuelve la salida vieja (el remito ya la descontó): el Depósito queda como estaba.

@@ -6,6 +6,9 @@ import type { TransferItem } from '../models';
 import { createTransfer, normalizeItems, transferCode } from '../services/transferService';
 import { useLookups, useOutlets, useProducts } from '../hooks/useData';
 import { useFeedback } from '../store/feedback';
+import { useSettings } from '../store/settings';
+import { maxirestOn } from '../layouts/modules';
+import { negativeStockOn } from '../services/settingsService';
 import { EmptyState, Field, Input, NumberInput, PageHeader, Select, Textarea } from '../components/ui';
 import { fmtNumber, localYmd, matches } from '../utils/format';
 
@@ -20,6 +23,9 @@ export function TransferEditorPage() {
   const products = useProducts();
   const lk = useLookups();
   const { run, confirm, notify } = useFeedback();
+  const settings = useSettings();
+  const mxOn = maxirestOn(settings);
+  const allowNegative = negativeStockOn(settings);
   const [outletId, setOutletId] = useState(params.get('punto') ?? '');
   const [date, setDate] = useState(today());
   const [notes, setNotes] = useState('');
@@ -56,13 +62,16 @@ export function TransferEditorPage() {
     if (!items.length) return notify('Agregá al menos un producto con cantidad.', { tone: 'error' });
     const outlet = outlets.find((o) => o.id === outletId);
     const short = items.filter((i) => (byId.get(i.productId)?.stock ?? 0) < i.quantity);
+    if (short.length && !allowNegative) {
+      return notify(`No alcanza el stock del Depósito Central: ${short.map((i) => byId.get(i.productId)?.name).join(', ')}. Bajá la cantidad o cargá primero el ingreso.`, { tone: 'error' });
+    }
     const ok = await confirm({
       title: `Remito a ${outlet?.name ?? ''}`,
       message: (
         <>
           <p>Se van a restar {items.length} {items.length === 1 ? 'producto' : 'productos'} del Depósito Central y sumar a {outlet?.name}.</p>
           {short.length > 0 && <p className="small" style={{ color: 'var(--crit)' }}>Atención: {short.map((i) => byId.get(i.productId)?.name).join(', ')} {short.length === 1 ? 'queda' : 'quedan'} con stock negativo en el depósito. Revisá el stock con un conteo.</p>}
-          <p className="small muted">Queda pendiente de cargar en Maxirest.</p>
+          {mxOn && <p className="small muted">Queda pendiente de cargar en Maxirest.</p>}
         </>
       ),
       confirmLabel: 'Confirmar remito',
@@ -80,7 +89,7 @@ export function TransferEditorPage() {
   return (
     <>
       <Link to="/remitos" className="btn btn-ghost btn-sm" style={{ marginBottom: 8 }}><ArrowLeft size={16} aria-hidden /> Remitos</Link>
-      <PageHeader title="Nuevo remito interno" subtitle="Sale del Depósito Central y entra al punto" />
+      <PageHeader title="Enviar a un punto" subtitle="Sale del Depósito Central y se suma al stock del punto" />
       {outlets.length === 0 ? (
         <div className="card">
           <EmptyState icon={<Store size={40} />} title="Primero creá los puntos" action={<Link to="/remitos?tab=puntos" className="btn btn-primary"><Plus size={18} aria-hidden /> Crear puntos</Link>}>
@@ -119,7 +128,7 @@ export function TransferEditorPage() {
             </div>
           )}
           {q.trim() && results.length === 0 && <p className="small muted">No hay productos con ese nombre.</p>}
-          {lines.length === 0 && !q && <p className="small muted">Buscá y agregá los productos que salen del depósito.</p>}
+          {lines.length === 0 && !q && <p className="small muted">Buscá y agregá los productos que salen del depósito.{allowNegative ? '' : ' Sólo se puede mandar lo que hay.'}</p>}
 
           {lines.map((l) => {
             const p = byId.get(l.productId);
@@ -128,7 +137,7 @@ export function TransferEditorPage() {
               <div key={l.productId} className="row transfer-line">
                 <div className="grow">
                   <div className="list-title">{p?.name ?? '(producto eliminado)'}</div>
-                  <div className={`list-sub num ${over ? 'neg' : ''}`}>En depósito: {fmtNumber(p?.stock)} {lk.unit(p?.unitId)}{over ? ' · no alcanza' : ''}</div>
+                  <div className={`list-sub num ${over ? 'neg' : ''}`}>En depósito: {fmtNumber(p?.stock)} {lk.unit(p?.unitId)}{over ? (allowNegative ? ' · no alcanza' : ` · no alcanza: podés mandar hasta ${fmtNumber(Math.max(0, p.stock))}`) : ''}</div>
                 </div>
                 <NumberInput aria-label={`Cantidad de ${p?.name ?? ''}`} value={l.quantity} min={0} placeholder="Cant."
                   autoFocus={l.productId === lastAdded}

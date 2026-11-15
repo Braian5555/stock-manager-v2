@@ -11,10 +11,10 @@
  */
 import { db } from '../database/db';
 import type { Category, Outlet, Product, Transfer, TransferItem } from '../models';
-import { normalize } from '../utils/format';
+import { fmtNumber, normalize } from '../utils/format';
 import { nowIso, uuid } from '../utils/id';
 import { round3 } from '../utils/format';
-import { applyMovement } from './stockService';
+import { applyMovement, negativeStockAllowed } from './stockService';
 import { getCurrentActor } from './userService';
 import { getSettings, updateSettings } from './settingsService';
 
@@ -131,16 +131,25 @@ export function normalizeItems(items: TransferItem[]): TransferItem[] {
   return [...m].map(([productId, quantity]) => ({ productId, quantity }));
 }
 
-export async function createTransfer(d: TransferDraft): Promise<TransferResult> {
+/** `allowShort`: no controlar el stock del depósito (p. ej. al pasar a remito salidas que ya se descontaron). */
+export async function createTransfer(d: TransferDraft, opts: { allowShort?: boolean } = {}): Promise<TransferResult> {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(d.date)) throw new Error('Ingresá la fecha del remito.');
   const outlet = await db.outlets.get(d.outletId);
   if (!outlet) throw new Error('Elegí a qué punto va la mercadería.');
   if (!outlet.active) throw new Error('Ese punto está desactivado.');
   const items = normalizeItems(d.items);
   if (!items.length) throw new Error('Agregá al menos un producto con cantidad.');
+  const mxOn = (await getSettings()).maxirest === true;
 
   return db.transaction('rw', [db.transfers, db.products, db.movements], async () => {
-    for (const i of items) if (!(await db.products.get(i.productId))) throw new Error('Uno de los productos ya no existe.');
+    const short: string[] = [];
+    for (const i of items) {
+      const p = await db.products.get(i.productId);
+      if (!p) throw new Error('Uno de los productos ya no existe.');
+      if (i.quantity > p.stock) short.push(`${p.name} (hay ${fmtNumber(Math.max(0, p.stock))})`);
+    }
+    // Sin stock negativo: no sale del depósito más de lo que hay.
+    if (short.length && !negativeStockAllowed() && !opts.allowShort) throw new Error(`No alcanza el stock del Depósito Central: ${short.join(', ')}.`);
     const last = await db.transfers.orderBy('number').last();
     const t = nowIso();
     const transfer: Transfer = {
@@ -154,7 +163,7 @@ export async function createTransfer(d: TransferDraft): Promise<TransferResult> 
       notes: d.notes?.trim() || undefined,
       status: 'enviado',
       createdBy: getCurrentActor(),
-      maxirest: 'pendiente',
+      maxirest: mxOn ? 'pendiente' : 'no_aplica',
     };
     await db.transfers.add(transfer);
     const reason = `Remito ${transferCode(transfer.number)} → ${outlet.name}`;

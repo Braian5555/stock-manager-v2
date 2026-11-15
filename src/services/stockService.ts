@@ -1,7 +1,7 @@
 import { db } from '../database/db';
 import type { MovementOrigin, MovementType, Product, Settings, SourceSystem, StockMovement, StockStatus } from '../models';
 import { nowIso, uuid } from '../utils/id';
-import { round3 } from '../utils/format';
+import { fmtNumber, round3 } from '../utils/format';
 import { getCurrentActor } from './userService';
 
 export const STATUS_LABEL: Record<StockStatus, string> = {
@@ -70,6 +70,19 @@ export interface MovementInput {
   outletId?: string;
 }
 
+/**
+ * ¿Puede quedar el stock en negativo? Por defecto no: si sale más de lo que hay, el movimiento
+ * resta sólo lo que había (queda en 0) y anota cuánto faltaba. Lo prende Configuración → Stock
+ * (SettingsProvider mantiene este valor al día).
+ */
+let negativeAllowed = false;
+export const setNegativeStockAllowed = (v: boolean) => {
+  negativeAllowed = v;
+};
+export const negativeStockAllowed = () => negativeAllowed;
+/** Movimientos que tienen que quedar exactos (deshacer, remitos ya controlados, sincronización). */
+const EXACT_ORIGINS: ReadonlySet<MovementOrigin> = new Set<MovementOrigin>(['deshacer', 'remito', 'sincronizacion']);
+
 export interface MovementResult {
   movement: StockMovement;
   duplicate: boolean;
@@ -99,6 +112,16 @@ export async function applyMovement(input: MovementInput): Promise<MovementResul
     else throw new Error('Falta la cantidad del movimiento.');
     after = round3(after);
     if (!Number.isFinite(after)) throw new Error('Cantidad inválida.');
+    // Sin stock negativo: no baja de 0 (si ya estaba en negativo, no baja más).
+    let short = 0;
+    if (!negativeAllowed && input.delta !== undefined && input.delta < 0 && !EXACT_ORIGINS.has(input.origin)) {
+      const floor = Math.min(before, 0);
+      if (after < floor) {
+        short = round3(floor - after);
+        after = floor;
+      }
+    }
+    const note = short ? `no alcanzaba: faltaban ${fmtNumber(short)}` : undefined;
 
     const t = nowIso();
     const movement: StockMovement = {
@@ -111,7 +134,7 @@ export async function applyMovement(input: MovementInput): Promise<MovementResul
       quantityBefore: before,
       quantityAfter: after,
       delta: round3(after - before),
-      reason: input.reason?.trim() || undefined,
+      reason: [input.reason?.trim(), note].filter(Boolean).join(' · ') || undefined,
       origin: input.origin,
       sourceSystem: input.sourceSystem ?? 'local',
       idempotencyKey: key,

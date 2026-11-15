@@ -6,6 +6,7 @@ import { MOVEMENT_LABEL, OUTGOING_TYPES, applyMovement, revertMovement } from '.
 import { canSyncAdjustments, syncedAdjustment } from '../integrations/integrationService';
 import { useIntegration, useLookups } from '../hooks/useData';
 import { useSettings } from '../store/settings';
+import { negativeStockOn } from '../services/settingsService';
 import { maxirestOn } from '../layouts/modules';
 import { useFeedback } from '../store/feedback';
 import { fmtNumber, fmtSigned, round3 } from '../utils/format';
@@ -23,7 +24,9 @@ export function MovementModal({ product, onClose, initialType = 'ingreso' }: { p
   const [reason, setReason] = useState('');
   const [mode, setMode] = useState<'local' | 'sync'>('local');
   const [canSync, setCanSync] = useState(false);
-  const mxOn = maxirestOn(useSettings());
+  const settings = useSettings();
+  const mxOn = maxirestOn(settings);
+  const allowNegative = negativeStockOn(settings);
   const link = mxOn ? product?.externalSystems?.maxirest : undefined;
   const ref = useLiveQuery(
     () => (link ? db.externalReferences.where({ system: 'maxirest', entityType: 'product', externalId: link.id }).first() : undefined),
@@ -43,6 +46,9 @@ export function MovementModal({ product, onClose, initialType = 'ingreso' }: { p
   const unit = lk.unit(product.unitId);
   const isAdjust = type === 'ajuste';
   const newQty = qty === undefined ? undefined : isAdjust ? qty : round3(product.stock + (OUTGOING_TYPES.includes(type) ? -qty : qty));
+  // Sin stock negativo, una salida no baja de 0: lo que se ve es cómo va a quedar.
+  const floor = Math.min(product.stock, 0);
+  const shownQty = newQty !== undefined && !isAdjust && !allowNegative && newQty < floor ? floor : newQty;
   const integrated = mxOn && integration && integration.mode !== 'disabled' && integration.status !== 'desconectado' && !!link;
 
   const submit = async () => {
@@ -125,14 +131,19 @@ export function MovementModal({ product, onClose, initialType = 'ingreso' }: { p
             )}
           </fieldset>
         )}
-        {newQty !== undefined && newQty < 0 && (
+        {newQty !== undefined && newQty < 0 && (allowNegative || isAdjust) && (
           <div className="alert alert-warn" role="status">
             <span>El stock va a quedar <strong>en negativo</strong>: estás sacando más de lo que figura. Se puede registrar igual; después conviene revisarlo con un conteo.</span>
           </div>
         )}
+        {shownQty !== newQty && (
+          <div className="alert alert-warn" role="status">
+            <span>No alcanza: hay {fmtNumber(Math.max(0, product.stock))} {unit}. Queda en <strong>0</strong> y el movimiento anota cuánto faltaba.</span>
+          </div>
+        )}
         <div className="alert">
-          <span>Stock actual <strong className="num">{fmtNumber(product.stock)}</strong> → nuevo <strong className="num">{fmtNumber(newQty)}</strong> {unit}
-            {newQty !== undefined && <> (<span className={newQty - product.stock >= 0 ? 'pos' : 'neg'}>{fmtSigned(round3(newQty - product.stock))}</span>)</>}
+          <span>Stock actual <strong className="num">{fmtNumber(product.stock)}</strong> → nuevo <strong className="num">{fmtNumber(shownQty)}</strong> {unit}
+            {shownQty !== undefined && <> (<span className={shownQty - product.stock >= 0 ? 'pos' : 'neg'}>{fmtSigned(round3(shownQty - product.stock))}</span>)</>}
           </span>
         </div>
       </form>

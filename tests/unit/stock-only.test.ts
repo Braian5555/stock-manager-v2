@@ -19,7 +19,7 @@ describe('app sólo de stock (Salón apagado)', () => {
     expect(salonOn(on)).toBe(true);
     expect(visibleModules(on, all)).toEqual(expect.arrayContaining(['salon', 'kitchen', 'fiscal', 'salonConfig', 'stock']));
     // Los retirados siguen retirados aunque el Salón esté prendido.
-    expect(moduleOn(on, 'transfers')).toBe(false);
+    expect(moduleOn(on, 'reports')).toBe(false);
   });
 
   it('reconoce el error de un archivo de una versión anterior', () => {

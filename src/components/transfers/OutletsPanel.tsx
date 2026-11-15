@@ -5,6 +5,8 @@ import { deleteOutlet, saveOutlet } from '../../services/transferService';
 import { useOutlets } from '../../hooks/useData';
 import { useFeedback } from '../../store/feedback';
 import { useSession } from '../../store/session';
+import { useSettings } from '../../store/settings';
+import { maxirestOn } from '../../layouts/modules';
 import { Modal } from '../ui/Modal';
 import { Badge, EmptyState, Field, Input } from '../ui';
 
@@ -15,6 +17,7 @@ export function OutletsPanel() {
   const { run, confirm } = useFeedback();
   const [form, setForm] = useState<Form>();
   const { can } = useSession();
+  const mxOn = maxirestOn(useSettings());
   // Crear, editar y borrar puntos es configuración: administradores o quien administra catálogos.
   const canEdit = can('admin') || can('catalog.manage');
 
@@ -45,7 +48,7 @@ export function OutletsPanel() {
                 <span className="stat-icon" aria-hidden><Store size={16} /></span>
                 <div className="grow">
                   <div className="list-title truncate">{o.name}</div>
-                  <div className="list-sub">{o.maxirestName ? `En Maxirest: ${o.maxirestName}` : 'Sin nombre de Maxirest'}</div>
+                  {mxOn && <div className="list-sub">{o.maxirestName ? `En Maxirest: ${o.maxirestName}` : 'Sin nombre de Maxirest'}</div>}
                 </div>
                 {!o.active && <Badge>Desactivado</Badge>}
                 {canEdit && <Pencil size={16} className="muted" aria-hidden />}
@@ -63,7 +66,7 @@ export function OutletsPanel() {
         {form && (
           <form id="outlet-form" className="form-grid" onSubmit={(e) => { e.preventDefault(); void save(); }}>
             <Field label="Nombre del punto"><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Ej.: Parador" data-autofocus /></Field>
-            <Field label="Nombre en Maxirest" hint="opcional"><Input value={form.maxirestName} onChange={(e) => setForm({ ...form, maxirestName: e.target.value })} placeholder="Como figura el depósito en Maxirest" /></Field>
+            {mxOn && <Field label="Nombre en Maxirest" hint="opcional"><Input value={form.maxirestName} onChange={(e) => setForm({ ...form, maxirestName: e.target.value })} placeholder="Como figura el depósito en Maxirest" /></Field>}
             <label className="row small"><input type="checkbox" checked={form.active} onChange={(e) => setForm({ ...form, active: e.target.checked })} /> Activo (se le pueden mandar remitos)</label>
           </form>
         )}

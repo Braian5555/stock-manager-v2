@@ -24,9 +24,9 @@ test('todas las rutas existentes y nuevas abren sin errores', async ({ page }) =
   expect(errors).toEqual([]);
 });
 
-test('secciones retiradas (remitos, reportes de stock, conciliación): un enlace viejo lleva a Stock', async ({ page }) => {
+test('secciones retiradas (reportes de stock, conciliación): un enlace viejo lleva a Stock', async ({ page }) => {
   await loadDemo(page);
-  for (const hash of ['/remitos', '/reportes', '/conciliacion']) {
+  for (const hash of ['/reportes', '/conciliacion']) {
     await page.goto(`./#${hash}`);
     await expect(page, hash).toHaveURL(/#\/stock$/);
     await expect(page.locator('main h1').first()).toHaveText(/Stock/);

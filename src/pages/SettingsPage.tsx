@@ -12,7 +12,7 @@ import { Link, NavLink, useParams } from 'react-router';
 import { CURRENT_DB_VERSION, db } from '../database/db';
 import type { MenuItemSetting, ModuleKey, Settings, ThemeMode } from '../models';
 import {
-  DEFAULT_NAV_BOTTOM, DEFAULT_NAV_TOP, MAX_NAV_BOTTOM, MODULES, defaultMenu, defaultSettings, recipesOn, salonOn, updateSettings,
+  DEFAULT_NAV_BOTTOM, DEFAULT_NAV_TOP, MAX_NAV_BOTTOM, MODULES, defaultMenu, defaultSettings, negativeStockOn, recipesOn, salonOn, updateSettings,
 } from '../services/settingsService';
 import { imageFileToLogo } from '../pwa/logoIcon';
 import { useFeedback } from '../store/feedback';
@@ -557,6 +557,17 @@ function StockSection() {
             <StatusBadge status="normal" /> <StatusBadge status="bajo" /> hasta el mínimo <StatusBadge status="critico" /> hasta el {Math.round(form.criticalRatio * 100)}% del mínimo <StatusBadge status="sin_stock" />
           </div>
           <p className="small muted">El stock mínimo y máximo se define en cada producto.</p>
+        </section>
+        <section className="card card-pad stack" aria-labelledby="negativo-modo">
+          <h2 id="negativo-modo">Stock en negativo</h2>
+          <label className="check">
+            <input type="checkbox" checked={negativeStockOn(form)} onChange={(e) => save({ negativeStock: e.target.checked })} /> Dejar que el stock quede en negativo
+          </label>
+          <p className="small muted" style={{ margin: 0 }}>
+            {negativeStockOn(form)
+              ? 'Si sale más de lo que hay, el stock queda en negativo (sirve para detectar compras sin cargar).'
+              : 'Apagado: el stock nunca baja de 0. Si sale más de lo que hay, queda en 0 y el movimiento anota cuánto faltaba. A los puntos no se puede mandar más de lo que hay en el Depósito Central.'}
+          </p>
         </section>
         <section className="card card-pad stack" aria-labelledby="recetas-modo">
           <h2 id="recetas-modo">Recetas</h2>

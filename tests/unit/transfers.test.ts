@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
+import { updateSettings } from '../../src/services/settingsService';
 import { db } from '../../src/database/db';
 import { emptyProduct, saveProduct } from '../../src/services/productService';
 import { applyMovement, outletStockOf, recomputeStock, stockByOutlet } from '../../src/services/stockService';
@@ -14,6 +15,9 @@ async function product(name: string, stock: number) {
 }
 
 describe('remitos internos', () => {
+  // Con la conexión con Maxirest prendida (apagada, los remitos no quedan pendientes de cargar allá).
+  beforeEach(() => updateSettings({ maxirest: true }));
+
   it('resta del depósito, suma al punto y queda pendiente en Maxirest', async () => {
     const harina = await product('Harina', 50);
     const aceite = await product('Aceite', 10);

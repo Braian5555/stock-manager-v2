@@ -1,6 +1,6 @@
 import { useSession } from '../store/session';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { ArrowLeftRight, Boxes, Hourglass, MapPin, Pencil, Plus, SlidersHorizontal, Tags, TrendingDown, Truck, X } from 'lucide-react';
+import { ArrowLeftRight, Boxes, Forklift, Hourglass, MapPin, Pencil, Plus, SlidersHorizontal, Tags, TrendingDown, Truck, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { db } from '../database/db';
@@ -115,7 +115,7 @@ export function StockPage() {
       <PageHeader
         title={menuLabel(settings, 'stock')}
         subtitle={punto ? `Stock en ${outlets.find((o) => o.id === punto)?.name ?? 'el punto'} según los remitos recibidos` : `${rows.length} productos`}
-        actions={<><ScanButton /><Link to="/stock/consumo" className="btn"><TrendingDown size={18} aria-hidden /> Consumo</Link>{can('catalog.manage') && <Link to="/productos?nuevo=1" className="btn btn-primary"><Plus size={18} aria-hidden /> Producto</Link>}</>}
+        actions={<><ScanButton /><Link to="/stock/consumo" className="btn"><TrendingDown size={18} aria-hidden /> Consumo</Link>{outlets.length > 0 && can('transfers') && <Link to={punto ? `/remitos/nuevo?punto=${punto}` : '/remitos/nuevo'} className="btn"><Forklift size={18} aria-hidden /> {punto ? `Enviar a ${outlets.find((o) => o.id === punto)?.name ?? 'el punto'}` : 'Enviar a un punto'}</Link>}{can('catalog.manage') && <Link to="/productos?nuevo=1" className="btn btn-primary"><Plus size={18} aria-hidden /> Producto</Link>}</>}
       />
       {outlets.length > 0 && (can('transfers') || can('stock.view')) && (
         <div style={{ marginBottom: 12, overflowX: 'auto' }}>

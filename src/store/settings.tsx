@@ -2,7 +2,8 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { createContext, useContext, useEffect, type ReactNode } from 'react';
 import { db } from '../database/db';
 import type { Settings } from '../models';
-import { DEFAULT_PRIMARY, defaultSettings, normalizeSettings, SETTINGS_ID } from '../services/settingsService';
+import { DEFAULT_PRIMARY, defaultSettings, negativeStockOn, normalizeSettings, SETTINGS_ID } from '../services/settingsService';
+import { setNegativeStockAllowed } from '../services/stockService';
 import { isHexColor, readableInk } from '../utils/color';
 import { renderLogoPng } from '../pwa/logoIcon';
 
@@ -11,6 +12,8 @@ const Ctx = createContext<Settings>(defaultSettings());
 export function SettingsProvider({ children }: { children: ReactNode }) {
   const stored = useLiveQuery(() => db.settings.get(SETTINGS_ID), []);
   const settings = normalizeSettings(stored);
+  // Los movimientos de stock consultan esto al registrarse (sin leer la configuración cada vez).
+  setNegativeStockAllowed(negativeStockOn(settings));
 
   // Tema y colores
   useEffect(() => {

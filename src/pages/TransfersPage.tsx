@@ -12,6 +12,7 @@ import { useLookups, useOutlets, useProducts, EMPTY } from '../hooks/useData';
 import { useFeedback } from '../store/feedback';
 import { useSession } from '../store/session';
 import { useSettings } from '../store/settings';
+import { maxirestOn } from '../layouts/modules';
 import { Modal } from '../components/ui/Modal';
 import { Badge, EmptyState, Input, PageHeader, Segmented, Select } from '../components/ui';
 import { OutletsPanel } from '../components/transfers/OutletsPanel';
@@ -40,7 +41,7 @@ export function TransfersPage() {
     <>
       <PageHeader
         title={menuLabel(settings, 'transfers')}
-        subtitle="Mercadería que sale del Depósito Central a cada punto"
+        subtitle="Mercadería que sale del Depósito Central y se suma a cada punto"
         actions={<Link to="/remitos/nuevo" className="btn btn-primary"><Plus size={18} aria-hidden /> Nuevo remito</Link>}
       />
       <div style={{ marginBottom: 12 }}>
@@ -59,12 +60,13 @@ function TransferList({ viewId, setView }: { viewId?: string; setView: (id?: str
   const outlets = useOutlets();
   const outletName = useMemo(() => new Map(outlets.map((o) => [o.id, o.name])), [outlets]);
   const { run, confirm, notify } = useFeedback();
+  const mxOn = maxirestOn(useSettings());
   const [outletId, setOutletId] = useState('');
   const [mx, setMx] = useState<'' | Transfer['maxirest']>('');
   const [month, setMonth] = useState('');
 
   const list = transfers.filter((t) => (!outletId || t.outletId === outletId) && (!mx || t.maxirest === mx) && (!month || t.date.startsWith(month)));
-  const pending = transfers.filter((t) => t.maxirest === 'pendiente');
+  const pending = mxOn ? transfers.filter((t) => t.maxirest === 'pendiente') : [];
   const { visible: shownList, sentinel } = useIncremental(list, `${outletId}|${mx}|${month}`);
 
   const exportPending = async () => {
@@ -108,11 +110,13 @@ function TransferList({ viewId, setView }: { viewId?: string; setView: (id?: str
           <option value="">Todos los puntos</option>
           {outlets.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
         </Select>
-        <Select aria-label="Filtrar por estado en Maxirest" value={mx} onChange={(e) => setMx(e.target.value as typeof mx)} style={{ maxWidth: 240 }}>
-          <option value="">Todos</option>
-          <option value="pendiente">Pendientes en Maxirest</option>
-          <option value="cargado">Cargados en Maxirest</option>
-        </Select>
+        {mxOn && (
+          <Select aria-label="Filtrar por estado en Maxirest" value={mx} onChange={(e) => setMx(e.target.value as typeof mx)} style={{ maxWidth: 240 }}>
+            <option value="">Todos</option>
+            <option value="pendiente">Pendientes en Maxirest</option>
+            <option value="cargado">Cargados en Maxirest</option>
+          </Select>
+        )}
         <Input type="month" aria-label="Filtrar por mes" value={month} onChange={(e) => setMonth(e.target.value)} style={{ maxWidth: 180 }} />
       </div>
       <div className="card">
@@ -131,7 +135,7 @@ function TransferList({ viewId, setView }: { viewId?: string; setView: (id?: str
                 </div>
                 <div className="stack-sm" style={{ alignItems: 'flex-end' }}>
                   {t.status === 'anulado' && <Badge tone="error">Anulado</Badge>}
-                  {t.maxirest !== 'no_aplica' && <Badge tone={MX_TONE[t.maxirest]}>{t.maxirest === 'pendiente' ? 'Pendiente Maxirest' : 'En Maxirest'}</Badge>}
+                  {mxOn && t.maxirest !== 'no_aplica' && <Badge tone={MX_TONE[t.maxirest]}>{t.maxirest === 'pendiente' ? 'Pendiente Maxirest' : 'En Maxirest'}</Badge>}
                 </div>
               </button>
             ))}
@@ -154,10 +158,11 @@ function TransferDetail({ id, onClose }: { id?: string; onClose: () => void }) {
   const { run, confirm, notify } = useFeedback();
   const navigate = useNavigate();
   const canEdit = can('transfers');
+  const mxOn = maxirestOn(useSettings());
 
   const doVoid = async () => {
     if (!tr) return;
-    const wasLoaded = tr.maxirest === 'cargado';
+    const wasLoaded = mxOn && tr.maxirest === 'cargado';
     const ok = await confirm({
       title: `Anular remito ${transferCode(tr.number)}`,
       message: <><p>La mercadería vuelve al Depósito Central y se descuenta de {outlet?.name ?? 'el punto'}. El remito queda guardado como anulado.</p>{wasLoaded && <p className="small">Como ya estaba cargado en Maxirest, va a quedar como pendiente para revertirlo allá.</p>}</>,
@@ -172,8 +177,8 @@ function TransferDetail({ id, onClose }: { id?: string; onClose: () => void }) {
       footer={tr && canEdit && <>
         {tr.status === 'enviado' && <button type="button" className="btn btn-danger" onClick={doVoid}><Ban size={16} aria-hidden /> Anular</button>}
         <button type="button" className="btn" onClick={() => navigate(`/remitos/nuevo?copiar=${tr.id}`)}><Copy size={16} aria-hidden /> Repetir</button>
-        {tr.maxirest === 'pendiente' && <button type="button" className="btn btn-primary" onClick={() => run(() => setMaxirestLoaded([tr.id], true), 'Marcado como cargado en Maxirest')}><CheckCheck size={16} aria-hidden /> Ya lo cargué en Maxirest</button>}
-        {tr.maxirest === 'cargado' && <button type="button" className="btn" onClick={() => run(() => setMaxirestLoaded([tr.id], false), 'Vuelve a quedar pendiente')}><Undo2 size={16} aria-hidden /> Marcar pendiente</button>}
+        {mxOn && tr.maxirest === 'pendiente' && <button type="button" className="btn btn-primary" onClick={() => run(() => setMaxirestLoaded([tr.id], true), 'Marcado como cargado en Maxirest')}><CheckCheck size={16} aria-hidden /> Ya lo cargué en Maxirest</button>}
+        {mxOn && tr.maxirest === 'cargado' && <button type="button" className="btn" onClick={() => run(() => setMaxirestLoaded([tr.id], false), 'Vuelve a quedar pendiente')}><Undo2 size={16} aria-hidden /> Marcar pendiente</button>}
       </>}>
       {tr === null && <p>El remito ya no existe.</p>}
       {tr && (
@@ -182,11 +187,11 @@ function TransferDetail({ id, onClose }: { id?: string; onClose: () => void }) {
             <div><dt>Destino</dt><dd>{outlet?.name ?? '(punto eliminado)'}</dd></div>
             <div><dt>Fecha</dt><dd>{fmtDay(tr.date)}</dd></div>
             <div><dt>Hecho por</dt><dd>{tr.createdBy?.name ?? '—'}</dd></div>
-            <div><dt>Maxirest</dt><dd><Badge tone={MX_TONE[tr.maxirest]}>{MAXIREST_LABEL[tr.maxirest]}</Badge></dd></div>
+            {mxOn && <div><dt>Maxirest</dt><dd><Badge tone={MX_TONE[tr.maxirest]}>{MAXIREST_LABEL[tr.maxirest]}</Badge></dd></div>}
           </dl>
           {tr.status === 'anulado' && <p className="small"><Badge tone="error">Anulado</Badge> {fmtDateTime(tr.voidedAt)}{tr.voidedBy ? ` por ${tr.voidedBy.name}` : ''}</p>}
-          {tr.maxirest === 'cargado' && tr.maxirestAt && <p className="small muted">Cargado en Maxirest el {fmtDateTime(tr.maxirestAt)}{tr.maxirestBy ? ` por ${tr.maxirestBy.name}` : ''}.</p>}
-          {tr.maxirest === 'pendiente' && tr.status === 'anulado' && <p className="small">Falta revertirlo en Maxirest (ya se había cargado antes de anularlo).</p>}
+          {mxOn && tr.maxirest === 'cargado' && tr.maxirestAt && <p className="small muted">Cargado en Maxirest el {fmtDateTime(tr.maxirestAt)}{tr.maxirestBy ? ` por ${tr.maxirestBy.name}` : ''}.</p>}
+          {mxOn && tr.maxirest === 'pendiente' && tr.status === 'anulado' && <p className="small">Falta revertirlo en Maxirest (ya se había cargado antes de anularlo).</p>}
           {tr.notes && <p className="small">{tr.notes}</p>}
           <div className="card">
             <div className="list">
@@ -196,7 +201,7 @@ function TransferDetail({ id, onClose }: { id?: string; onClose: () => void }) {
                   <div key={i.productId} className="list-item">
                     <div className="grow">
                       <div className="list-title truncate">{p?.name ?? '(producto eliminado)'}</div>
-                      {p?.externalSystems?.maxirest && <div className="list-sub">Maxirest: {p.externalSystems.maxirest.code ?? p.externalSystems.maxirest.id}</div>}
+                      {mxOn && p?.externalSystems?.maxirest && <div className="list-sub">Maxirest: {p.externalSystems.maxirest.code ?? p.externalSystems.maxirest.id}</div>}
                     </div>
                     <strong className="num">{fmtNumber(i.quantity)} {lk.unit(p?.unitId)}</strong>
                   </div>
