@@ -248,7 +248,7 @@ const ACTIONS: Action[] = [
   { label: 'Mostrador', hint: 'Para llevar y delivery', to: '/salon?vista=mostrador', icon: Store, tone: 'petrol', perms: MODULE_PERMISSIONS.salon, module: 'salon' },
   { label: 'Cocina', hint: 'Comandas', to: '/cocina', icon: CookingPot, tone: 'amber', perms: MODULE_PERMISSIONS.kitchen, module: 'kitchen' },
   { label: 'Caja', hint: 'Abrir, cerrar, arqueo', to: '/salon?vista=caja', icon: Wallet, tone: 'emerald', perms: ['billing', 'admin'], module: 'salon' },
-  { label: 'Anotar producción', hint: 'Lo que salió del horno', to: '/produccion', icon: ChefHat, tone: 'emerald', perms: ['production'], module: 'production' },
+  { label: 'Anotar producción', hint: 'Suma lo producido al stock', to: '/produccion', icon: ChefHat, tone: 'emerald', perms: ['production'], module: 'production' },
   { label: 'Cámara', hint: 'Lo congelado y lo que se saca', to: '/camara', icon: Snowflake, tone: 'blue', perms: MODULE_PERMISSIONS.showcase, module: 'showcase' },
   { label: 'Foto de factura', hint: 'Para el administrativo', to: '/facturas?nueva=1', icon: Camera, tone: 'amber', perms: ['invoices'], module: 'invoices' },
   { label: 'Contar stock', hint: 'Conteo o control', to: '/conteo', icon: ClipboardCheck, tone: 'petrol', perms: ['count.do'], module: 'count' },

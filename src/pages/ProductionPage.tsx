@@ -413,7 +413,6 @@ function DayProgress({ planned, done, anotados }: { planned: number; done: numbe
       </svg>
       <div className="grow">
         <div className="production-day-title">{label}</div>
-        <div className="small muted">Tocá un producto para anotar lo que salió del horno</div>
       </div>
     </div>
   );
