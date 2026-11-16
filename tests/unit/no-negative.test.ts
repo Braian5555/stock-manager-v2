@@ -42,3 +42,17 @@ describe('sin stock negativo (como viene la app)', () => {
     expect(await outletStockOf(chiringuito.id, coca)).toBe(10);
   });
 });
+
+describe('familias de los puntos', () => {
+  it('sin elegir, un punto cuenta las bebidas con y sin alcohol y los vinos', async () => {
+    const { outletCategoryIds } = await import('../../src/services/transferService');
+    const cats = [
+      { id: 'a', name: 'Bebidas sin alcohol' },
+      { id: 'b', name: 'Bebidas con alcohol' },
+      { id: 'c', name: 'Vinos y espumantes' },
+      { id: 'd', name: 'Almacén' },
+    ];
+    expect(outletCategoryIds(undefined, cats)).toEqual(['a', 'b', 'c']);
+    expect(outletCategoryIds({ categoryIds: ['d'] }, cats)).toEqual(['d']);
+  });
+});

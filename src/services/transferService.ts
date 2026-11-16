@@ -29,12 +29,12 @@ export const MAXIREST_LABEL: Record<Transfer['maxirest'], string> = {
 // ───────────── Puntos ─────────────
 
 /**
- * Familias que maneja un punto. Si nunca se eligieron, son las bebidas (lo que se vende en todos los
- * puntos), así se pueden contar desde el primer día.
+ * Familias que maneja un punto. Si nunca se eligieron, son las bebidas (con y sin alcohol) y los vinos
+ * (lo que se vende en todos los puntos), así se pueden contar desde el primer día.
  */
 export function outletCategoryIds(outlet: Pick<Outlet, 'categoryIds'> | undefined, categories: Pick<Category, 'id' | 'name'>[]): string[] {
   if (outlet?.categoryIds) return outlet.categoryIds;
-  return categories.filter((c) => /^bebida/.test(normalize(c.name))).map((c) => c.id);
+  return categories.filter((c) => /^(bebida|vino)/.test(normalize(c.name))).map((c) => c.id);
 }
 
 /** Mínimo de un producto en un punto (sin valor o 0 = no avisa). */
