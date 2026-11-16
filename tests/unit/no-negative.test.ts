@@ -44,15 +44,17 @@ describe('sin stock negativo (como viene la app)', () => {
 });
 
 describe('familias de los puntos', () => {
-  it('sin elegir, un punto cuenta las bebidas con y sin alcohol y los vinos', async () => {
+  it('sin elegir, un punto cuenta las bebidas con y sin alcohol, cervezas, vinos y espumantes', async () => {
     const { outletCategoryIds } = await import('../../src/services/transferService');
     const cats = [
       { id: 'a', name: 'Bebidas sin alcohol' },
       { id: 'b', name: 'Bebidas con alcohol' },
-      { id: 'c', name: 'Vinos y espumantes' },
+      { id: 'c', name: 'Vinos' },
       { id: 'd', name: 'Almacén' },
+      { id: 'e', name: 'Cervezas' },
+      { id: 'f', name: 'Espumantes' },
     ];
-    expect(outletCategoryIds(undefined, cats)).toEqual(['a', 'b', 'c']);
+    expect(outletCategoryIds(undefined, cats)).toEqual(['a', 'b', 'c', 'e', 'f']);
     expect(outletCategoryIds({ categoryIds: ['d'] }, cats)).toEqual(['d']);
   });
 });
