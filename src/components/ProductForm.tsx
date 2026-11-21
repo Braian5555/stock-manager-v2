@@ -38,6 +38,9 @@ export function ProductForm({ product, open, onClose, preset }: { product?: Prod
 
   const submit = async () => {
     if (!d.name.trim()) return notify('Ingresá el nombre del producto.', { tone: 'error' });
+    // Sin familia no aparece en los puntos ni en los conteos por familia; sin unidad no se sabe qué se cuenta.
+    if (!d.categoryId) return notify('Elegí la familia del producto.', { tone: 'error' });
+    if (!d.unitId) return notify('Elegí la unidad de stock (en qué se cuenta).', { tone: 'error' });
     if (d.maxStock > 0 && d.maxStock < d.minStock) return notify('El stock máximo no puede ser menor que el mínimo.', { tone: 'error' });
     const saved = await run(() => saveProduct(d, initial ?? 0), isNew ? 'Producto creado' : 'Cambios guardados');
     if (saved) onClose(saved);
@@ -86,14 +89,14 @@ export function ProductForm({ product, open, onClose, preset }: { product?: Prod
           {barcodeMsg && <span className="small" style={{ color: barcodeMsg.error ? 'var(--out)' : 'var(--text-2)' }}>{barcodeMsg.text}</span>}
         </Field>
         <Field label="Familia">
-          <Select value={d.categoryId ?? ''} onChange={(e) => set('categoryId', e.target.value || undefined)}>
-            <option value="">Sin familia</option>
+          <Select value={d.categoryId ?? ''} onChange={(e) => set('categoryId', e.target.value || undefined)} required>
+            <option value="">Elegí la familia</option>
             {lk.categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </Select>
         </Field>
         <Field label="Unidad de stock">
-          <Select value={d.unitId ?? ''} onChange={(e) => set('unitId', e.target.value || undefined)}>
-            <option value="">Sin unidad</option>
+          <Select value={d.unitId ?? ''} onChange={(e) => set('unitId', e.target.value || undefined)} required>
+            <option value="">Elegí la unidad</option>
             {lk.units.map((u) => <option key={u.id} value={u.id}>{u.name} ({u.abbreviation})</option>)}
           </Select>
         </Field>

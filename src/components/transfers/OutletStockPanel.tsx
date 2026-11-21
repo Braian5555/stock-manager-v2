@@ -67,6 +67,18 @@ export function OutletStockPanel({ outletId: fixedId }: { outletId?: string } = 
     [current],
   );
   const [starting, setStarting] = useState(false);
+  // Último conteo terminado del punto: sin conteos, lo vendido nunca se descuenta y el stock sólo sube.
+  const lastCount = useLiveQuery(
+    async () => {
+      if (!current) return null;
+      const done = await db.counts.filter((c) => c.outletId === current && (c.status === 'aplicado' || c.status === 'finalizado') && !!c.finishedAt).toArray();
+      return done.map((c) => c.finishedAt!).sort().pop() ?? null;
+    },
+    [current],
+  );
+  const daysSinceCount = lastCount ? Math.floor((Date.now() - new Date(lastCount).getTime()) / 86_400_000) : undefined;
+  const hasStock = !!stock && [...stock.values()].some((v) => v > 0);
+  const countStale = lastCount !== undefined && hasStock && (lastCount === null || (daysSinceCount ?? 0) >= 7);
 
   if (!outlets.length) return <div className="card"><EmptyState icon={<Store size={40} />} title="Todavía no hay puntos">Crealos en la pestaña Puntos.</EmptyState></div>;
 
@@ -105,6 +117,14 @@ export function OutletStockPanel({ outletId: fixedId }: { outletId?: string } = 
                 await navigator.clipboard.writeText(text);
               }, 'Lista copiada: pegala en WhatsApp')}><Copy size={15} aria-hidden /> Copiar lista</button>
             </div>
+          </div>
+        </div>
+      )}
+      {outlet && countStale && (
+        <div className="alert alert-warn" role="status">
+          <ClipboardCheck size={18} aria-hidden />
+          <div className="grow">
+            <b>{lastCount ? `${outlet.name} no se cuenta hace ${daysSinceCount} días` : `${outlet.name} todavía no se contó nunca`}</b>: lo que se vende no se descuenta solo, así que el stock de acá sólo sube con los remitos. {can('count.do') ? 'Contalo (o anotá el consumo) para que quede real.' : 'Pedí que lo cuenten para que quede real.'}
           </div>
         </div>
       )}

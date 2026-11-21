@@ -1,4 +1,4 @@
-import { Check, EyeOff, PackagePlus, Pencil, RotateCcw, Search } from 'lucide-react';
+import { Check, EyeOff, PackagePlus, Pencil, Plus, RotateCcw, Search, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import type { InvoiceItem, Product } from '../../models';
 import type { Lookups } from '../../hooks/useData';
@@ -7,6 +7,7 @@ import { createProductFromLine, suggestName } from '../../services/invoiceStock'
 import { useFeedback } from '../../store/feedback';
 import { useSession } from '../../store/session';
 import { fmtNumber, matches } from '../../utils/format';
+import { uuid } from '../../utils/id';
 import { Field, Input, NumberInput, Select } from '../ui';
 
 const TONE: Record<InvoiceItem['status'], string> = { ok: 'ok', check: 'warn', none: 'error', ignored: '' };
@@ -28,7 +29,7 @@ function packName(unit?: string): string {
  * suma en su unidad de stock. Lo que la IA reconoció seguro queda en verde; lo demás se confirma.
  * Si un renglón no está en el catálogo, se puede crear el producto ahí mismo.
  */
-export function InvoiceItemsReview({ items, onChange, products, lk, supplierId, readOnly }: {
+export function InvoiceItemsReview({ items, onChange, products, lk, supplierId, readOnly, manualHint }: {
   items: InvoiceItem[];
   onChange: (items: InvoiceItem[]) => void;
   products: Product[];
@@ -37,6 +38,8 @@ export function InvoiceItemsReview({ items, onChange, products, lk, supplierId, 
   supplierId?: string;
   /** Ya cargada al stock: sólo se muestra. */
   readOnly?: boolean;
+  /** Sin lectura con IA: se explica que los renglones se cargan a mano. */
+  manualHint?: boolean;
 }) {
   const { can } = useSession();
   const [editing, setEditing] = useState<string | null>(null);
@@ -45,7 +48,7 @@ export function InvoiceItemsReview({ items, onChange, products, lk, supplierId, 
   const set = (id: string, patch: Partial<InvoiceItem>) => onChange(items.map((i) => (i.id === id ? { ...i, ...patch } : i)));
   const replace = (item: InvoiceItem) => onChange(items.map((i) => (i.id === item.id ? item : i)));
   const pick = (item: InvoiceItem, p: Product) => {
-    set(item.id, { productId: p.id, stockQty: toStockQty(item.quantity, item.unit, p, lk, item.packSize), status: 'ok' });
+    set(item.id, { productId: p.id, stockQty: toStockQty(item.quantity, item.unit, p, lk, item.packSize), status: 'ok', ...(item.manual ? { description: p.name } : {}) });
     setEditing(null);
   };
   const setPack = (item: InvoiceItem, p: Product, n: number | undefined) =>
@@ -53,12 +56,21 @@ export function InvoiceItemsReview({ items, onChange, products, lk, supplierId, 
   const n = (s: InvoiceItem['status']) => items.filter((i) => i.status === s).length;
   const missingPack = items.filter((i) => i.status === 'ok' && needsPackSize(i, byId.get(i.productId ?? ''), lk)).length;
   const pending = n('check') + n('none') + missingPack;
+  const [adding, setAdding] = useState(false);
+  /** Renglón a mano: el producto, en su unidad de compra (si tiene) para que la cuenta la haga la app. */
+  const addManual = (p: Product) => {
+    const buyUnit = p.purchaseUnitId && p.purchaseFactor > 1 ? lk.unit(p.purchaseUnitId) : lk.unit(p.unitId);
+    onChange([...items, { id: uuid(), description: p.name, quantity: 1, unit: buyUnit || undefined, productId: p.id, stockQty: toStockQty(1, buyUnit, p, lk), status: 'ok', manual: true }]);
+    setAdding(false);
+  };
+  const setManualQty = (item: InvoiceItem, p: Product | undefined, q: number | undefined) =>
+    set(item.id, { quantity: q ?? 0, stockQty: p && q !== undefined ? toStockQty(q, item.unit, p, lk, item.packSize) : undefined });
   const confirmAll = () => onChange(items.map((i) => (i.status === 'check' && i.productId ? { ...i, status: 'ok' } : i)));
   const canCreate = can('catalog.manage');
 
   return (
     <section className="inv-review" aria-label="Renglones de la factura">
-      <div className="row wrap inv-review-head">
+      {items.length > 0 && <div className="row wrap inv-review-head">
         <strong>{items.length} {items.length === 1 ? 'renglón' : 'renglones'}</strong>
         <span className="badge badge-ok">{n('ok')} {n('ok') === 1 ? 'reconocido' : 'reconocidos'}</span>
         {n('check') > 0 && <span className="badge badge-warn">{n('check')} para revisar</span>}
@@ -67,7 +79,7 @@ export function InvoiceItemsReview({ items, onChange, products, lk, supplierId, 
         {n('ignored') > 0 && <span className="badge">{n('ignored')} {n('ignored') === 1 ? 'no va' : 'no van'} al stock</span>}
         <span className="grow" />
         {!readOnly && n('check') > 0 && <button type="button" className="btn btn-sm" onClick={confirmAll}><Check size={15} aria-hidden /> Confirmar sugeridos</button>}
-      </div>
+      </div>}
       {!readOnly && pending > 0 && (
         <p className="small muted">
           Revisá los renglones en amarillo y rojo: elegí el producto{canCreate ? ', creá uno nuevo' : ''} o marcá “No va al stock” (envases, fletes, artículos que no controlás).
@@ -109,6 +121,13 @@ export function InvoiceItemsReview({ items, onChange, products, lk, supplierId, 
                       {p ? <span className="truncate">{p.name}</span> : <span className="muted">Elegir producto</span>}
                       <Pencil size={14} aria-hidden />
                     </button>
+                    {p && item.manual && (
+                      <label className="inv-item-qty">
+                        <span className="small muted">Compré</span>
+                        <NumberInput value={item.quantity} min={0} onChange={(v) => setManualQty(item, p, v)} aria-label={`Cantidad comprada de ${item.description}`} />
+                        <span className="small">{item.unit ?? unit}</span>
+                      </label>
+                    )}
                     {p && (
                       <label className="inv-item-qty">
                         <span className="small muted">Suma</span>
@@ -122,7 +141,9 @@ export function InvoiceItemsReview({ items, onChange, products, lk, supplierId, 
                         <PackagePlus size={15} aria-hidden /> Crear producto
                       </button>
                     )}
-                    <button type="button" className="btn btn-sm btn-ghost" onClick={() => { set(item.id, { status: 'ignored' }); setEditing(null); setCreating(null); }}><EyeOff size={15} aria-hidden /> No va al stock</button>
+                    {item.manual
+                      ? <button type="button" className="btn btn-sm btn-ghost" onClick={() => onChange(items.filter((i) => i.id !== item.id))} aria-label={`Quitar renglón ${item.description}`}><Trash2 size={15} aria-hidden /> Quitar</button>
+                      : <button type="button" className="btn btn-sm btn-ghost" onClick={() => { set(item.id, { status: 'ignored' }); setEditing(null); setCreating(null); }}><EyeOff size={15} aria-hidden /> No va al stock</button>}
                   </div>
                   {askPack && p && (
                     <label className={`inv-item-pack small ${missing ? 'missing' : ''}`}>
@@ -145,7 +166,42 @@ export function InvoiceItemsReview({ items, onChange, products, lk, supplierId, 
           );
         })}
       </ul>
+      {!readOnly && (adding ? (
+        <AddLine products={products} lk={lk} used={new Set(items.map((i) => i.productId).filter((x): x is string => !!x))} onPick={addManual} onCancel={() => setAdding(false)} />
+      ) : (
+        <div className="row wrap" style={{ gap: 8 }}>
+          <button type="button" className="btn btn-sm" onClick={() => { setAdding(true); setEditing(null); setCreating(null); }}><Plus size={15} aria-hidden /> Agregar renglón</button>
+          {manualHint && items.length === 0 && <span className="small muted">Cargá a mano cada producto de la factura: elegilo y poné cuánto vino.</span>}
+        </div>
+      ))}
     </section>
+  );
+}
+
+/** Buscador para agregar un renglón a mano (sin lectura con IA). */
+function AddLine({ products, lk, used, onPick, onCancel }: { products: Product[]; lk: Lookups; used: Set<string>; onPick: (p: Product) => void; onCancel: () => void }) {
+  const [q, setQ] = useState('');
+  const list = useMemo(
+    () => (q.trim() ? products.filter((p) => p.active && matches(q, p.name, p.sku, p.barcode)).sort((a, b) => a.name.localeCompare(b.name, 'es')).slice(0, 12) : []),
+    [q, products],
+  );
+  return (
+    <div className="inv-search">
+      <label className="production-search">
+        <Search size={18} aria-hidden />
+        <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar producto de la factura" aria-label="Buscar producto para agregar a la factura" autoFocus />
+      </label>
+      <div className="list">
+        {list.map((p) => (
+          <button key={p.id} type="button" className="list-item" onClick={() => onPick(p)} aria-label={`Agregar ${p.name} a la factura`}>
+            <span className="grow list-title">{p.name}{used.has(p.id) ? <span className="small muted"> · ya está en la factura</span> : null}</span>
+            <span className="small muted">{(p.purchaseUnitId && p.purchaseFactor > 1 ? `${lk.unit(p.purchaseUnitId)} x${fmtNumber(p.purchaseFactor)} ` : '') + (lk.unit(p.unitId) || 'u')}</span>
+          </button>
+        ))}
+        {q.trim() && list.length === 0 && <p className="small muted">No hay productos con ese nombre. Crealo en Productos y volvé.</p>}
+      </div>
+      <button type="button" className="btn btn-sm btn-ghost" style={{ alignSelf: 'flex-start' }} onClick={onCancel}>Cancelar</button>
+    </div>
   );
 }
 
@@ -211,7 +267,7 @@ function NewProductForm({ item, lk, supplierId, packLabel, onCancel, onCreated }
         <Field label="Nombre"><Input value={name} onChange={(e) => setName(e.target.value)} autoFocus /></Field>
         <Field label="Familia">
           <Select value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
-            <option value="">Sin familia</option>
+            <option value="">Elegí la familia</option>
             {lk.categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </Select>
         </Field>
@@ -227,7 +283,7 @@ function NewProductForm({ item, lk, supplierId, packLabel, onCancel, onCreated }
         )}
       </div>
       <div className="row wrap">
-        <button type="button" className="btn btn-primary btn-sm" disabled={saving || !name.trim() || (pack && !packSize)} onClick={() => void create()}>
+        <button type="button" className="btn btn-primary btn-sm" disabled={saving || !name.trim() || !categoryId || !unitId || (pack && !packSize)} onClick={() => void create()}>
           <PackagePlus size={15} aria-hidden /> Crear y usar
         </button>
         <button type="button" className="btn btn-sm btn-ghost" onClick={onCancel}>Cancelar</button>

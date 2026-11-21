@@ -71,6 +71,7 @@ function PageImage({ invoice, index, supplierName }: { invoice: Invoice; index: 
 export function InvoiceViewer({ invoiceId, onClose, onEdit, canReadAI }: { invoiceId?: string; onClose: () => void; onEdit: (inv: Invoice, ai?: boolean) => void; canReadAI?: boolean }) {
   const invoice = useLiveQuery(async () => (invoiceId ? ((await db.invoices.get(invoiceId)) ?? null) : undefined), [invoiceId]);
   const order = useLiveQuery(() => (invoice?.orderId ? db.orders.get(invoice.orderId) : undefined), [invoice?.orderId]);
+  const destOutlet = useLiveQuery(() => (invoice?.outletId ? db.outlets.get(invoice.outletId) : undefined), [invoice?.outletId]);
   const lk = useLookups();
   const { can } = useSession();
   const { confirm, run } = useFeedback();
@@ -100,6 +101,7 @@ export function InvoiceViewer({ invoiceId, onClose, onEdit, canReadAI }: { invoi
             <div><dt>Fecha</dt><dd>{fmtDay(invoice.date)}</dd></div>
             <div><dt>Número</dt><dd>{invoice.number || '—'}</dd></div>
             <div><dt>Total</dt><dd className="num">{fmtMoney(invoice.total)}</dd></div>
+            {invoice.outletId && <div><dt>Entra en</dt><dd>{destOutlet?.name ?? 'Punto eliminado'}</dd></div>}
             {order && <div><dt>Pedido</dt><dd>Pedido #{order.number}</dd></div>}
             {invoice.createdBy && <div><dt>Cargada por</dt><dd>{invoice.createdBy.name}</dd></div>}
           </dl>

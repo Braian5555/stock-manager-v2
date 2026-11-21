@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { db } from '../database/db';
 import type { TransferItem } from '../models';
-import { createTransfer, normalizeItems, transferCode } from '../services/transferService';
+import { createTransfer, missingFamilies, normalizeItems, transferCode } from '../services/transferService';
 import { useLookups, useOutlets, useProducts } from '../hooks/useData';
 import { useFeedback } from '../store/feedback';
 import { useSettings } from '../store/settings';
@@ -65,12 +65,14 @@ export function TransferEditorPage() {
     if (short.length && !allowNegative) {
       return notify(`No alcanza el stock del Depósito Central: ${short.map((i) => byId.get(i.productId)?.name).join(', ')}. Bajá la cantidad o cargá primero el ingreso.`, { tone: 'error' });
     }
+    const newFams = missingFamilies(outlet, lk.categories, products, items.map((i) => i.productId));
     const ok = await confirm({
       title: `Remito a ${outlet?.name ?? ''}`,
       message: (
         <>
           <p>Se van a restar {items.length} {items.length === 1 ? 'producto' : 'productos'} del Depósito Central y sumar a {outlet?.name}.</p>
           {short.length > 0 && <p className="small" style={{ color: 'var(--crit)' }}>Atención: {short.map((i) => byId.get(i.productId)?.name).join(', ')} {short.length === 1 ? 'queda' : 'quedan'} con stock negativo en el depósito. Revisá el stock con un conteo.</p>}
+          {newFams.length > 0 && <p className="small">{outlet?.name} no cuenta {newFams.length === 1 ? 'la familia' : 'las familias'} <b>{newFams.map((c) => c.name).join(', ')}</b>: se {newFams.length === 1 ? 'suma' : 'suman'} a sus familias para que lo que llega se vea y se cuente ahí.</p>}
           {mxOn && <p className="small muted">Queda pendiente de cargar en Maxirest.</p>}
         </>
       ),
@@ -81,7 +83,7 @@ export function TransferEditorPage() {
     const r = await run(() => createTransfer({ date, outletId, notes, items }));
     setSaving(false);
     if (r) {
-      notify(`Remito ${transferCode(r.transfer.number)} registrado`);
+      notify(`Remito ${transferCode(r.transfer.number)} registrado${r.addedFamilies.length ? `. ${outlet?.name} ahora cuenta también ${r.addedFamilies.join(', ')}` : ''}`);
       navigate(`/remitos?ver=${r.transfer.id}`, { replace: true });
     }
   };

@@ -5,17 +5,17 @@ import { db } from '../../database/db';
 import { saveEntity } from '../../services/entityService';
 import type { Invoice, InvoiceItem } from '../../models';
 import { compressImage } from '../../services/imageService';
-import { getInvoiceImage, MAX_PAGES, newPageId, saveInvoice, type PageDraft } from '../../services/invoiceService';
+import { getInvoiceImage, MAX_PAGES, newPageId, sameNumberInvoice, saveInvoice, type PageDraft } from '../../services/invoiceService';
 import { pendingCount, readInvoicePhotos } from '../../services/invoiceAI';
 import { applyInvoiceToStock, doubleLoadWarning, learnFromInvoice, loadableItems } from '../../services/invoiceStock';
 import { useSession } from '../../store/session';
 import { useCloud } from '../../cloud/cloudService';
 import { useSettings } from '../../store/settings';
 import { InvoiceItemsReview } from './InvoiceItemsReview';
-import { useLookups, useProducts } from '../../hooks/useData';
+import { useLookups, useOutlets, useProducts } from '../../hooks/useData';
 import { useFeedback } from '../../store/feedback';
 import { Modal } from '../ui/Modal';
-import { Field, Input, NumberInput, Textarea } from '../ui';
+import { Field, Input, NumberInput, Select, Textarea } from '../ui';
 
 const today = () => localYmd();
 
@@ -34,6 +34,7 @@ interface Props {
 export function InvoiceEditor({ open, onClose, invoice, defaults, onSaved, autoRead }: Props) {
   const lk = useLookups();
   const products = useProducts();
+  const outlets = useOutlets();
   const cloud = useCloud();
   const settings = useSettings();
   const { run, notify, confirm } = useFeedback();
@@ -53,6 +54,8 @@ export function InvoiceEditor({ open, onClose, invoice, defaults, onSaved, autoR
   const [number, setNumber] = useState('');
   const [total, setTotal] = useState<number | undefined>();
   const [notes, setNotes] = useState('');
+  // A dónde entra la mercadería al cargarla: '' = Depósito Central.
+  const [outletId, setOutletId] = useState('');
   const [busy, setBusy] = useState(0);
   const [saving, setSaving] = useState(false);
   const [items, setItems] = useState<InvoiceItem[] | undefined>();
@@ -73,6 +76,7 @@ export function InvoiceEditor({ open, onClose, invoice, defaults, onSaved, autoR
     setNumber(invoice?.number ?? '');
     setTotal(invoice?.total);
     setNotes(invoice?.notes ?? '');
+    setOutletId(invoice?.outletId ?? '');
     setItems(invoice?.items);
     setAiReadAt(invoice?.aiReadAt);
     setWarnings(invoice?.aiWarnings ?? []);
@@ -133,6 +137,10 @@ export function InvoiceEditor({ open, onClose, invoice, defaults, onSaved, autoR
   const canLoad = !applied && can('stock.move') && !!items?.length && pending === 0 && loadableItems(items).length > 0;
 
   const save = async (load = false) => {
+    // Mismo número del mismo proveedor: casi seguro es la misma factura cargada dos veces.
+    const twinSupplierId = supplierName === undefined ? initialSupplierId : lk.suppliers.find((x) => normalize(x.name) === normalize(supplierName.trim()))?.id;
+    const twin = number.trim() && (supplierName === undefined || twinSupplierId) ? await sameNumberInvoice({ id: invoice?.id, supplierId: twinSupplierId, number }) : undefined;
+    if (twin && !(await confirm({ title: 'Factura repetida', message: `Ya hay una factura ${twin.number} de ${lk.supplier(twin.supplierId ?? '') || 'este proveedor'} del ${twin.date.split('-').reverse().join('/')}. Si es la misma, no la guardes de nuevo.`, confirmLabel: 'Guardar igual' }))) return;
     if (load) {
       const warning = await doubleLoadWarning(invoice?.id, items);
       if (warning && !(await confirm({ title: 'Puede estar repetida', message: warning, confirmLabel: 'Cargar igual' }))) return;
@@ -147,7 +155,7 @@ export function InvoiceEditor({ open, onClose, invoice, defaults, onSaved, autoR
           supplierId = !name ? '' : (found?.id ?? (await saveEntity(db.suppliers, { name })).id);
         }
         // El pedido vinculado (de antes) se conserva al editar.
-        const inv = await saveInvoice({ id: invoice?.id, date, supplierId, orderId: invoice?.orderId ?? defaults?.orderId ?? '', number, total, notes, pages, items, aiReadAt, aiWarnings: warnings });
+        const inv = await saveInvoice({ id: invoice?.id, date, supplierId, orderId: invoice?.orderId ?? defaults?.orderId ?? '', number, total, notes, outletId, pages, items, aiReadAt, aiWarnings: warnings });
         // Lo confirmado se recuerda: la próxima factura reconoce esos productos sola.
         if (!applied && items?.length) await learnFromInvoice(items);
         if (!load) return { inv, applied: 0 };
@@ -226,15 +234,26 @@ export function InvoiceEditor({ open, onClose, invoice, defaults, onSaved, autoR
         {warnings.length > 0 && (
           <div className="alert" role="note"><span><b>Avisos de la lectura:</b> {warnings.join(' · ')}</span></div>
         )}
-        {items && items.length > 0 && <InvoiceItemsReview items={items} onChange={setItems} products={products} lk={lk} supplierId={initialSupplierId || undefined} readOnly={applied} />}
+        {((items && items.length > 0) || !applied) && (
+          <InvoiceItemsReview items={items ?? []} onChange={setItems} products={products} lk={lk} supplierId={initialSupplierId || undefined} readOnly={applied}
+            manualHint={!aiAvailable} />
+        )}
         <div className="form-grid cols-2">
           <Field label="Proveedor" hint="elegí o escribí uno nuevo">
             <Input list={listId} value={shownSupplier} onChange={(e) => setSupplierName(e.target.value)} placeholder="Ej.: Lo de Camilo" autoComplete="off" />
           </Field>
           <datalist id={listId}>{lk.suppliers.map((x) => <option key={x.id} value={x.name} />)}</datalist>
           <Field label="Fecha de la factura"><Input type="date" value={date} onChange={(e) => setDate(e.target.value)} /></Field>
-          <Field label="Número de factura" hint="opcional"><Input value={number} onChange={(e) => setNumber(e.target.value)} placeholder="Ej.: A 0001-00012345" /></Field>
+          <Field label="Número de factura" hint="sirve para avisar si se carga dos veces"><Input value={number} onChange={(e) => setNumber(e.target.value)} placeholder="Ej.: A 0001-00012345" /></Field>
           <Field label="Total" hint="opcional"><NumberInput value={total} min={0} onChange={setTotal} placeholder="0,00" /></Field>
+          {outlets.some((o) => o.active || o.id === outletId) && (
+            <Field label="La mercadería entra en" hint={applied ? 'ya cargada' : 'al cargar al stock'}>
+              <Select value={outletId} onChange={(e) => setOutletId(e.target.value)} disabled={applied}>
+                <option value="">Depósito Central</option>
+                {outlets.filter((o) => o.active || o.id === outletId).map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+              </Select>
+            </Field>
+          )}
         </div>
         <Field label="Notas" hint="opcional"><Textarea value={notes} onChange={(e) => setNotes(e.target.value)} /></Field>
       </div>

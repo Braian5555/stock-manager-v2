@@ -13,6 +13,7 @@ import { nowIso } from '../utils/id';
 import { aliasKey, isPackUnit, needsPackSize, toStockQty, type CatalogLookups } from './invoiceAI';
 import { emptyProduct, saveProduct } from './productService';
 import { applyMovement, revertMovement } from './stockService';
+import { missingFamilies, outletCategoryIds } from './transferService';
 import { getCurrentActor } from './userService';
 
 const MAX_ALIASES = 30;
@@ -46,7 +47,11 @@ export async function applyInvoiceToStock(invoiceId: string): Promise<{ applied:
   const toLoad = loadableItems(items);
   if (!toLoad.length) throw new Error('No hay renglones para cargar al stock.');
   const supplier = inv.supplierId ? (await db.suppliers.get(inv.supplierId))?.name : undefined;
-  const reason = ['Factura', inv.number, supplier && `· ${supplier}`].filter(Boolean).join(' ');
+  // La mercadería puede entrar directo a un punto (p. ej. la verdura a la Confitería).
+  const outlet = inv.outletId ? await db.outlets.get(inv.outletId) : undefined;
+  if (inv.outletId && !outlet) throw new Error('El punto elegido para esta factura ya no existe: elegí otro o el Depósito Central.');
+  if (outlet && !outlet.active) throw new Error(`${outlet.name} está desactivado: elegí otro punto o el Depósito Central.`);
+  const reason = ['Factura', inv.number, supplier && `· ${supplier}`, outlet && `→ ${outlet.name}`].filter(Boolean).join(' ');
 
   const units = await db.units.toArray();
   const lk: CatalogLookups = { unit: (id) => units.find((u) => u.id === id)?.abbreviation ?? '' };
@@ -57,7 +62,7 @@ export async function applyInvoiceToStock(invoiceId: string): Promise<{ applied:
   }
 
   // Todo o nada: si un renglón falla, no queda la factura cargada a medias.
-  const ids = await db.transaction('rw', db.products, db.movements, db.invoices, async () => {
+  const ids = await db.transaction('rw', [db.products, db.movements, db.invoices, db.outlets, db.categories], async () => {
     const fresh = await db.invoices.get(inv.id);
     if (fresh?.stockAppliedAt) throw new Error('Esta factura ya se cargó al stock.');
     const out: string[] = [];
@@ -70,8 +75,16 @@ export async function applyInvoiceToStock(invoiceId: string): Promise<{ applied:
         reason,
         refId: inv.id,
         idempotencyKey: await itemKey(inv.id, item.id),
+        ...(outlet ? { outletId: outlet.id } : {}),
       });
       out.push(movement.id);
+    }
+    if (outlet) {
+      // Igual que en un remito: lo que entra al punto se tiene que ver y contar ahí.
+      const categories = await db.categories.toArray();
+      const products = (await db.products.bulkGet(toLoad.map((i) => i.productId!))).filter((p): p is Product => !!p);
+      const add = missingFamilies(outlet, categories, products, products.map((p) => p.id));
+      if (add.length) await db.outlets.update(outlet.id, { categoryIds: [...outletCategoryIds(outlet, categories), ...add.map((c) => c.id)], updatedAt: nowIso() });
     }
     await db.invoices.update(inv.id, { stockAppliedAt: nowIso(), stockAppliedBy: getCurrentActor(), stockMovementIds: out, updatedAt: nowIso() });
     return out;

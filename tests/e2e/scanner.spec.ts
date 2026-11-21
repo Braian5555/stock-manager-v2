@@ -66,6 +66,8 @@ test('código nuevo: crear producto sólo al confirmar, y no se repiten códigos
   await typeCode(page, 'SM000777');
   await top(page).getByRole('button', { name: 'Crear producto' }).click();
   await top(page).getByLabel('Nombre').fill('Servilletas con código');
+  await top(page).getByLabel('Familia').selectOption({ index: 1 });
+  await top(page).getByLabel('Unidad de stock').selectOption({ index: 1 });
   await top(page).getByRole('button', { name: 'Guardar' }).click();
   await expect(top(page).getByRole('heading', { name: 'Servilletas con código' })).toBeVisible();
   await top(page).getByRole('button', { name: 'Cerrar' }).click();
@@ -74,6 +76,8 @@ test('código nuevo: crear producto sólo al confirmar, y no se repiten códigos
   // Otro producto con el mismo código: avisa y no guarda.
   await page.getByRole('button', { name: 'Nuevo producto' }).click();
   await top(page).getByLabel('Nombre').fill('Duplicado');
+  await top(page).getByLabel('Familia').selectOption({ index: 1 });
+  await top(page).getByLabel('Unidad de stock').selectOption({ index: 1 });
   await top(page).getByRole('textbox', { name: 'Código de barras' }).fill('sm000777');
   await expect(top(page).getByText('Ya lo tiene “Servilletas con código”.')).toBeVisible();
   await top(page).getByRole('button', { name: 'Guardar' }).click();

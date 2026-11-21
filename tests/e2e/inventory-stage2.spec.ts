@@ -9,6 +9,8 @@ test('alertas: filtrar para reponer / sin stock y cargar mínimos en lote con de
   await go(page, '/productos');
   await page.getByRole('button', { name: 'Nuevo producto' }).click();
   await top(page).getByLabel('Nombre').fill('Café en grano');
+  await top(page).getByLabel('Familia').selectOption({ index: 1 });
+  await top(page).getByLabel('Unidad de stock').selectOption({ index: 1 });
   await top(page).getByRole('button', { name: 'Guardar' }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
 

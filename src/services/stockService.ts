@@ -228,3 +228,41 @@ export function stockByOutlet(movements: StockMovement[]): Map<string, Map<strin
   }
   return out;
 }
+
+/**
+ * Corrige el motivo de un movimiento (p. ej. "Ingreso 20/11" → "Producción panadería 20/11") sin
+ * revertirlo y cargarlo de nuevo. La cantidad y la fecha no se tocan, así el stock no cambia; queda
+ * guardado el motivo original y quién lo corrigió.
+ */
+export async function editMovementReason(id: string, reason: string): Promise<StockMovement> {
+  return db.transaction('rw', db.movements, async () => {
+    const m = await db.movements.get(id);
+    if (!m) throw new Error('El movimiento no existe.');
+    const next = reason.trim() || undefined;
+    if (next === m.reason) return m;
+    if (next && next.length > 200) throw new Error('El motivo es muy largo (máximo 200 letras).');
+    const t = nowIso();
+    const patch: Partial<StockMovement> = {
+      reason: next, updatedAt: t, reasonEditedAt: t, reasonEditedBy: getCurrentActor(),
+      ...(m.reasonEditedAt ? {} : { originalReason: m.reason ?? '' }),
+    };
+    await db.movements.update(id, patch);
+    return { ...m, ...patch };
+  });
+}
+
+/** Tipos que suman mercadería (para avisar si se está cargando lo mismo dos veces). */
+const INCOMING: ReadonlySet<MovementType> = new Set<MovementType>(['ingreso', 'produccion', 'devolucion']);
+
+/**
+ * Ingresos recientes del mismo producto, en el mismo lugar y con la misma cantidad (últimos 3
+ * días): la señal típica de algo cargado dos veces. No cuentan los deshechos ni el stock inicial.
+ */
+export async function similarRecentIngresos(productId: string, outletId: string | undefined, qty: number, now = Date.now()): Promise<StockMovement[]> {
+  const since = new Date(now - 3 * 86_400_000).toISOString();
+  const ms = await db.movements.where('productId').equals(productId).toArray();
+  const undone = new Set(ms.filter((m) => m.idempotencyKey?.startsWith('undo:')).map((m) => m.idempotencyKey.slice(5)));
+  return ms
+    .filter((m) => INCOMING.has(m.type) && m.origin !== 'alta' && (m.outletId ?? '') === (outletId ?? '') && m.delta > 0 && !undone.has(m.id) && m.createdAt >= since && Math.abs(m.delta - qty) < 0.0005)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
