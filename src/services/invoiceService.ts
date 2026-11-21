@@ -23,6 +23,8 @@ export interface InvoiceDraft {
   number?: string;
   total?: number;
   notes?: string;
+  /** Punto al que entra la mercadería (vacío = Depósito Central). */
+  outletId?: string;
   pages: PageDraft[];
   /** Renglones leídos con IA y revisados (si falta, se conservan los que tenía). */
   items?: InvoiceItem[];
@@ -33,7 +35,8 @@ export interface InvoiceDraft {
 const clean = (s?: string) => (s ?? '').trim() || undefined;
 
 export async function saveInvoice(d: InvoiceDraft): Promise<Invoice> {
-  if (!d.pages.length) throw new Error('Sacá o elegí al menos una foto de la factura.');
+  // Sin IA se puede cargar a mano: alcanza con los renglones (la foto queda opcional).
+  if (!d.pages.length && !d.items?.some((i) => i.status !== 'ignored')) throw new Error('Sacá o elegí al menos una foto de la factura, o cargá los renglones a mano.');
   if (d.pages.length > MAX_PAGES) throw new Error(`Máximo ${MAX_PAGES} fotos por factura.`);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(d.date)) throw new Error('Ingresá la fecha de la factura.');
   if (d.total !== undefined && (!Number.isFinite(d.total) || d.total < 0)) throw new Error('El total no es válido.');
@@ -65,6 +68,7 @@ export async function saveInvoice(d: InvoiceDraft): Promise<Invoice> {
     number: clean(d.number),
     total: d.total,
     notes: clean(d.notes),
+    ...((prev?.stockAppliedAt ? prev.outletId : d.outletId) ? { outletId: prev?.stockAppliedAt ? prev.outletId : d.outletId } : {}),
     pages,
     createdBy: prev?.createdBy ?? getCurrentActor(),
     items: d.items ?? prev?.items,
@@ -81,6 +85,15 @@ export async function saveInvoice(d: InvoiceDraft): Promise<Invoice> {
   void uploadPendingImages();
   if (removed.length) void deleteCloudImages(removed);
   return invoice;
+}
+
+/** Otra factura con el mismo número del mismo proveedor (para avisar antes de guardarla dos veces). */
+export async function sameNumberInvoice(d: { id?: string; supplierId?: string; number?: string }): Promise<Invoice | undefined> {
+  // "A 0004-00004595" = "4-4595": se comparan los grupos de números sin los ceros de adelante.
+  const key = (n?: string) => (n ?? '').match(/\d+/g)?.map((g) => g.replace(/^0+(?=\d)/, '')).join('-') ?? '';
+  const num = key(d.number);
+  if (!num) return undefined;
+  return (await db.invoices.toArray()).find((i) => i.id !== d.id && (i.supplierId ?? '') === (d.supplierId ?? '') && key(i.number) === num);
 }
 
 export async function deleteInvoice(id: string): Promise<void> {

@@ -24,7 +24,7 @@ export function recipeConsumption(product: Pick<Product, 'recipe'>, qty: number,
  * Anota una producción: suma `qty` al producto y, si tiene receta, descuenta sus insumos como
  * "Consumo" ligado a esta producción. Todo en una sola transacción: o queda todo o nada.
  */
-export async function registerProduction(productId: string, qty: number): Promise<{ movement: StockMovement; consumed: ConsumptionLine[] }> {
+export async function registerProduction(productId: string, qty: number, reason = 'Producción'): Promise<{ movement: StockMovement; consumed: ConsumptionLine[] }> {
   if (!(qty > 0)) throw new Error('Ingresá cuánto se produjo.');
   // Sin recetas, producir sólo suma lo producido (los insumos se anotan como consumo aparte).
   const useRecipes = recipesOn(await getSettings());
@@ -35,7 +35,7 @@ export async function registerProduction(productId: string, qty: number): Promis
     const ingredients = (await db.products.bulkGet(ids)).filter((p): p is Product => !!p);
     const consumed = useRecipes ? recipeConsumption(product, qty, new Map(ingredients.map((p) => [p.id, p]))) : [];
     const key = `prod:${uuid()}`;
-    const { movement } = await applyMovement({ productId, type: 'produccion', delta: round3(qty), origin: 'manual', reason: 'Producción', idempotencyKey: key });
+    const { movement } = await applyMovement({ productId, type: 'produccion', delta: round3(qty), origin: 'manual', reason: reason.trim() || 'Producción', idempotencyKey: key });
     for (const c of consumed) {
       if (c.productId === productId) continue;
       await applyMovement({
@@ -49,6 +49,27 @@ export async function registerProduction(productId: string, qty: number): Promis
       });
     }
     return { movement, consumed };
+  });
+}
+
+/**
+ * Anota varias producciones juntas (la planilla del día de la panadería): todo o nada, así una
+ * cantidad mal escrita no deja la mitad cargada. Las líneas repetidas del mismo producto se suman.
+ */
+export async function registerProductionBatch(lines: { productId: string; quantity: number }[], reason = 'Producción'): Promise<{ movements: StockMovement[]; consumed: number }> {
+  const merged = new Map<string, number>();
+  for (const l of lines) if (l.productId && l.quantity > 0) merged.set(l.productId, round3((merged.get(l.productId) ?? 0) + l.quantity));
+  if (!merged.size) throw new Error('Poné cuánto se hizo de al menos un producto.');
+  // `settings` va en la transacción porque cada producción lee si se usan recetas.
+  return db.transaction('rw', [db.products, db.movements, db.settings], async () => {
+    const movements: StockMovement[] = [];
+    let consumed = 0;
+    for (const [productId, qty] of merged) {
+      const r = await registerProduction(productId, qty, reason);
+      movements.push(r.movement);
+      consumed += r.consumed.length;
+    }
+    return { movements, consumed };
   });
 }
 

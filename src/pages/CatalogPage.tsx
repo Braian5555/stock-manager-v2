@@ -16,6 +16,7 @@ import { FamilyZeroModal } from '../components/FamilyZeroModal';
 import { useSession } from '../store/session';
 import { EmptyState, Field, Input, PageHeader, SearchInput, Textarea } from '../components/ui';
 import { fmtMoney, matches } from '../utils/format';
+import { fmtCuit, validCuit } from '../utils/cuit';
 import { statusOf } from '../services/stockService';
 
 type Kind = 'category' | 'unit' | 'location' | 'supplier';
@@ -39,6 +40,7 @@ const CONFIG: Record<Kind, { module: ModuleKey; singular: string; icon: typeof T
       { key: 'name', label: 'Nombre', required: true, placeholder: 'Ej.: Distribuidora Ejemplo' },
       { key: 'contact', label: 'Contacto' },
       { key: 'phone', label: 'Teléfono', type: 'tel' },
+      { key: 'cuit', label: 'CUIT', placeholder: 'Ej.: 30-71234567-8' },
       { key: 'email', label: 'Email', type: 'email' },
       { key: 'address', label: 'Dirección' },
       { key: 'notes', label: 'Notas', type: 'textarea' },
@@ -129,6 +131,12 @@ export function CatalogPage({ kind }: { kind: Kind }) {
     if (!editing) return;
     for (const f of cfg.fields) if (f.required && !String(editing[f.key] ?? '').trim()) return notify(`Completá “${f.label}”.`, { tone: 'error' });
     const clean = Object.fromEntries(Object.entries(editing).map(([k, v]) => [k, typeof v === 'string' ? v.trim() || undefined : v]));
+    if (kind === 'supplier' && typeof clean.cuit === 'string') {
+      if (!validCuit(clean.cuit)) return notify('El CUIT no es válido: son 11 números (revisá el último, el verificador).', { tone: 'error' });
+      clean.cuit = fmtCuit(clean.cuit);
+      const twin = rows.find((r) => r.id !== editing.id && typeof r.cuit === 'string' && r.cuit.replace(/\D/g, '') === String(clean.cuit).replace(/\D/g, ''));
+      if (twin) return notify(`Ese CUIT ya es de “${twin.name}”.`, { tone: 'error' });
+    }
     const ok = await run(() => saveEntity(cfg.table(), clean as Draft<Row>), editing.id ? 'Cambios guardados' : `${cap(cfg.singular)} ${cfg.male ? 'creado' : 'creada'}`);
     if (ok) setEditing(null);
   };
@@ -200,6 +208,7 @@ export function CatalogPage({ kind }: { kind: Kind }) {
                     {kind === 'supplier' && typeof r.phone === 'string' && <a href={`tel:${r.phone}`} className="row" style={{ gap: 4 }}><Phone size={12} aria-hidden />{r.phone}</a>}
                     {kind === 'supplier' && typeof r.email === 'string' && <a href={`mailto:${r.email}`} className="row" style={{ gap: 4 }}><Mail size={12} aria-hidden />{r.email}</a>}
                     {kind === 'supplier' && typeof r.contact === 'string' && <span>{r.contact}</span>}
+                    {kind === 'supplier' && typeof r.cuit === 'string' && <span>CUIT {r.cuit}</span>}
                   </div>
                   {kind === 'supplier' && canInvoices && account.get(r.id) && (
                     <Link to={`/facturas?proveedor=${r.id}`} className="list-sub row wrap supplier-account" style={{ gap: '2px 12px' }}>

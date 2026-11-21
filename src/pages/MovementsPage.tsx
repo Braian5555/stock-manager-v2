@@ -1,11 +1,12 @@
 import { useSession } from '../store/session';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { ArrowLeftRight, SlidersHorizontal, Undo2, X } from 'lucide-react';
+import { ArrowLeftRight, Pencil, SlidersHorizontal, Undo2, X } from 'lucide-react';
 import { useSearchParams } from 'react-router';
 import { useMemo, useState } from 'react';
 import { db } from '../database/db';
 import { MOVEMENT_TYPES, type MovementType, type StockMovement } from '../models';
-import { MOVEMENT_GROUPS, MOVEMENT_LABEL, revertMovement, type MovementGroup } from '../services/stockService';
+import { MOVEMENT_GROUPS, MOVEMENT_LABEL, editMovementReason, revertMovement, type MovementGroup } from '../services/stockService';
+import { Modal } from '../components/ui/Modal';
 import { undoProduction } from '../services/productionService';
 import { menuLabel } from '../services/settingsService';
 import { useOutlets, useProducts, EMPTY } from '../hooks/useData';
@@ -62,6 +63,15 @@ export function MovementsPage() {
     matches(q, name.get(m.productId) ?? m.productName, m.reason),
   );
 
+  // Corregir el motivo sin revertir y volver a cargar (la cantidad y la fecha no cambian).
+  const [editing, setEditing] = useState<StockMovement | null>(null);
+  const [draftReason, setDraftReason] = useState('');
+  const openEdit = (m: StockMovement) => { setEditing(m); setDraftReason(m.reason ?? ''); };
+  const saveReason = async () => {
+    if (!editing) return;
+    if (await run(() => editMovementReason(editing.id, draftReason).then(() => true), 'Motivo corregido')) setEditing(null);
+  };
+  const canEditReason = (m: StockMovement) => can('stock.move') && m.origin !== 'deshacer';
   const revert = async (m: StockMovement) => {
     // Una producción se deshace entera: vuelve lo producido y también los insumos que descontó la receta.
     const production = m.type === 'produccion';
@@ -72,6 +82,18 @@ export function MovementsPage() {
 
   return (
     <>
+      {editing && (
+        <Modal open title="Corregir motivo" onClose={() => setEditing(null)}
+          footer={<><button type="button" className="btn" onClick={() => setEditing(null)}>Cancelar</button><button type="button" className="btn btn-primary" onClick={() => void saveReason()}>Guardar</button></>}>
+          <form className="stack" onSubmit={(e) => { e.preventDefault(); void saveReason(); }}>
+            <p className="small muted" style={{ margin: 0 }}>
+              {MOVEMENT_LABEL[editing.type]} de {fmtSigned(editing.delta)} en “{name.get(editing.productId) ?? editing.productName}” del {fmtDate(editing.createdAt)} {fmtTime(editing.createdAt)}. Sólo cambia el texto: la cantidad y el stock quedan igual.
+            </p>
+            <Field label="Motivo"><Input value={draftReason} onChange={(e) => setDraftReason(e.target.value)} maxLength={200} data-autofocus placeholder="Ej.: Producción panadería 20/11" /></Field>
+            {editing.reasonEditedAt && <p className="small muted" style={{ margin: 0 }}>Motivo original: {editing.originalReason || '(sin motivo)'}</p>}
+          </form>
+        </Modal>
+      )}
       <PageHeader title={menuLabel(settings, 'movements')} subtitle={`${list.length} movimientos`} actions={<ScanButton label="Escanear y registrar" />} />
       <div className="toolbar">
         <SearchInput value={q} onChange={setQ} placeholder="Buscar por producto o motivo" />
@@ -121,6 +143,7 @@ export function MovementsPage() {
                   <div className="list-sub num truncate">{fmtNumber(m.quantityBefore)} → {fmtNumber(m.quantityAfter)}{m.reason ? ` · ${m.reason}` : ` · ${ORIGIN_LABEL[m.origin]}`}</div>
                 </div>
                 <strong className={`num ${m.delta >= 0 ? 'pos' : 'neg'}`}>{fmtSigned(m.delta)}</strong>
+                {canEditReason(m) && <button type="button" className="btn btn-sm btn-ghost icon-btn" aria-label="Corregir motivo" onClick={() => openEdit(m)}><Pencil size={16} /></button>}
                 {can('stock.move') && m.origin !== 'deshacer' && m.origin !== 'remito' && m.origin !== 'factura' && name.has(m.productId) && !reverted.has(m.id) && (
                   <button type="button" className="btn btn-sm btn-ghost icon-btn" aria-label="Revertir movimiento" onClick={() => revert(m)}><Undo2 size={16} /></button>
                 )}
@@ -143,7 +166,7 @@ export function MovementsPage() {
                     <td data-label="Anterior" className="num">{fmtNumber(m.quantityBefore)}</td>
                     <td data-label="Nuevo" className="num">{fmtNumber(m.quantityAfter)}</td>
                     <td data-label="Diferencia" className={`num ${m.delta >= 0 ? 'pos' : 'neg'}`}><b>{fmtSigned(m.delta)}</b></td>
-                    <td data-label="Motivo">{m.reason ?? '—'}</td>
+                    <td data-label="Motivo">{m.reason ?? '—'}{m.reasonEditedAt && <span className="small muted" title={`Antes: ${m.originalReason || '(sin motivo)'}`}> (corregido)</span>}</td>
                     <td data-label="Usuario">{m.performedBy?.name ?? '—'}</td>
                     <td data-label="Origen">
                       {ORIGIN_LABEL[m.origin]}
@@ -151,6 +174,7 @@ export function MovementsPage() {
                       {m.syncId && m.sourceSystem === 'local' && <> <Badge tone="primary">Sync</Badge></>}
                     </td>
                     <td data-label="Acciones">
+                      {canEditReason(m) && <button type="button" className="btn btn-sm btn-ghost icon-btn" aria-label="Corregir motivo" title="Corregir motivo" onClick={() => openEdit(m)}><Pencil size={16} /></button>}
                       {can('stock.move') && m.origin !== 'deshacer' && m.origin !== 'remito' && m.origin !== 'factura' && name.has(m.productId) && !reverted.has(m.id) && (
                         <button type="button" className="btn btn-sm btn-ghost icon-btn" aria-label="Revertir movimiento" title="Revertir" onClick={() => revert(m)}><Undo2 size={16} /></button>
                       )}
