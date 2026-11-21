@@ -783,7 +783,7 @@ export const TOOLS: ToolDef[] = [
         execute: async (key) => {
           if (!ctx.can('stock.move')) throw new ToolError('Ya no tenés permiso para mover stock.');
           const done = sentTransfers.get(key);
-          const { transfer, fixes } = done ? { transfer: done, fixes: [] as StockMovement[] } : await db.transaction('rw', [db.transfers, db.products, db.movements, db.outlets, db.settings], async () => {
+          const { transfer, fixes } = done ? { transfer: done, fixes: [] as StockMovement[] } : await db.transaction('rw', [db.transfers, db.products, db.movements, db.outlets, db.settings, db.categories], async () => {
             // Las salidas ya se descontaron del depósito: el remito no controla el stock (se devuelven abajo).
             const { transfer: tr } = await createTransfer({ date, outletId: outlet.id, items: [...items].map(([productId, quantity]) => ({ productId, quantity })), notes: `Salidas “${s(a.buscar)}” pasadas a remito desde el Asistente IA` }, { allowShort: true });
             const out: StockMovement[] = [];

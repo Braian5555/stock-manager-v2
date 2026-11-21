@@ -2,14 +2,14 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useState } from 'react';
 import { db } from '../database/db';
 import type { MovementType, Product } from '../models';
-import { MOVEMENT_LABEL, OUTGOING_TYPES, applyMovement, revertMovement } from '../services/stockService';
+import { MOVEMENT_LABEL, OUTGOING_TYPES, applyMovement, revertMovement, similarRecentIngresos } from '../services/stockService';
 import { canSyncAdjustments, syncedAdjustment } from '../integrations/integrationService';
 import { useIntegration, useLookups } from '../hooks/useData';
 import { useSettings } from '../store/settings';
 import { negativeStockOn } from '../services/settingsService';
 import { maxirestOn } from '../layouts/modules';
 import { useFeedback } from '../store/feedback';
-import { fmtNumber, fmtSigned, round3 } from '../utils/format';
+import { fmtNumber, fmtSigned, fmtTime, round3 } from '../utils/format';
 import { Modal } from './ui/Modal';
 import { Field, NumberInput, Select, Input } from './ui';
 
@@ -23,6 +23,8 @@ export function MovementModal({ product, onClose, initialType = 'ingreso', outle
   const [type, setType] = useState<MovementType>(initialType);
   const [qty, setQty] = useState<number | undefined>();
   const [reason, setReason] = useState('');
+  // Cantidad en la unidad de compra (cajas, bultos…): la app la pasa a la unidad de stock.
+  const [inPacks, setInPacks] = useState(false);
   const [mode, setMode] = useState<'local' | 'sync'>('local');
   const [canSync, setCanSync] = useState(false);
   const settings = useSettings();
@@ -39,6 +41,7 @@ export function MovementModal({ product, onClose, initialType = 'ingreso', outle
     setType(initialType);
     setQty(undefined);
     setReason('');
+    setInPacks(false);
     setMode('local');
     canSyncAdjustments().then(setCanSync).catch(() => setCanSync(false));
   }, [product?.id]); // eslint-disable-line react-hooks/exhaustive-deps -- reiniciar sólo al cambiar de producto
@@ -48,7 +51,12 @@ export function MovementModal({ product, onClose, initialType = 'ingreso', outle
   const base = outlet ? outlet.stock : product.stock;
   const unit = lk.unit(product.unitId);
   const isAdjust = type === 'ajuste';
-  const newQty = qty === undefined ? undefined : isAdjust ? qty : round3(base + (OUTGOING_TYPES.includes(type) ? -qty : qty));
+  const factor = product.purchaseUnitId && product.purchaseFactor > 1 ? product.purchaseFactor : 0;
+  const packUnit = factor ? lk.unit(product.purchaseUnitId) : '';
+  const packs = !!factor && inPacks && !isAdjust;
+  // Lo que se mueve, siempre en la unidad de stock.
+  const units = qty === undefined ? undefined : packs ? round3(qty * factor) : qty;
+  const newQty = units === undefined ? undefined : isAdjust ? units : round3(base + (OUTGOING_TYPES.includes(type) ? -units : units));
   // Sin stock negativo, una salida no baja de 0: lo que se ve es cómo va a quedar.
   const floor = Math.min(base, 0);
   const shownQty = newQty !== undefined && !isAdjust && !allowNegative && newQty < floor ? floor : newQty;
@@ -58,6 +66,20 @@ export function MovementModal({ product, onClose, initialType = 'ingreso', outle
     if (newQty === undefined || qty === undefined || qty < 0) return notify('Ingresá una cantidad válida.', { tone: 'error' });
     if (!isAdjust && qty === 0) return notify('La cantidad tiene que ser mayor a 0.', { tone: 'error' });
     if (isAdjust && newQty === base) return notify('El stock ya tiene esa cantidad: no hay nada que ajustar.', { tone: 'error' });
+    // Lo mismo cargado dos veces (dos personas, o factura y a mano): se pregunta antes.
+    if (type === 'ingreso' && units !== undefined) {
+      const twins = await similarRecentIngresos(product.id, outlet?.id, units);
+      if (twins.length) {
+        const m = twins[0];
+        const when = new Date(m.createdAt);
+        const ok = await confirm({
+          title: '¿Ya lo cargaste?',
+          message: `Hace poco entraron ${fmtNumber(m.delta)} ${unit} de ${product.name}${outlet ? ` en ${outlet.name}` : ''} (${when.toLocaleDateString('es-AR')} ${fmtTime(m.createdAt)}${m.reason ? `, ${m.reason}` : ''}${m.performedBy ? `, ${m.performedBy.name}` : ''}). Si es la misma mercadería, no la cargues de nuevo.`,
+          confirmLabel: 'Registrar igual',
+        });
+        if (!ok) return;
+      }
+    }
     if (isAdjust && mode === 'sync') {
       const ok = await confirm({
         title: '¿Confirmar ajuste sincronizado?',
@@ -114,9 +136,16 @@ export function MovementModal({ product, onClose, initialType = 'ingreso', outle
             {TYPES.map((t) => <option key={t} value={t}>{MOVEMENT_LABEL[t]}</option>)}
           </Select>
         </Field>
-        <Field label={isAdjust ? 'Nueva cantidad en stock' : 'Cantidad'} hint={unit || undefined}>
+        <Field label={isAdjust ? 'Nueva cantidad en stock' : 'Cantidad'} hint={packs ? `${packUnit} de ${fmtNumber(factor)} ${unit}` : unit || undefined}>
           <NumberInput value={qty} onChange={setQty} min={0} data-autofocus required />
         </Field>
+        {!!factor && !isAdjust && (
+          <div className="row wrap" role="radiogroup" aria-label="Unidad de la cantidad" style={{ gap: 12 }}>
+            <label className="check"><input type="radio" name="mv-unit" checked={!inPacks} onChange={() => setInPacks(false)} /> En {unit || 'unidades'}</label>
+            <label className="check"><input type="radio" name="mv-unit" checked={inPacks} onChange={() => setInPacks(true)} /> En {packUnit} (1 = {fmtNumber(factor)} {unit})</label>
+            {packs && units !== undefined && <span className="small muted">= {fmtNumber(units)} {unit}</span>}
+          </div>
+        )}
         <Field label="Motivo" hint="opcional">
           <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Ej.: rotura, consumo interno, devolución a proveedor…" />
         </Field>

@@ -120,6 +120,24 @@ export interface TransferResult {
   transfer: Transfer;
   /** Productos que quedaron con stock negativo en el depósito (para avisar). */
   negative: string[];
+  /** Familias que el punto no contaba y se le sumaron con este remito (nombres). */
+  addedFamilies: string[];
+}
+
+/**
+ * Familias de los productos del remito que el punto todavía no cuenta. Si no se suman, lo que
+ * llega queda fuera de sus conteos y desaparece de su stock en cuanto llega a 0.
+ */
+export function missingFamilies(
+  outlet: Pick<Outlet, 'categoryIds'> | undefined,
+  categories: Pick<Category, 'id' | 'name'>[],
+  products: Pick<Product, 'id' | 'categoryId'>[],
+  productIds: string[],
+): Pick<Category, 'id' | 'name'>[] {
+  const have = new Set(outletCategoryIds(outlet, categories));
+  const byId = new Map(products.map((p) => [p.id, p]));
+  const ids = new Set(productIds.map((id) => byId.get(id)?.categoryId).filter((c): c is string => !!c && !have.has(c)));
+  return categories.filter((c) => ids.has(c.id));
 }
 
 /** Junta líneas repetidas del mismo producto y descarta cantidades vacías. */
@@ -142,7 +160,7 @@ export async function createTransfer(d: TransferDraft, opts: { allowShort?: bool
   if (!items.length) throw new Error('Agregá al menos un producto con cantidad.');
   const mxOn = (await getSettings()).maxirest === true;
 
-  return db.transaction('rw', [db.transfers, db.products, db.movements], async () => {
+  return db.transaction('rw', [db.transfers, db.products, db.movements, db.outlets, db.categories], async () => {
     const short: string[] = [];
     for (const i of items) {
       const p = await db.products.get(i.productId);
@@ -180,7 +198,11 @@ export async function createTransfer(d: TransferDraft, opts: { allowShort?: bool
         idempotencyKey: `transfer:${transfer.id}:${i.productId}:in`, outletId: outlet.id,
       });
     }
-    return { transfer, negative };
+    // Lo que llega por remito se tiene que poder ver y contar en el punto: se suman sus familias.
+    const categories = await db.categories.toArray();
+    const add = missingFamilies(outlet, categories, await db.products.bulkGet(items.map((i) => i.productId)).then((l) => l.filter((p): p is Product => !!p)), items.map((i) => i.productId));
+    if (add.length) await db.outlets.update(outlet.id, { categoryIds: [...outletCategoryIds(outlet, categories), ...add.map((c) => c.id)], updatedAt: nowIso() });
+    return { transfer, negative, addedFamilies: add.map((c) => c.name) };
   });
 }
 

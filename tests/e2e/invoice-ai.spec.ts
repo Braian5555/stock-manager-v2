@@ -319,6 +319,8 @@ test('facturas: cargar al stock (bultos, producto nuevo, deshacer) y la próxima
   const form = amargo.getByRole('group', { name: /^Nuevo producto/ });
   await expect(form.getByLabel('Nombre')).toHaveValue('Amargo Obrero x 950 cc');
   await form.getByLabel(/^Cada bulto trae/).fill('6');
+  await expect(form.getByRole('button', { name: 'Crear y usar' })).toBeDisabled(); // falta la familia
+  await form.getByLabel('Familia').selectOption({ index: 1 });
   await form.getByRole('button', { name: 'Crear y usar' }).click();
   await expect(page.getByText('Producto creado')).toBeVisible();
   await expect(amargo).toContainText('Reconocido');

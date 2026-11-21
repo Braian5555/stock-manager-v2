@@ -1,13 +1,13 @@
 import { useLiveQuery } from 'dexie-react-hooks';
-import { BookOpen, CakeSlice, Check, ChefHat, Pencil, Plus, Search, Tags, Undo2 } from 'lucide-react';
+import { BookOpen, CakeSlice, Check, ChefHat, ListPlus, Pencil, Plus, Search, Tags, Undo2, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { db } from '../database/db';
 import { EMPTY, useLookups, useProducts } from '../hooks/useData';
 import { startOfDayIso, useToday } from '../hooks/useToday';
 import type { Product, StockMovement } from '../models';
-import { recipeConsumption, registerProduction, undoProduction } from '../services/productionService';
+import { recipeConsumption, registerProduction, registerProductionBatch, undoProduction } from '../services/productionService';
 import { useFeedback } from '../store/feedback';
-import { EmptyState, PageHeader, Segmented } from '../components/ui';
+import { EmptyState, Field, Input, NumberInput, PageHeader, Segmented } from '../components/ui';
 import { RecipeModal } from '../components/RecipeModal';
 import { recipesOn } from '../services/settingsService';
 import { PlanView, SummaryView } from '../components/bakery/BakeryViews';
@@ -60,6 +60,7 @@ export function ProductionPage({ line = 'production' }: { line?: ProductionLine 
   const withRecipes = recipesOn(settings);
   const canRecipes = withRecipes && canCreate;
   const [famOpen, setFamOpen] = useState(false);
+  const [batchOpen, setBatchOpen] = useState(false);
   type View = 'anotar' | 'plan' | 'resumen' | 'recetas';
   const [view, setView] = useState<View>('anotar');
   const views: { value: View; label: string }[] = [
@@ -205,10 +206,13 @@ export function ProductionPage({ line = 'production' }: { line?: ProductionLine 
 
       <DayProgress planned={dayPlan.planned} done={dayPlan.done} anotados={dayPlan.anotados} />
 
-      <label className="production-search">
-        <Search size={20} aria-hidden />
-        <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar qué hiciste" aria-label="Buscar producto" />
-      </label>
+      <div className="row" style={{ gap: 8, flexWrap: 'nowrap' }}>
+        <label className="production-search grow">
+          <Search size={20} aria-hidden />
+          <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar qué hiciste" aria-label="Buscar producto" />
+        </label>
+        <button type="button" className="btn" onClick={() => setBatchOpen(true)}><ListPlus size={18} aria-hidden /> Anotar varios</button>
+      </div>
 
       {!q.trim() && (
         <div className="group-chips" role="group" aria-label="Qué mostrar">
@@ -310,11 +314,74 @@ export function ProductionPage({ line = 'production' }: { line?: ProductionLine 
           </div>
         )}
       </Modal>
+      {batchOpen && <BatchModal products={made} unitOf={unitOf} onClose={() => setBatchOpen(false)} />}
       <RecipeModal product={editing} onClose={() => setEditing(null)} />
       <NewProductModal open={newName !== null} line={line} initialName={newName ?? ''} lineFamilies={[...famIds]} onClose={() => setNewName(null)}
         onCreated={(p, kind) => { setNewName(null); setQ(''); setRq(''); if (kind === 'elaborado' && withRecipes) setEditing(p); }} />
       <FamiliesModal open={famOpen} onClose={() => setFamOpen(false)} current={famIds} line={line} />
     </div>
+  );
+}
+
+/**
+ * Planilla del día: varios productos con su cantidad y un solo motivo ("Producción 21/11"), en una
+ * sola carga. Para cuando la panadería pasa la lista entera al final del turno.
+ */
+function BatchModal({ products, unitOf, onClose }: { products: Product[]; unitOf: (p: Product) => string; onClose: () => void }) {
+  const { run, notify } = useFeedback();
+  const [q, setQ] = useState('');
+  const [lines, setLines] = useState<{ p: Product; qty: number | undefined }[]>([]);
+  const [reason, setReason] = useState(() => `Producción ${new Date().toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' })}`);
+  const [saving, setSaving] = useState(false);
+  const used = new Set(lines.map((l) => l.p.id));
+  const results = q.trim() ? products.filter((p) => !used.has(p.id) && matches(q, p.name, p.sku)).slice(0, 8) : [];
+  const add = (p: Product) => { setLines((ls) => [...ls, { p, qty: undefined }]); setQ(''); };
+  const ready = lines.filter((l) => (l.qty ?? 0) > 0);
+  const save = async () => {
+    setSaving(true);
+    const r = await run(() => registerProductionBatch(ready.map((l) => ({ productId: l.p.id, quantity: l.qty! })), reason));
+    setSaving(false);
+    if (!r) return;
+    notify(`Anotados ${r.movements.length} ${r.movements.length === 1 ? 'producto' : 'productos'} · ${reason.trim() || 'Producción'}`, {
+      undo: () => void (async () => { for (const m of r.movements) await undoProduction(m); })(),
+    });
+    onClose();
+  };
+  return (
+    <Modal open title="Anotar varios" wide onClose={onClose}
+      footer={<>
+        <button type="button" className="btn" onClick={onClose}>Cancelar</button>
+        <button type="button" className="btn btn-primary" disabled={saving || !ready.length} onClick={() => void save()}><Check size={18} aria-hidden /> Anotar {ready.length || ''}</button>
+      </>}>
+      <div className="stack">
+        <Field label="Motivo"><Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Ej.: Producción panadería 21/11" /></Field>
+        <label className="production-search">
+          <Search size={18} aria-hidden />
+          <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar y agregar producto" aria-label="Buscar producto para anotar"
+            onKeyDown={(e) => { if (e.key === 'Enter' && results[0]) { e.preventDefault(); add(results[0]); } }} autoFocus />
+        </label>
+        {results.length > 0 && (
+          <div className="list">
+            {results.map((p) => (
+              <button key={p.id} type="button" className="list-item" onClick={() => add(p)} aria-label={`Agregar ${p.name}`}>
+                <Plus size={16} aria-hidden /><span className="grow list-title">{p.name}</span><span className="small muted">{unitOf(p)}</span>
+              </button>
+            ))}
+          </div>
+        )}
+        {q.trim() && !results.length && <p className="small muted">No hay productos con ese nombre en esta sección.</p>}
+        {!lines.length && !q && <p className="small muted">Agregá cada cosa que se hizo y poné cuánto. Se anota todo junto con el mismo motivo.</p>}
+        {lines.map((l, i) => (
+          <div key={l.p.id} className="row" style={{ gap: 8, flexWrap: 'nowrap' }}>
+            <span className="grow truncate">{l.p.name}</span>
+            <NumberInput style={{ width: 96 }} value={l.qty} min={0} autoFocus={i === lines.length - 1} aria-label={`Cantidad de ${l.p.name}`} placeholder="Cant."
+              onChange={(v) => setLines((ls) => ls.map((x) => (x.p.id === l.p.id ? { ...x, qty: v } : x)))} />
+            <span className="small muted" style={{ minWidth: 24 }}>{unitOf(l.p)}</span>
+            <button type="button" className="btn btn-ghost icon-btn" aria-label={`Quitar ${l.p.name}`} onClick={() => setLines((ls) => ls.filter((x) => x.p.id !== l.p.id))}><X size={18} /></button>
+          </div>
+        ))}
+      </div>
+    </Modal>
   );
 }
 

@@ -51,6 +51,8 @@ export interface Supplier extends BaseEntity {
   phone?: string;
   email?: string;
   address?: string;
+  /** CUIT del proveedor (11 dígitos, se guarda con guiones). Sirve para reconocer sus facturas. */
+  cuit?: string;
   notes?: string;
 }
 
@@ -134,6 +136,11 @@ export interface StockMovement extends BaseEntity {
    * (el stock de `Product.stock`). El stock de cada punto se calcula con sus movimientos.
    */
   outletId?: ID;
+  /** El motivo se corrigió después (la cantidad y la fecha nunca cambian). */
+  reasonEditedAt?: string;
+  reasonEditedBy?: Actor;
+  /** Motivo con el que se registró, antes de la primera corrección. */
+  originalReason?: string;
 }
 
 /** Quién hizo algo: id del usuario y su nombre en ese momento. */
@@ -380,6 +387,8 @@ export interface Invoice extends BaseEntity {
   number?: string;
   total?: number;
   notes?: string;
+  /** Punto al que entra la mercadería al cargarla al stock. Si falta, al Depósito Central. */
+  outletId?: ID;
   pages: InvoicePage[];
   createdBy?: Actor;
   /** Renglones leídos de la foto (con IA) y revisados. */
@@ -428,6 +437,8 @@ export interface InvoiceItem {
   stockQty?: number;
   /** Unidades de stock que trae cada caja/bulto (si el renglón viene en cajas o bultos). */
   packSize?: number;
+  /** Renglón cargado a mano (sin IA): se puede quitar y cambiar la cantidad comprada. */
+  manual?: boolean;
   /** ok: reconocido seguro · check: revisar · none: sin producto · ignored: no va al stock. */
   status: 'ok' | 'check' | 'none' | 'ignored';
 }
