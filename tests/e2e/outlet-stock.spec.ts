@@ -19,11 +19,11 @@ test('Stock: elegir un punto muestra lo que recibió, separado por familia', asy
   await go(page, '/stock');
   await page.getByRole('button', { name: 'Confitería' }).click();
   await expect(page.getByText('Stock en Confitería', { exact: true })).toBeVisible();
-  await expect(page.locator('.list-group-title', { hasText: 'Bebidas' })).toBeVisible();
-  await expect(page.locator('.list-item', { hasText: 'Agua mineral 500 ml' })).toContainText('6');
+  await expect(page.locator('.group-chip', { hasText: 'Bebidas' })).toBeVisible();
+  await expect(page.getByRole('article', { name: 'Agua mineral 500 ml' })).toContainText('6');
   // Todas las bebidas aparecen para contarlas, aunque el punto nunca las haya recibido.
   await expect(page.getByText('Familias que se cuentan acá: Bebidas')).toBeVisible();
-  await expect(page.locator('.list-item', { hasText: 'Gaseosa cola 1,5 L' })).toContainText('0');
+  await expect(page.getByRole('article', { name: 'Gaseosa cola 1,5 L' })).toContainText('0');
   // Sin mínimos no avisa; con mínimo cargado avisa lo que falta, también en el botón del punto.
   await expect(page.getByText('Para que avise lo que falta en Confitería')).toBeVisible();
   await page.getByRole('button', { name: 'Mínimos' }).click();
@@ -32,18 +32,19 @@ test('Stock: elegir un punto muestra lo que recibió, separado por familia', asy
   await min.press('Enter');
   await page.getByRole('button', { name: 'Listo con los mínimos' }).click();
   await expect(page.getByText('Falta 1 producto en Confitería')).toBeVisible();
-  await expect(page.locator('.list-item', { hasText: 'Agua mineral 500 ml' })).toContainText('Bajo');
-  await expect(page.locator('.list-item', { hasText: 'Agua mineral 500 ml' })).toContainText('faltan 4');
+  await expect(page.getByRole('article', { name: 'Agua mineral 500 ml' })).toContainText('Stock bajo');
+  await expect(page.getByRole('article', { name: 'Agua mineral 500 ml' })).toContainText('faltan 4');
   await expect(page.getByRole('button', { name: 'Confitería · faltan 1' })).toBeVisible();
+  await page.screenshot({ path: 'test-results/punto-tarjetas.png', fullPage: true });
   await page.getByRole('button', { name: 'Ver solo lo que falta' }).click();
-  await expect(page.locator('.list-item')).toHaveCount(1);
+  await expect(page.locator('article.pcard')).toHaveCount(1);
   await page.getByRole('button', { name: 'Ver todo' }).click();
   // Se puede elegir otra familia para el punto.
   await page.getByRole('button', { name: 'Familias del punto' }).click();
   await dialog(page).getByLabel('Hielo').check();
   await dialog(page).getByRole('button', { name: 'Guardar' }).click();
   await expect(page.getByText('Familias que se cuentan acá: Bebidas, Hielo')).toBeVisible();
-  await expect(page.locator('.list-group-title', { hasText: 'Hielo' })).toBeVisible();
+  await expect(page.locator('.group-chip', { hasText: 'Hielo' })).toBeVisible();
   await page.getByRole('button', { name: 'Contar este punto' }).click();
   await expect(page).toHaveURL(/#\/conteo\//);
   const countUrl = page.url();
@@ -85,13 +86,13 @@ test('en un punto se registran movimientos con su propio stock (sin tocar el Dep
   await d.getByLabel(/^Cantidad/).fill('4');
   await expect(d.getByText(/Stock en Confitería\s*6\s*→ nuevo\s*2/)).toBeVisible();
   await d.getByRole('button', { name: 'Registrar' }).click();
-  await expect(page.locator('.list-item', { hasText: 'Agua mineral 500 ml' })).toContainText('2');
+  await expect(page.getByRole('article', { name: 'Agua mineral 500 ml' })).toContainText('2');
   // Sacar más de lo que hay deja el punto en 0.
   await page.getByRole('button', { name: 'Registrar movimiento de Agua mineral 500 ml en Confitería' }).click();
   await d.getByLabel(/^Cantidad/).fill('5');
   await expect(d.getByText(/No alcanza: hay 2 .* en Confitería/)).toBeVisible();
   await d.getByRole('button', { name: 'Registrar' }).click();
-  await expect(page.locator('.list-item', { hasText: 'Agua mineral 500 ml' }).locator('strong')).toHaveText(/^0/);
+  await expect(page.getByRole('article', { name: 'Agua mineral 500 ml' }).locator('.pcard-qty strong')).toHaveText(/^0/);
   // El Depósito Central no cambió.
   await page.getByRole('button', { name: 'Depósito Central' }).click();
   await expect(page.getByRole('article', { name: 'Agua mineral 500 ml' })).toContainText('48');
@@ -119,7 +120,7 @@ test('quien trabaja en un punto ve sólo el stock de ese punto', async ({ page, 
   await login(page, 'Moza Confi', '4321');
   await go(page, '/stock');
   await expect(page.getByText('Stock en Confitería', { exact: true })).toBeVisible();
-  await expect(page.locator('.list-item', { hasText: 'Agua mineral 500 ml' })).toContainText('6');
+  await expect(page.getByRole('article', { name: 'Agua mineral 500 ml' })).toContainText('6');
   await expect(page.getByRole('button', { name: 'Depósito Central' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Chiringuito' })).toHaveCount(0);
   // Aunque venga un enlace al Depósito o a otro punto, se queda en el suyo.

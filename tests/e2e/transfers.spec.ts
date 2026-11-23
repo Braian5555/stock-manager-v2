@@ -47,8 +47,8 @@ test('enviar a un punto: sale del Depósito Central, se suma al punto, no se man
 
   // Stock del punto
   await go(page, '/remitos?tab=stock');
-  await expect(page.getByText(/10\s*kg/)).toBeVisible();
-  await expect(page.getByText(/9\s*kg/)).toBeVisible();
+  await expect(page.getByRole('article', { name: 'Harina 000' }).locator('.pcard-qty')).toHaveText(/^10\s*kg$/);
+  await expect(page.getByRole('article', { name: 'Tomate' }).locator('.pcard-qty')).toHaveText(/^9\s*kg$/);
 
   // Movimientos muestran el lugar
   if (!isMobile) {
@@ -66,7 +66,7 @@ test('enviar a un punto: sale del Depósito Central, se suma al punto, no se man
   await dialog(page).getByRole('button', { name: 'Cerrar' }).click();
   await page.getByRole('button', { name: 'Stock por punto' }).click();
   await expect(page.getByText('Agua mineral 500 ml')).toBeVisible();
-  await expect(page.getByText(/^10\s*kg$/)).toHaveCount(0);
+  await expect(page.getByRole('article', { name: 'Harina 000' }).locator('.pcard-qty')).not.toHaveText(/^10\s*kg$/);
 });
 
 test('una salida que no alcanza deja el stock en 0 (no en negativo)', async ({ page }) => {

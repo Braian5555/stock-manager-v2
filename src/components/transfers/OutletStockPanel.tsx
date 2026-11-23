@@ -1,9 +1,9 @@
 import { useLiveQuery } from 'dexie-react-hooks';
-import { AlertTriangle, ArrowLeftRight, ClipboardCheck, Copy, SlidersHorizontal, Store, Tags } from 'lucide-react';
-import type { Product } from '../../models';
+import { AlertTriangle, ArrowLeftRight, ClipboardCheck, Copy, Hourglass, Pencil, SlidersHorizontal, Store, Tags } from 'lucide-react';
+import type { Product, StockStatus } from '../../models';
 import { MovementModal } from '../MovementModal';
-import { Fragment, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router';
+import { useMemo, useState } from 'react';
+import { Link, useNavigate } from 'react-router';
 import { db } from '../../database/db';
 import { startCount } from '../../services/countService';
 import { stockByOutlet } from '../../services/stockService';
@@ -12,8 +12,14 @@ import { Modal } from '../ui/Modal';
 import { useLookups, useOutlets, useProducts } from '../../hooks/useData';
 import { useFeedback } from '../../store/feedback';
 import { useSession } from '../../store/session';
-import { EmptyState, NumberInput, SearchInput, Select } from '../ui';
+import { EmptyState, NumberInput, SearchInput, Select, StatusBadge } from '../ui';
+import { GroupBar, useProductGroups } from '../GroupBar';
+import { daysLabel, usageByProduct } from '../../services/consumptionService';
 import { fmtNumber, matches } from '../../utils/format';
+
+/** Se marca "se termina pronto" si alcanza para esta cantidad de días o menos (igual que en el depósito). */
+const SOON_DAYS = 3;
+const rowProduct = (r: { p: Product }) => r.p;
 
 /** Stock de un punto. Con `outletId` muestra ese punto fijo (sin el selector), como en la pantalla de Stock. */
 export function OutletStockPanel({ outletId: fixedId }: { outletId?: string } = {}) {
@@ -56,6 +62,15 @@ export function OutletStockPanel({ outletId: fixedId }: { outletId?: string } = 
     .filter((p) => !onlyMissing || alertOf.has(p.id))
     .map((p) => ({ p, qty: stock?.get(p.id) ?? 0 }))
     .sort((a, b) => (lk.category(a.p.categoryId) || '~').localeCompare(lk.category(b.p.categoryId) || '~', 'es') || a.p.name.localeCompare(b.p.name, 'es'));
+  // Consumo del punto en los últimos 30 días (salidas, consumos y faltantes de sus conteos): cuánto dura lo que hay.
+  const usage = useMemo(
+    () => usageByProduct(rows.map(({ p, qty }) => ({ id: p.id, stock: qty, createdAt: p.createdAt, active: p.active })), (movements ?? []).filter((m) => m.outletId === current), 30),
+    [rows, movements, current],
+  );
+  // Columna de familias (o unidades), como en el depósito.
+  const g = useProductGroups(rows, rowProduct, lk);
+  const activeGroup = g.groups.some((x) => x.id === g.group) ? g.group : '';
+  const grouped = activeGroup ? rows.filter((r) => g.groupOf(r) === activeGroup) : rows;
 
   // Si ya hay un conteo abierto de este punto, se sigue ese (tocar dos veces no arma conteos repetidos).
   const openCount = useLiveQuery(
@@ -143,38 +158,65 @@ export function OutletStockPanel({ outletId: fixedId }: { outletId?: string } = 
       </p>
       <p className="small muted" style={{ margin: '0 0 8px' }}>Stock según los remitos recibidos, los movimientos y los conteos del punto. Lo que se vende no se descuenta solo: anotalo con <ArrowLeftRight size={13} aria-label="Registrar movimiento" /> (consumo, salida, rotura) o hacé un conteo.</p>
       {moving && outlet && <MovementModal product={moving} initialType="consumo" outlet={{ id: outlet.id, name: outlet.name, stock: stock?.get(moving.id) ?? 0 }} onClose={() => setMoving(null)} />}
-      <div className="card">
-        {rows.length === 0 ? (
+      {rows.length === 0 ? (
+        <div className="card">
           <EmptyState icon={<Store size={40} />} title={q ? 'Sin resultados' : 'Este punto todavía no tiene productos'}>{q ? undefined : 'Elegí qué familias maneja en “Familias del punto”, o mandale mercadería por remito.'}</EmptyState>
-        ) : (
-          <div className="list">
-            {rows.map(({ p, qty }, i) => (
-              <Fragment key={p.id}>
-              {(i === 0 || rows[i - 1].p.categoryId !== p.categoryId) && <div className="list-group-title">{lk.category(p.categoryId) || 'Sin familia'}</div>}
-              <div className="list-item">
-                <div className="grow">
-                  <div className="list-title truncate">{p.name}</div>
-                  <div className="list-sub">
-                    {alertOf.get(p.id) && <span className={`badge ${alertOf.get(p.id)!.level === 'out' ? 'badge-error' : 'badge-warn'}`}>{alertOf.get(p.id)!.level === 'out' ? 'Sin stock' : 'Bajo'}</span>}
-                    {outlet?.minStock?.[p.id] ? <> mín {fmtNumber(outlet.minStock[p.id])}{alertOf.get(p.id) ? ` · faltan ${fmtNumber(alertOf.get(p.id)!.missing)}` : ''}</> : null}
-                    {p.sku && <>{outlet?.minStock?.[p.id] ? ' · ' : ''}Cód. {p.sku}</>}
+        </div>
+      ) : (
+        <GroupBar mode={g.mode} groups={g.groups} group={activeGroup} total={rows.length} onMode={g.setMode} onGroup={g.setGroup}>
+          <div className="product-cards">
+            {grouped.map(({ p, qty }) => {
+              const unit = lk.unit(p.unitId);
+              const min = outlet?.minStock?.[p.id] ?? 0;
+              const a = alertOf.get(p.id);
+              // Mismo semáforo que el Depósito Central, con el mínimo del punto.
+              const s: StockStatus = qty <= 0 ? 'sin_stock' : a ? 'bajo' : 'normal';
+              const u = usage.get(p.id);
+              const soon = !!u?.perDay && qty > 0 && (u.daysLeft ?? Infinity) <= SOON_DAYS;
+              const pct = min > 0 ? Math.min(100, (Math.max(0, qty) / (min * 2)) * 100) : undefined;
+              return (
+                <article key={p.id} className={`card pcard s-${s}${qty < 0 ? ' is-neg' : ''}`} aria-label={p.name}>
+                  <div className="pcard-top">
+                    <span className="pcard-dot" aria-hidden />
+                    <div className="grow">
+                      <h3 className="truncate">{p.name}</h3>
+                      <div className="pcard-meta">
+                        {p.categoryId && <span className="row" style={{ gap: 4 }}><Tags size={13} aria-hidden />{lk.category(p.categoryId)}</span>}
+                        <span className="row" style={{ gap: 4 }}><Store size={13} aria-hidden />{outlet?.name}</span>
+                        {p.sku && <span className="pcard-extra">{p.sku}</span>}
+                      </div>
+                    </div>
+                    <div className="pcard-qty"><strong>{fmtNumber(qty)}</strong><span>{unit}</span></div>
                   </div>
-                </div>
-                {editMins && outlet && (
-                  <NumberInput aria-label={`Mínimo de ${p.name} en ${outlet.name}`} placeholder="Mín." min={0} style={{ width: 80 }}
-                    value={p.id in draft ? draft[p.id] : outlet.minStock?.[p.id]} onChange={(v) => setDraft((d) => ({ ...d, [p.id]: v }))} onBlur={(e) => saveMin(p.id, e.currentTarget.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} />
-                )}
-                <strong className={`num ${qty < 0 ? 'neg' : ''}`}>{fmtNumber(qty)} {lk.unit(p.unitId)}</strong>
-                {can('stock.move') && outlet && !editMins && (
-                  <button type="button" className="btn btn-sm btn-ghost icon-btn" aria-label={`Registrar movimiento de ${p.name} en ${outlet.name}`} title="Registrar movimiento" onClick={() => setMoving(p)}><ArrowLeftRight size={16} aria-hidden /></button>
-                )}
-              </div>
-              </Fragment>
-            ))}
+                  <div className="row between pcard-status">
+                    {qty < 0 ? <span className="badge badge-sin_stock"><span className="dot" aria-hidden />En negativo</span> : <StatusBadge status={s} />}
+                    <div className="small muted num">{min > 0 ? <>mín {fmtNumber(min)}{a ? ` · faltan ${fmtNumber(a.missing)}` : ''}</> : 'sin mínimo'}</div>
+                  </div>
+                  {pct !== undefined && <div className="bar" aria-hidden><i style={{ width: `${pct}%` }} /></div>}
+                  {u?.perDay ? (
+                    <div className={`small pcard-usage${soon ? ' is-soon' : ''}`}>
+                      <Hourglass size={13} aria-hidden /> Usás {fmtNumber(u.perDay)} {unit}/día · alcanza {daysLabel(u.daysLeft)}
+                    </div>
+                  ) : null}
+                  {editMins && outlet ? (
+                    <label className="row pcard-actions" style={{ gap: 8 }}>
+                      <span className="small muted grow">Mínimo en {outlet.name}</span>
+                      <NumberInput aria-label={`Mínimo de ${p.name} en ${outlet.name}`} placeholder="Mín." min={0} style={{ width: 96 }}
+                        value={p.id in draft ? draft[p.id] : outlet.minStock?.[p.id]} onChange={(v) => setDraft((d) => ({ ...d, [p.id]: v }))} onBlur={(e) => saveMin(p.id, e.currentTarget.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} />
+                    </label>
+                  ) : (
+                    <div className="row pcard-actions">
+                      {can('stock.move') && outlet && <button type="button" className="btn btn-sm grow" aria-label={`Registrar movimiento de ${p.name} en ${outlet.name}`} onClick={() => setMoving(p)}><ArrowLeftRight size={16} aria-hidden /><span className="btn-label">Registrar movimiento</span></button>}
+                      {can('catalog.manage') && <Link className="btn btn-sm btn-ghost" to={`/productos?editar=${p.id}`} aria-label={`Editar ${p.name}`}><Pencil size={16} aria-hidden /><span className="btn-label">Editar</span></Link>}
+                    </div>
+                  )}
+                </article>
+              );
+            })}
           </div>
-        )}
-      </div>
+        </GroupBar>
+      )}
     </>
   );
 }
