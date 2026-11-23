@@ -17,7 +17,7 @@ test('Stock: elegir un punto muestra lo que recibió, separado por familia', asy
   });
   await page.reload();
   await go(page, '/stock');
-  await page.getByRole('button', { name: 'Confitería' }).click();
+  await page.getByRole('group', { name: 'Dónde', exact: true }).getByRole('button', { name: 'Confitería' }).click();
   await expect(page.getByText('Stock en Confitería', { exact: true })).toBeVisible();
   await expect(page.locator('.group-chip', { hasText: 'Bebidas' })).toBeVisible();
   await expect(page.getByRole('article', { name: 'Agua mineral 500 ml' })).toContainText('6');
@@ -51,7 +51,7 @@ test('Stock: elegir un punto muestra lo que recibió, separado por familia', asy
   await expect(page.getByText('Gaseosa cola 1,5 L').first()).toBeVisible();
   // Volver a tocar no arma otro conteo: sigue el que está abierto.
   await go(page, '/stock');
-  await page.getByRole('button', { name: /^Confitería/ }).click();
+  await page.getByRole('group', { name: 'Dónde', exact: true }).getByRole('button', { name: /^Confitería/ }).click();
   await page.getByRole('button', { name: 'Seguir el conteo abierto' }).click();
   await expect(page).toHaveURL(countUrl);
   await go(page, '/stock');
@@ -78,7 +78,7 @@ test('en un punto se registran movimientos con su propio stock (sin tocar el Dep
   await loadDemo(page);
   await confiWithWater(page);
   await go(page, '/stock');
-  await page.getByRole('button', { name: 'Confitería' }).click();
+  await page.getByRole('group', { name: 'Dónde', exact: true }).getByRole('button', { name: 'Confitería' }).click();
   await page.getByRole('button', { name: 'Registrar movimiento de Agua mineral 500 ml en Confitería' }).click();
   const d = dialog(page);
   await expect(d.getByRole('heading', { name: 'Movimiento en Confitería · Agua mineral 500 ml' })).toBeVisible();

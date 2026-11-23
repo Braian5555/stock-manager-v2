@@ -15,6 +15,7 @@ import { ScanButton } from '../components/scanner/ScanButton';
 import { GroupBar, useProductGroups } from '../components/GroupBar';
 import { EmptyState, PageHeader, SearchInput, Segmented, Select, StatusBadge } from '../components/ui';
 import { OutletStockPanel } from '../components/transfers/OutletStockPanel';
+import { TotalStockPanel } from '../components/transfers/TotalStockPanel';
 import { MovementModal } from '../components/MovementModal';
 import { fmtNumber, matches, normalize } from '../utils/format';
 import { useIncremental } from '../hooks/useIncremental';
@@ -45,11 +46,16 @@ export function StockPage() {
   const mineIds = !can('admin') && user?.outletIds?.length ? new Set(user.outletIds) : null;
   const shownOutlets = mineIds ? outlets.filter((o) => mineIds.has(o.id)) : outlets;
   const asked = params.get('punto');
+  // Con puntos, se abre en el stock TOTAL (depósito + puntos). Los enlaces con filtros o búsqueda
+  // (alertas del Inicio, "para reponer", una familia) siguen abriendo el Depósito Central.
+  const fromLink = ['q', 'estado', 'familia', 'ubicacion', 'proveedor'].some((k) => params.has(k));
+  const canTotal = !mineIds && shownOutlets.length > 0;
+  const total = canTotal && (asked === 'total' || (!asked && !fromLink));
   const punto = shownOutlets.some((o) => o.id === asked) ? asked! : mineIds ? shownOutlets[0]?.id ?? '' : '';
+  const place = total ? 'total' : punto || 'central';
   const setPunto = (id: string) => {
     const next = new URLSearchParams(params);
-    if (id) next.set('punto', id);
-    else next.delete('punto');
+    next.set('punto', id || 'central');
     setParams(next, { replace: true });
   };
   // ?q= viene de los links del Inicio (p. ej. un producto para reponer).
@@ -118,16 +124,16 @@ export function StockPage() {
     <>
       <PageHeader
         title={menuLabel(settings, 'stock')}
-        subtitle={punto ? `Stock en ${outlets.find((o) => o.id === punto)?.name ?? 'el punto'}` : `${rows.length} productos`}
+        subtitle={total ? 'Stock total: Depósito Central + puntos' : punto ? `Stock en ${outlets.find((o) => o.id === punto)?.name ?? 'el punto'}` : canTotal ? `Depósito Central · ${rows.length} productos` : `${rows.length} productos`}
         actions={<><ScanButton /><Link to="/stock/consumo" className="btn"><TrendingDown size={18} aria-hidden /> Consumo</Link>{outlets.length > 0 && can('transfers') && <Link to={punto ? `/remitos/nuevo?punto=${punto}` : '/remitos/nuevo'} className="btn"><Forklift size={18} aria-hidden /> {punto ? `Enviar a ${outlets.find((o) => o.id === punto)?.name ?? 'el punto'}` : 'Enviar a un punto'}</Link>}{can('catalog.manage') && <Link to="/productos?nuevo=1" className="btn btn-primary"><Plus size={18} aria-hidden /> Producto</Link>}</>}
       />
       {shownOutlets.length > (mineIds ? 1 : 0) && (can('transfers') || can('stock.view')) && (
         <div style={{ marginBottom: 12, overflowX: 'auto' }}>
-          <Segmented<string> label="Dónde" value={punto || 'central'} onChange={(v) => setPunto(v === 'central' ? '' : v)}
-            options={[...(mineIds ? [] : [{ value: 'central', label: 'Depósito Central' }]), ...shownOutlets.map((o) => ({ value: o.id, label: missingByOutlet.get(o.id) ? `${o.name} · faltan ${missingByOutlet.get(o.id)}` : o.name }))]} />
+          <Segmented<string> label="Dónde" value={place} onChange={(v) => setPunto(v)}
+            options={[...(canTotal ? [{ value: 'total', label: 'Total' }] : []), ...(mineIds ? [] : [{ value: 'central', label: 'Depósito Central' }]), ...shownOutlets.map((o) => ({ value: o.id, label: missingByOutlet.get(o.id) ? `${o.name} · faltan ${missingByOutlet.get(o.id)}` : o.name }))]} />
         </div>
       )}
-      {mineIds && !punto ? <p className="muted">Los puntos donde trabajás no están activos. Pedile a un administrador que lo revise en Usuarios.</p> : punto ? <OutletStockPanel key={punto} outletId={punto} /> : (<>
+      {mineIds && !punto ? <p className="muted">Los puntos donde trabajás no están activos. Pedile a un administrador que lo revise en Usuarios.</p> : total ? <TotalStockPanel outlets={shownOutlets} onPlace={setPunto} /> : punto ? <OutletStockPanel key={punto} outletId={punto} /> : (<>
       <div className="toolbar">
         <SearchInput value={q} onChange={setQ} placeholder="Buscar producto o código" label="Buscar productos" />
         <button type="button" className="btn filters-toggle" aria-expanded={showFilters} aria-controls="stock-filters" onClick={() => setShowFilters((v) => !v)}>

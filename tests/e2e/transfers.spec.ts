@@ -40,8 +40,20 @@ test('enviar a un punto: sale del Depósito Central, se suma al punto, no se man
   await expect(dialog(page).getByRole('heading', { name: 'Remito R-0001' })).toBeVisible();
   await dialog(page).getByRole('button', { name: 'Cerrar' }).click();
 
-  // Depósito: 25 - 10 = 15 kg de harina
+  // Stock total (lo primero que se ve): 15 en el depósito + 10 en el punto = 25 kg de harina.
   await go(page, '/stock');
+  await expect(page.getByRole('button', { name: 'Total', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await page.getByLabel('Buscar en el stock total').fill('Harina');
+  const harina = page.getByRole('article', { name: 'Harina 000' });
+  await expect(harina.locator('.pcard-qty strong')).toHaveText('25');
+  await expect(harina.getByRole('button', { name: 'Depósito: 15 kg' })).toBeVisible();
+  await page.screenshot({ path: 'test-results/stock-total.png' });
+  // Tocar un lugar abre su detalle.
+  await harina.getByRole('button', { name: 'Parador: 10 kg' }).click();
+  await expect(page.getByText('Stock en Parador', { exact: true })).toBeVisible();
+
+  // Depósito: 25 - 10 = 15 kg de harina
+  await page.getByRole('button', { name: 'Depósito Central' }).click();
   await page.getByRole('searchbox').first().fill('Harina');
   await expect(page.getByText(/15\s*kg/).first()).toBeVisible();
 
