@@ -490,10 +490,11 @@
   .plan-ws-what.muted { font-size: 0.85rem; }
 }
 
-/* Stock total: cuánto hay en cada lugar (Depósito y puntos), tocable para ir a ese lugar. */
+/* Stock por lugar: cuánto hay en cada lugar (Depósito y puntos), sin sumar; tocable para ir a ese lugar. */
 .pcard-places { display: flex; flex-wrap: wrap; gap: 6px; grid-column: 1 / -1; }
 .pcard-place { display: inline-flex; align-items: baseline; gap: 6px; padding: 4px 10px; min-height: 32px; border-radius: 999px; border: 1px solid var(--border, rgba(0,0,0,.15)); background: var(--surface-2, transparent); color: var(--text-2); font: inherit; font-size: 0.82rem; cursor: pointer; }
-.pcard-place b { color: var(--text); font-weight: 700; }
+.pcard-place b { color: var(--text); font-weight: 700; font-size: 1rem; }
+.pcard-place small { color: var(--text-3); font-size: 0.75rem; }
 .pcard-place:hover { border-color: var(--text-2); }
 .pcard-place.is-zero b { color: var(--text-3); }
 .pcard-place.is-low { border-color: var(--low); }
