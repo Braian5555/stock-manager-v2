@@ -1,6 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks';
-import { BellRing, Clock, Map as MapIcon, Pencil, Plus, Receipt, Search, Trash2, UtensilsCrossed } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { BellRing, Clock, Map as MapIcon, Pencil, Plus, Receipt, Search, Trash2, UtensilsCrossed, Volume2, VolumeX } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { db } from '../database/db';
 import { EMPTY, useLookups, useProducts } from '../hooks/useData';
@@ -12,7 +12,8 @@ import { minutesSince, sinceLabel, useNow } from '../hooks/useNow';
 import { useToday, startOfDayIso } from '../hooks/useToday';
 import type { DiningTable, FiscalDoc, IvaRate, MenuExtra, MenuItem, Recipe, Station, TableTicket } from '../models';
 import { CBTE_NAME, IVA_RATES, PAYMENT_LABEL, docNumber, fiscalOf } from '../services/fiscalService';
-import { KITCHEN_WARN_MIN, addNumberedTables, channelOf, discountAmount, openTicket, retireTable, saveMenuItem, saveTable, ticketLabel, waitingSince } from '../services/salonService';
+import { KITCHEN_WARN_MIN, addNumberedTables, channelOf, discountAmount, openExtraTicket, openTicket, retireTable, saveMenuItem, saveTable, ticketLabel, waitingSince } from '../services/salonService';
+import { newIds, playAlert, readSoundPref, unlockSound, writeSoundPref } from '../utils/sound';
 import { useFeedback } from '../store/feedback';
 import { useSession } from '../store/session';
 import { Badge, EmptyState, Field, Input, NumberInput, PageHeader, Segmented, Select } from '../components/ui';
@@ -55,7 +56,7 @@ const readView = (): View => { try { return localStorage.getItem(VIEW_KEY) === '
  * descuentos, cortesías) y se cobra con división de cuenta, propina y factura ARCA.
  */
 export function SalonPage() {
-  const { can } = useSession();
+  const { can, user } = useSession();
   const [params] = useSearchParams();
   const navigate = useNavigate();
   const v = params.get('vista');
@@ -68,7 +69,14 @@ export function SalonPage() {
   const [charging, setCharging] = useState<TableTicket | null>(null);
   const tableTickets = open.filter((t) => channelOf(t) === 'mesa');
   const counter = open.filter((t) => channelOf(t) !== 'mesa');
-  const byTable = useMemo(() => new Map(tableTickets.map((t) => [t.tableId, t])), [tableTickets]);
+  // Una mesa puede tener varias cuentas (una por comensal): el plano muestra la mesa con todo junto.
+  const byTableAll = useMemo(() => {
+    const m = new Map<string, TableTicket[]>();
+    for (const t of [...tableTickets].sort((a, b) => a.openedAt.localeCompare(b.openedAt))) m.set(t.tableId, [...(m.get(t.tableId) ?? []), t]);
+    return m;
+  }, [tableTickets]);
+  const byTable = useMemo(() => new Map([...byTableAll].map(([id, ts]) => [id, mergeTable(ts)])), [byTableAll]);
+  const sound = useReadyAlert(open, user?.id);
   const openTotal = open.reduce((s, t) => s + t.total, 0);
   const billing = can('billing') || can('admin');
 
@@ -79,14 +87,14 @@ export function SalonPage() {
     <div className="salon">
       <PageHeader title={TITLE[tab].title} subtitle={subtitle} />
       <CloudRulesNote />
-      {tab === 'mesas' && <TablesBoard tables={tables} byTable={byTable} onOpen={setSheet} onGoMenu={() => setTab('carta')} />}
+      {tab === 'mesas' && <TablesBoard tables={tables} byTable={byTable} byTableAll={byTableAll} open={tableTickets} me={user?.id} sound={sound} onOpen={setSheet} onGoMenu={() => setTab('carta')} />}
       {tab === 'mostrador' && <CounterTab open={counter} onOpen={setSheet} />}
       {tab === 'caja' && (billing ? <CashTab /> : <div className="card card-pad"><p className="muted" style={{ margin: 0 }}>La caja la manejan quienes tienen permiso para cobrar.</p></div>)}
       {tab === 'cuentas' && (billing ? <AccountsTab /> : <div className="card card-pad"><p className="muted" style={{ margin: 0 }}>Las cuentas corrientes las manejan quienes tienen permiso para cobrar.</p></div>)}
       {tab === 'carta' && <MenuTab />}
       {tab === 'hoy' && <TodayTab />}
       {tab === 'reportes' && (billing ? <SalesReports /> : <div className="card card-pad"><p className="muted" style={{ margin: 0 }}>Los reportes los ven quienes tienen permiso para cobrar.</p></div>)}
-      {sheet && <TicketSheet ticketId={sheet} onClose={() => setSheet(null)} onCharge={(t) => { setSheet(null); setCharging(t); }} tables={tables} busy={new Set(byTable.keys())} />}
+      {sheet && <TicketSheet ticketId={sheet} onClose={() => setSheet(null)} onCharge={(t) => { setSheet(null); setCharging(t); }} onSwitch={setSheet} tables={tables} busy={new Set(byTable.keys())} />}
       {charging && <ChargeModal ticket={charging} onClose={(closed) => { const t = charging; setCharging(null); if (!closed) setSheet(t.id); }} />}
     </div>
   );
@@ -94,8 +102,47 @@ export function SalonPage() {
 
 // ───────────────────────── Mesas ─────────────────────────
 
-function TablesBoard({ tables, byTable, onOpen, onGoMenu }: { tables: DiningTable[]; byTable: Map<string, TableTicket>; onOpen: (id: string) => void; onGoMenu: () => void }) {
+/** Las cuentas de una mesa vistas como una sola (para el plano: estado, total y demora de la mesa). */
+function mergeTable(ts: TableTicket[]): TableTicket {
+  if (ts.length === 1) return ts[0];
+  return {
+    ...ts[0],
+    tag: undefined,
+    lines: ts.flatMap((t) => t.lines),
+    total: ts.reduce((s, t) => s + t.total, 0),
+    status: ts.some((t) => t.status === 'cuenta') ? 'cuenta' : 'abierta',
+  };
+}
+
+const SALON_SOUND_KEY = 'sm.salon.sound';
+
+/**
+ * Aviso al mozo: cuando cocina marca listo un plato de un pedido suyo, suena en su equipo
+ * (como el "aviso al camarero de orden lista" de Fudo). Devuelve el control del sonido.
+ */
+function useReadyAlert(open: TableTicket[], me: string | undefined) {
+  const [on, setOn] = useState(() => readSoundPref(SALON_SOUND_KEY));
+  const seen = useRef<Set<string> | null>(null);
+  useEffect(() => {
+    const ids = open.filter((t) => me && t.openedBy?.id === me).flatMap((t) => t.lines.filter((l) => l.status === 'listo' && l.qty > 0).map((l) => `${l.id}:${l.readyAt ?? ''}`));
+    const r = newIds(seen.current, ids);
+    seen.current = r.seen;
+    if (r.fresh.length && on) playAlert('listo');
+  }, [open, me, on]);
+  useEffect(() => {
+    const unlock = () => unlockSound();
+    window.addEventListener('pointerdown', unlock, { once: true });
+    return () => window.removeEventListener('pointerdown', unlock);
+  }, []);
+  return { on, set: (v: boolean) => { unlockSound(); setOn(v); writeSoundPref(SALON_SOUND_KEY, v); if (v) playAlert('listo'); } };
+}
+
+function TablesBoard({ tables, byTable, byTableAll, open, me, sound, onOpen, onGoMenu }: {
+  tables: DiningTable[]; byTable: Map<string, TableTicket>; byTableAll: Map<string, TableTicket[]>; open: TableTicket[]; me?: string;
+  sound: { on: boolean; set: (v: boolean) => void }; onOpen: (id: string) => void; onGoMenu: () => void;
+}) {
   const { run } = useFeedback();
+  const [picking, setPicking] = useState<DiningTable | null>(null);
   const now = useNow();
   const menu = useMenu();
   const [zone, setZone] = useState('');
@@ -109,14 +156,19 @@ function TablesBoard({ tables, byTable, onOpen, onGoMenu }: { tables: DiningTabl
   const floorCfg = useFloorPlan();
   const zonePlan = floorCfg.zones?.[curZone] ?? {};
   const locked = !!floorCfg.locked;
-  const ready = [...byTable.values()].filter((t) => t.lines.some((l) => l.status === 'listo' && l.qty > 0));
+  // Lo listo para llevar: primero lo de este mozo (resaltado), después lo de los demás.
+  const ready = open.filter((t) => t.lines.some((l) => l.status === 'listo' && l.qty > 0));
+  const myReady = ready.filter((t) => me && t.openedBy?.id === me);
+  const otherReady = ready.filter((t) => !myReady.includes(t));
+  const readyText = (ts: TableTicket[]) => ts.map((t) => `${ticketLabel(t).replace(/^Mesa /, 'mesa ')}${t.openedBy && t.openedBy.id !== me ? ` (${t.openedBy.name})` : ''}`).join(', ');
   const late = [...byTable.values()].map((t) => ({ t, min: Math.floor(minutesSince(waitingSince(t), now)) })).filter((x) => x.min >= KITCHEN_WARN_MIN).sort((a, b) => b.min - a.min);
 
   if (!tables.length) return <FirstTables />;
 
   const tap = async (t: DiningTable) => {
-    const current = byTable.get(t.id);
-    if (current) return onOpen(current.id);
+    const current = byTableAll.get(t.id) ?? [];
+    if (current.length === 1) return onOpen(current[0].id);
+    if (current.length > 1) return setPicking(t);
     const ticket = await run(() => openTicket(t.id));
     if (ticket) onOpen(ticket.id);
   };
@@ -129,10 +181,16 @@ function TablesBoard({ tables, byTable, onOpen, onGoMenu }: { tables: DiningTabl
           <span>Para tomar pedidos primero cargá la carta. <button type="button" className="link-btn" onClick={onGoMenu}>Ir a la carta</button></span>
         </div>
       )}
-      {ready.length > 0 && (
+      {myReady.length > 0 && (
+        <div className="salon-ready salon-ready-mine" role="status">
+          <BellRing size={18} aria-hidden />
+          <span><b>Tus mesas, listo para llevar:</b> {readyText(myReady)}</span>
+        </div>
+      )}
+      {otherReady.length > 0 && (
         <div className="salon-ready" role="status">
           <BellRing size={18} aria-hidden />
-          <span>Para llevar: {ready.map((t) => `mesa ${t.tableName}`).join(', ')}</span>
+          <span>{myReady.length ? 'También listo' : 'Para llevar'}: {readyText(otherReady)}</span>
         </div>
       )}
       {late.length > 0 && (
@@ -156,6 +214,10 @@ function TablesBoard({ tables, byTable, onOpen, onGoMenu }: { tables: DiningTabl
             <LockButton cfg={floorCfg} onLock={() => setEditing(false)} />
           </>)}
           <button type="button" className="btn btn-sm" onClick={() => setManage(true)}><Pencil size={16} aria-hidden /> Mesas</button>
+          <button type="button" className="btn btn-sm btn-ghost icon-btn" aria-pressed={sound.on} onClick={() => sound.set(!sound.on)}
+            aria-label={sound.on ? 'Aviso con sonido de tus pedidos: activado' : 'Aviso con sonido de tus pedidos: apagado'} title={sound.on ? 'Suena cuando cocina termina un pedido tuyo' : 'Sin sonido'}>
+            {sound.on ? <Volume2 size={18} /> : <VolumeX size={18} />}
+          </button>
         </div>
       </div>
 
@@ -176,6 +238,8 @@ function TablesBoard({ tables, byTable, onOpen, onGoMenu }: { tables: DiningTabl
                     <span className="salon-table-meta">
                       <span className="num">{fmtMoney(k.total)}</span>
                       <span>{sinceLabel(k.openedAt, now)}{pending ? ` · ${pending} sin mandar` : ''}</span>
+                      {(byTableAll.get(t.id)?.length ?? 0) > 1 && <span>{byTableAll.get(t.id)!.length} cuentas</span>}
+                      {k.openedBy && <span className={k.openedBy.id === me ? 'salon-waiter is-me' : 'salon-waiter'}>{k.openedBy.id === me ? 'Tu mesa' : k.openedBy.name}</span>}
                     </span>
                   ) : (
                     <span className="salon-table-meta"><span>{t.seats ? `${t.seats} lugares` : 'Tocá para abrir'}</span></span>
@@ -187,7 +251,31 @@ function TablesBoard({ tables, byTable, onOpen, onGoMenu }: { tables: DiningTabl
         </ul>
       )}
       {manage && <TablesModal onClose={() => setManage(false)} tables={tables} busy={new Set(byTable.keys())} />}
+      {picking && <AccountsPicker table={picking} tickets={byTableAll.get(picking.id) ?? []} me={me} onClose={() => setPicking(null)} onOpen={(id) => { setPicking(null); onOpen(id); }} />}
     </>
+  );
+}
+
+/** Mesa con varias cuentas: elegir cuál abrir, o sumar otra. */
+function AccountsPicker({ table, tickets, me, onClose, onOpen }: { table: DiningTable; tickets: TableTicket[]; me?: string; onClose: () => void; onOpen: (id: string) => void }) {
+  const { run } = useFeedback();
+  return (
+    <Modal open title={`Mesa ${table.name} · ${tickets.length} cuentas`} onClose={onClose}
+      footer={<button type="button" className="btn" onClick={() => void run(async () => { const t = await openExtraTicket(table.id); onOpen(t.id); }, 'Cuenta nueva')}><Plus size={16} aria-hidden /> Otra cuenta</button>}>
+      <ul className="list">
+        {tickets.map((t) => (
+          <li key={t.id}>
+            <button type="button" className="list-item salon-account" onClick={() => onOpen(t.id)} aria-label={`Abrir ${ticketLabel(t)}`}>
+              <span className="grow">
+                <span className="list-title">{t.tag ?? 'Cuenta'}</span>
+                <span className="list-sub">{t.lines.filter((l) => l.qty > 0).reduce((n, l) => n + l.qty, 0)} ítems{t.status === 'cuenta' ? ' · pidió la cuenta' : ''}{t.openedBy ? ` · ${t.openedBy.id === me ? 'tuya' : t.openedBy.name}` : ''}</span>
+              </span>
+              <b className="num">{fmtMoney(t.total)}</b>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </Modal>
   );
 }
 

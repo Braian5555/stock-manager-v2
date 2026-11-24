@@ -1,7 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Check, CheckCheck, CookingPot, Printer } from 'lucide-react';
+import { Check, CheckCheck, CookingPot, Printer, Volume2, VolumeX } from 'lucide-react';
 import { printComanda } from '../services/printService';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { db } from '../database/db';
 import { EMPTY } from '../hooks/useData';
 import { minutesSince, sinceLabel, useNow } from '../hooks/useNow';
@@ -12,22 +12,27 @@ import { useFeedback } from '../store/feedback';
 import { EmptyState, PageHeader, Segmented } from '../components/ui';
 import { CloudRulesNote } from '../components/salon/CloudRulesNote';
 import { inLocal, useLocalScope } from '../services/localScope';
+import { newIds, playAlert, readSoundPref, unlockSound, writeSoundPref } from '../utils/sound';
 
 const WARN_MIN = KITCHEN_WARN_MIN;
 const LATE_MIN = KITCHEN_LATE_MIN;
 type Filter = Station | 'todo';
 const STATION_KEY = 'sm.kitchen.station';
+const SOUND_KEY = 'sm.kitchen.sound';
 const readStation = (): Filter => { try { const v = localStorage.getItem(STATION_KEY); return v === 'cocina' || v === 'barra' ? v : 'todo'; } catch { return 'todo'; } };
 
 /**
  * Cocina: las comandas que mandan los mozos, de la más vieja a la más nueva.
  * Tocá un plato cuando está listo (o "Todo listo"); el mozo lo ve en el salón.
+ * Cada comanda nueva suena (como el monitor de cocina de Fudo); el sonido se apaga desde el botón.
  */
 export function KitchenPage() {
   const { run } = useFeedback();
   const now = useNow(20_000);
   const lid = useLocalScope().current?.id;
-  const open = (useLiveQuery(() => db.tickets.where('status').anyOf('abierta', 'cuenta').filter(inLocal).toArray(), [lid]) ?? EMPTY) as TableTicket[];
+  const openRaw = useLiveQuery(() => db.tickets.where('status').anyOf('abierta', 'cuenta').filter(inLocal).toArray(), [lid]);
+  const open = (openRaw ?? EMPTY) as TableTicket[];
+  const loaded = openRaw !== undefined;
   // Barra: si hay platos que se preparan en la barra, cada puesto puede ver sólo lo suyo (se recuerda en este equipo).
   const hasBar = useMenu().some((m) => m.kitchen && m.station === 'barra') || open.some((t) => t.lines.some((l) => l.station === 'barra' && l.status === 'cocina'));
   const [stationState, setStationState] = useState<Filter>(readStation);
@@ -40,12 +45,32 @@ export function KitchenPage() {
     })
     .filter((c) => c.lines.length)
     .sort((a, b) => (a.since ?? '').localeCompare(b.since ?? '')), [open, station]);
+  // Sonido: suena cuando llega un plato nuevo a este puesto (no con lo que ya estaba al abrir la pantalla).
+  const [sound, setSoundState] = useState(() => readSoundPref(SOUND_KEY));
+  const setSound = (on: boolean) => { unlockSound(); setSoundState(on); writeSoundPref(SOUND_KEY, on); if (on) playAlert('comanda'); };
+  const seen = useRef<Set<string> | null>(null);
+  useEffect(() => {
+    if (!loaded) return;
+    const ids = cards.flatMap((c) => c.lines.filter((l) => l.qty > 0).map((l) => l.id));
+    const r = newIds(seen.current, ids);
+    seen.current = r.seen;
+    if (r.fresh.length && sound) playAlert('comanda');
+  }, [cards, sound, loaded]);
+  useEffect(() => {
+    // Los navegadores no dejan sonar hasta el primer toque: cualquier toque en la pantalla lo habilita.
+    const on = () => unlockSound();
+    window.addEventListener('pointerdown', on, { once: true });
+    return () => window.removeEventListener('pointerdown', on);
+  }, []);
   const title = station === 'todo' ? (hasBar ? 'Cocina y barra' : 'Cocina') : STATION_LABEL[station];
   const dishes = cards.reduce((s, c) => s + c.lines.reduce((x, l) => x + l.qty, 0), 0);
 
   return (
     <div className="kitchen">
-      <PageHeader title={title} subtitle={cards.length ? `${cards.length} ${cards.length === 1 ? 'comanda' : 'comandas'} · ${dishes} ${dishes === 1 ? 'plato' : 'platos'} por hacer` : 'Las comandas de los mozos aparecen acá.'} />
+      <PageHeader title={title} subtitle={cards.length ? `${cards.length} ${cards.length === 1 ? 'comanda' : 'comandas'} · ${dishes} ${dishes === 1 ? 'plato' : 'platos'} por hacer` : 'Las comandas de los mozos aparecen acá.'}
+        actions={<button type="button" className={`btn${sound ? '' : ' btn-ghost'}`} aria-pressed={sound} onClick={() => setSound(!sound)}>
+          {sound ? <Volume2 size={18} aria-hidden /> : <VolumeX size={18} aria-hidden />} {sound ? 'Sonido activado' : 'Sin sonido'}
+        </button>} />
       {hasBar && <div style={{ marginBottom: 12 }}><Segmented<Filter> label="Puesto" value={station} onChange={setStation} options={[{ value: 'todo', label: 'Todo' }, { value: 'cocina', label: 'Cocina' }, { value: 'barra', label: 'Barra' }]} /></div>}
       <CloudRulesNote />
       {cards.length === 0 ? (
@@ -62,7 +87,7 @@ export function KitchenPage() {
                   <span className="kitchen-time num">{sinceLabel(since, now)}</span>
                   <button type="button" className="kitchen-print" aria-label={`Imprimir comanda: ${ticketLabel(t)}`} onClick={() => void run(() => printComanda(t, lines))}><Printer size={18} aria-hidden /></button>
                 </header>
-                <p className="kitchen-meta">#{t.number}{t.guests ? ` · ${t.guests} comensales` : ''}{t.openedBy ? ` · ${t.openedBy.name}` : ''}</p>
+                <p className="kitchen-meta">#{t.number}{t.guests ? ` · ${t.guests} comensales` : ''}{t.openedBy ? ` · Mozo: ${t.openedBy.name}` : ''}</p>
                 <ul className="kitchen-lines">
                   {lines.map((l) => (
                     <li key={l.id}>

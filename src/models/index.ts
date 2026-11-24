@@ -688,8 +688,11 @@ export interface TableTicket extends BaseEntity {
   tableName: string;
   number: number;
   openedAt: ISODate;
+  /** Mozo a cargo del pedido (al abrirlo, quien lo abrió; se puede cambiar). */
   openedBy?: { id: string; name: string };
   guests?: number;
+  /** Nombre de la cuenta cuando una mesa tiene varias (p. ej. "Cuenta 2" o el nombre del comensal). */
+  tag?: string;
   status: TicketStatus;
   lines: TicketLine[];
   closedAt?: ISODate;

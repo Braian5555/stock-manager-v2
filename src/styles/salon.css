@@ -499,3 +499,17 @@
 .pcard-place.is-low { border-color: var(--low); }
 .pcard-place.is-low b { color: var(--low); }
 .pcard .pcard-usage { grid-column: 1 / -1; }
+
+/* Mozo a cargo, varias cuentas por mesa y autorización con PIN (como Fudo). */
+fieldset.salon-sheet, fieldset.salon-foot, fieldset.salon-sheet-more { border: 0; padding: 0; margin-inline: 0; min-width: 0; }
+fieldset.salon-sheet-more { display: flex; flex-wrap: wrap; align-items: center; }
+fieldset[disabled] .salon-line, fieldset[disabled] .salon-foot-actions { opacity: 0.75; }
+.salon-ready-mine { background: var(--primary); color: var(--primary-ink); }
+.salon-ready-mine span, .salon-ready-mine b { color: var(--primary-ink); }
+.salon-waiter { font-size: 0.78rem; color: var(--text-2); }
+.salon-waiter.is-me { color: var(--ok); font-weight: 700; }
+.salon-locked { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+.salon-accounts { margin-bottom: 10px; }
+.salon-account { width: 100%; display: flex; align-items: center; gap: 12px; border: 0; background: none; font: inherit; color: inherit; text-align: left; cursor: pointer; min-height: 52px; }
+.salon-account .list-title, .salon-account .list-sub { display: block; }
+.salon-move .btn[aria-pressed='true'] { border-color: var(--primary); font-weight: 700; }

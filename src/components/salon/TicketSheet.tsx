@@ -1,21 +1,23 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
-  ArrowRightLeft, Ban, BellRing, Check, ChefHat, CircleDollarSign, Gift, Minus, Pencil, Percent, Plus, Printer, Receipt, Search, Send, Star, UserRound, Users,
+  ArrowRightLeft, Ban, BellRing, Check, ChefHat, CircleDollarSign, Gift, KeyRound, Lock, Minus, Pencil, Percent, Plus, Printer, Receipt, Search, Send, Star, Tag, UserRound, Users,
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { db } from '../../database/db';
 import { DESKTOP_QUERY, useMediaQuery } from '../../hooks/useMediaQuery';
 import { sinceLabel, useNow } from '../../hooks/useNow';
-import type { DiningTable, MenuExtra, MenuItem, TableTicket, TicketDiscount, TicketLine } from '../../models';
+import type { AppUser, DiningTable, MenuExtra, MenuItem, TableTicket, TicketDiscount, TicketLine } from '../../models';
 import { precuentaHtml, printComanda as printComandaFor, printHtml, ticketBusiness } from '../../services/printService';
 import {
-  addCustomLine, addLine, cancelTicket, channelOf, chargedAmount, discountAmount, isOpen, markDelivered, moveTicket, paidQty, remainingAmount, requestBill, sendToKitchen,
-  setComp, setDiscount, ticketLabel, updateCustomer, updateLine, voidLine,
+  addCustomLine, addLine, cancelTicket, channelOf, chargedAmount, discountAmount, isOpen, markDelivered, moveTicket, needsWaiterPin, openExtraTicket, paidQty, remainingAmount, requestBill, sendToKitchen,
+  setComp, setDiscount, setTicketTag, setWaiter, ticketLabel, updateCustomer, updateLine, voidLine,
 } from '../../services/salonService';
+import { effectivePermissions, verifyPin } from '../../services/userService';
+import { useSession } from '../../store/session';
 import { useFeedback } from '../../store/feedback';
 import { useSettings } from '../../store/settings';
 import { fmtMoney, fmtTime, matches } from '../../utils/format';
-import { Field, Input, NumberInput, Segmented } from '../ui';
+import { Field, Input, NumberInput, Segmented, Select } from '../ui';
 import { Modal } from '../ui/Modal';
 import { useMenu, useTopItems } from './hooks';
 
@@ -23,8 +25,11 @@ const LINE_LABEL: Record<TicketLine['status'], string> = { nuevo: 'Sin mandar', 
 const LINE_ORDER: TicketLine['status'][] = ['nuevo', 'listo', 'cocina', 'entregado'];
 
 /** El pedido abierto (mesa, mostrador, para llevar o delivery): carta, comanda, descuentos y cobro. */
-export function TicketSheet({ ticketId, onClose, onCharge, tables, busy }: { ticketId: string; onClose: () => void; onCharge: (t: TableTicket) => void; tables: DiningTable[]; busy: Set<string> }) {
+export function TicketSheet({ ticketId, onClose, onCharge, onSwitch, tables, busy }: {
+  ticketId: string; onClose: () => void; onCharge: (t: TableTicket) => void; onSwitch?: (id: string) => void; tables: DiningTable[]; busy: Set<string>;
+}) {
   const settings = useSettings();
+  const { user, users, can } = useSession();
   const { run, confirm, notify } = useFeedback();
   const desktop = useMediaQuery(DESKTOP_QUERY);
   const now = useNow();
@@ -36,6 +41,17 @@ export function TicketSheet({ ticketId, onClose, onCharge, tables, busy }: { tic
   const [discountOpen, setDiscountOpen] = useState(false);
   const [customOpen, setCustomOpen] = useState(false);
   const [customerOpen, setCustomerOpen] = useState(false);
+  const [tagOpen, setTagOpen] = useState(false);
+  const [waiterOpen, setWaiterOpen] = useState(false);
+  const [pinOpen, setPinOpen] = useState(false);
+  // Autorización con PIN para tocar la mesa de otro mozo: vale mientras esta hoja esté abierta.
+  const [authorized, setAuthorized] = useState<string | null>(null);
+  // Las otras cuentas abiertas de la misma mesa (para pasar de una a otra).
+  const siblings = (useLiveQuery(async () => {
+    const t = await db.tickets.get(ticketId);
+    if (!t || (t.channel ?? 'mesa') !== 'mesa') return [];
+    return (await db.tickets.where('tableId').equals(t.tableId).filter(isOpen).toArray()).sort((a, b) => a.openedAt.localeCompare(b.openedAt));
+  }, [ticketId]) ?? []) as TableTicket[];
 
   if (ticket === undefined) return null;
   if (!ticket || !isOpen(ticket)) {
@@ -47,6 +63,7 @@ export function TicketSheet({ ticketId, onClose, onCharge, tables, busy }: { tic
   }
   const label = ticketLabel(ticket);
   const isTable = channelOf(ticket) === 'mesa';
+  const locked = needsWaiterPin(ticket, user, can('billing') || can('admin')) && authorized !== ticket.id;
   const lines = ticket.lines;
   const live = lines.filter((l) => l.qty > 0);
   const unsent = lines.filter((l) => l.status === 'nuevo');
@@ -131,7 +148,7 @@ export function TicketSheet({ ticketId, onClose, onCharge, tables, busy }: { tic
   );
 
   const footer = (
-    <div className="salon-foot">
+    <fieldset className="salon-foot" disabled={locked}>
       <div className="salon-total"><span>{charged > 0 ? 'Falta cobrar' : 'Total'}</span><b className="num">{fmtMoney(charged > 0 ? remaining : ticket.total)}</b></div>
       <div className="salon-foot-actions">
         <button type="button" className="btn btn-primary" disabled={!unsent.length} onClick={send}><Send size={18} aria-hidden /> Mandar a cocina{unsent.length ? ` (${unsent.reduce((s, l) => s + l.qty, 0)})` : ''}</button>
@@ -139,15 +156,34 @@ export function TicketSheet({ ticketId, onClose, onCharge, tables, busy }: { tic
           ? <button type="button" className="btn" disabled={!live.length} onClick={() => void run(() => requestBill(ticket.id), 'Cuenta pedida')}><Receipt size={18} aria-hidden /> Pidió la cuenta</button>
           : <button type="button" className="btn" disabled={!live.length} onClick={charge}><CircleDollarSign size={18} aria-hidden /> {charged > 0 ? 'Seguir cobrando' : 'Cobrar'}</button>}
       </div>
-    </div>
+    </fieldset>
   );
 
   return (
     <Modal open wide title={label} onClose={onClose} footer={footer}>
+      {siblings.length > 1 && onSwitch && (
+        <div className="group-chips salon-accounts" role="group" aria-label={`Cuentas de la mesa ${ticket.tableName}`}>
+          {siblings.map((t) => (
+            <button key={t.id} type="button" className="group-chip" aria-pressed={t.id === ticket.id} onClick={() => t.id !== ticket.id && onSwitch(t.id)}>
+              {t.tag ?? 'Cuenta'} · <span className="num">{fmtMoney(t.total)}</span>
+            </button>
+          ))}
+        </div>
+      )}
+      {locked && (
+        <div className="alert alert-warn salon-locked" role="note">
+          <Lock size={18} aria-hidden />
+          <span className="grow">Esta mesa es de <b>{ticket.openedBy?.name}</b>. Para tocarla pedí su PIN o el de un encargado.</span>
+          <button type="button" className="btn btn-sm" onClick={() => setPinOpen(true)}><KeyRound size={16} aria-hidden /> Autorizar</button>
+        </div>
+      )}
       <div className="salon-sheet-meta">
-        <span>Pedido #{ticket.number} · {isTable ? 'abierta' : 'tomado'} {fmtTime(ticket.openedAt)} ({sinceLabel(ticket.openedAt, now)}){ticket.openedBy ? ` · ${ticket.openedBy.name}` : ''}</span>
-        {isTable ? <GuestsInput ticket={ticket} /> : (
-          <button type="button" className="btn btn-sm btn-ghost" onClick={() => setCustomerOpen(true)}>
+        <span>Pedido #{ticket.number} · {isTable ? 'abierta' : 'tomado'} {fmtTime(ticket.openedAt)} ({sinceLabel(ticket.openedAt, now)})</span>
+        <button type="button" className="btn btn-sm btn-ghost" disabled={locked} onClick={() => setWaiterOpen(true)} aria-label={`Mozo: ${ticket.openedBy?.name ?? 'sin asignar'}. Cambiar mozo`}>
+          <UserRound size={16} aria-hidden /> Mozo: {ticket.openedBy ? (ticket.openedBy.id === user?.id ? `${ticket.openedBy.name} (vos)` : ticket.openedBy.name) : 'sin asignar'}
+        </button>
+        {isTable ? <GuestsInput ticket={ticket} disabled={locked} /> : (
+          <button type="button" className="btn btn-sm btn-ghost" disabled={locked} onClick={() => setCustomerOpen(true)}>
             <UserRound size={16} aria-hidden /> {ticket.customer?.name || ticket.customer?.phone || 'Datos del cliente'}
           </button>
         )}
@@ -158,11 +194,13 @@ export function TicketSheet({ ticketId, onClose, onCharge, tables, busy }: { tic
         <Segmented<'carta' | 'pedido'> label="Ver" value={view} onChange={setView}
           options={[{ value: 'carta', label: 'Agregar' }, { value: 'pedido', label: `Pedido (${live.reduce((s, l) => s + l.qty, 0)})` }]} />
       )}
-      <div className="salon-sheet">
-        {(desktop || view === 'carta') && <MenuPicker onPick={pick} />}
-        {(desktop || view === 'pedido') && order}
-      </div>
-      <div className="row wrap salon-sheet-more">
+      <fieldset className="salon-sheet" disabled={locked}>
+        {(desktop || view === 'carta') && !locked && <MenuPicker onPick={pick} />}
+        {(desktop || view === 'pedido' || locked) && order}
+      </fieldset>
+      <fieldset className="row wrap salon-sheet-more" disabled={locked}>
+        {isTable && onSwitch && <button type="button" className="btn btn-sm btn-ghost" onClick={() => void run(async () => { const t = await openExtraTicket(ticket.tableId); onSwitch(t.id); }, 'Cuenta nueva en la mesa')}><Users size={16} aria-hidden /> Otra cuenta en la mesa</button>}
+        {isTable && <button type="button" className="btn btn-sm btn-ghost" onClick={() => setTagOpen(true)}><Tag size={16} aria-hidden /> {ticket.tag ? 'Nombre de la cuenta' : 'Ponerle nombre'}</button>}
         {isTable && <button type="button" className="btn btn-sm btn-ghost" onClick={() => setMoving(true)}><ArrowRightLeft size={16} aria-hidden /> Cambiar de mesa</button>}
         <button type="button" className="btn btn-sm btn-ghost" onClick={() => setCustomOpen(true)}><Plus size={16} aria-hidden /> Ítem libre</button>
         <button type="button" className="btn btn-sm btn-ghost" disabled={charged > 0} onClick={() => setDiscountOpen(true)}><Percent size={16} aria-hidden /> {ticket.discount ? 'Cambiar descuento' : 'Descuento'}</button>
@@ -170,7 +208,7 @@ export function TicketSheet({ ticketId, onClose, onCharge, tables, busy }: { tic
         {live.length > 0 && <button type="button" className="btn btn-sm btn-ghost" onClick={printPre}><Printer size={16} aria-hidden /> Pre-cuenta</button>}
         {lines.some((l) => l.kitchen && l.status !== 'nuevo') && <button type="button" className="btn btn-sm btn-ghost" onClick={printComanda}><Printer size={16} aria-hidden /> Comanda</button>}
         {!charged && <button type="button" className="btn btn-sm btn-ghost danger-text" onClick={() => void cancel()}><Ban size={16} aria-hidden /> Anular pedido</button>}
-      </div>
+      </fieldset>
 
       {moving && (
         <Modal open title="Cambiar de mesa" onClose={() => setMoving(false)}>
@@ -188,19 +226,86 @@ export function TicketSheet({ ticketId, onClose, onCharge, tables, busy }: { tic
         onSave={(d) => run(async () => { await setDiscount(ticket.id, d); setDiscountOpen(false); }, d ? 'Descuento aplicado' : 'Descuento quitado')} />}
       {customOpen && <CustomLineModal onClose={() => setCustomOpen(false)} onAdd={(n, p, k) => run(async () => { await addCustomLine(ticket.id, n, p, k); setCustomOpen(false); }, 'Agregado')} />}
       {customerOpen && <CustomerModal ticket={ticket} onClose={() => setCustomerOpen(false)} />}
+      {tagOpen && <TagModal ticket={ticket} onClose={() => setTagOpen(false)} />}
+      {waiterOpen && <WaiterModal ticket={ticket} users={users} me={user} onClose={() => setWaiterOpen(false)} />}
+      {pinOpen && <PinModal ticket={ticket} users={users} onClose={() => setPinOpen(false)} onOk={() => { setAuthorized(ticket.id); setPinOpen(false); notify('Autorizado: podés tocar esta mesa'); }} />}
     </Modal>
   );
 }
 
-function GuestsInput({ ticket }: { ticket: TableTicket }) {
+/** Quién puede atender mesas (mozos, encargados, administradores). */
+const salonUsers = (users: AppUser[]) => users.filter((u) => u.active && effectivePermissions(u).includes('salon'));
+/** Quién puede autorizar con su PIN a tocar la mesa de otro (el mozo de la mesa, o quien cobra o administra). */
+const canAuthorize = (u: AppUser, t: TableTicket) => u.active && (u.id === t.openedBy?.id || effectivePermissions(u).some((p) => p === 'billing' || p === 'admin'));
+
+function TagModal({ ticket, onClose }: { ticket: TableTicket; onClose: () => void }) {
+  const { run } = useFeedback();
+  const [v, setV] = useState(ticket.tag ?? '');
+  return (
+    <Modal open title="Nombre de la cuenta" onClose={onClose}
+      footer={<><button type="button" className="btn" onClick={onClose}>Cancelar</button><button type="button" className="btn btn-primary" onClick={() => void run(async () => { await setTicketTag(ticket.id, v); onClose(); }, 'Cuenta guardada')}>Guardar</button></>}>
+      <Field label="Nombre (comensal o cuenta)"><Input value={v} onChange={(e) => setV(e.target.value)} placeholder="Ej.: Juan, Cuenta 2, Cumpleaños" data-autofocus /></Field>
+      <p className="small muted" style={{ marginBottom: 0 }}>Sale en la cocina, en la pre-cuenta y en la venta: “Mesa {ticket.tableName} · {v.trim() || '…'}”.</p>
+    </Modal>
+  );
+}
+
+function WaiterModal({ ticket, users, me, onClose }: { ticket: TableTicket; users: AppUser[]; me?: AppUser; onClose: () => void }) {
+  const { run } = useFeedback();
+  const list = salonUsers(users);
+  const choose = (u: { id: string; name: string }) => void run(async () => { await setWaiter(ticket.id, u); onClose(); }, `Mozo: ${u.name}`);
+  return (
+    <Modal open title={`Mozo de ${ticketLabel(ticket)}`} onClose={onClose}>
+      {me && me.id !== ticket.openedBy?.id && <button type="button" className="btn btn-primary btn-block" style={{ marginBottom: 12 }} onClick={() => choose(me)}>Pasármela a mí ({me.name})</button>}
+      <div className="salon-move">
+        {list.map((u) => <button key={u.id} type="button" className="btn" aria-pressed={u.id === ticket.openedBy?.id} onClick={() => choose(u)}>{u.name}</button>)}
+      </div>
+      {!list.length && <p className="muted">No hay usuarios con permiso de salón. Crealos en Configuración → Usuarios (rol “Mozo / salón”).</p>}
+    </Modal>
+  );
+}
+
+/** PIN de autorización: el mozo de la mesa o un encargado pone su PIN para dejar tocarla. */
+function PinModal({ ticket, users, onClose, onOk }: { ticket: TableTicket; users: AppUser[]; onClose: () => void; onOk: () => void }) {
+  const list = users.filter((u) => canAuthorize(u, ticket));
+  const [who, setWho] = useState(list.find((u) => u.id === ticket.openedBy?.id)?.id ?? list[0]?.id ?? '');
+  const [pin, setPin] = useState('');
+  const [err, setErr] = useState('');
+  const [busy, setBusy] = useState(false);
+  const check = async () => {
+    const u = list.find((x) => x.id === who);
+    if (!u || !pin) return;
+    setBusy(true);
+    const ok = await verifyPin(u, pin).catch(() => false);
+    setBusy(false);
+    if (ok) onOk();
+    else { setErr('PIN incorrecto.'); setPin(''); }
+  };
+  return (
+    <Modal open title="Autorizar" onClose={onClose}
+      footer={<><button type="button" className="btn" onClick={onClose}>Cancelar</button><button type="button" className="btn btn-primary" disabled={!who || !pin || busy} onClick={() => void check()}>Autorizar</button></>}>
+      <form className="stack" onSubmit={(e) => { e.preventDefault(); void check(); }}>
+        <Field label="Quién autoriza">
+          <Select value={who} onChange={(e) => { setWho(e.target.value); setErr(''); }}>
+            {list.map((u) => <option key={u.id} value={u.id}>{u.name}{u.id === ticket.openedBy?.id ? ' (mozo de la mesa)' : ''}</option>)}
+          </Select>
+        </Field>
+        <Field label="PIN"><Input type="password" inputMode="numeric" autoComplete="off" value={pin} onChange={(e) => { setPin(e.target.value.replace(/\D/g, '')); setErr(''); }} data-autofocus aria-invalid={!!err} /></Field>
+        {err && <p className="small danger-text" role="alert" style={{ margin: 0 }}>{err}</p>}
+      </form>
+    </Modal>
+  );
+}
+
+function GuestsInput({ ticket, disabled }: { ticket: TableTicket; disabled?: boolean }) {
   const { run } = useFeedback();
   const set = (n: number) => run(() => db.tickets.update(ticket.id, { guests: n || undefined, updatedAt: new Date().toISOString() }));
   return (
     <span className="salon-guests" role="group" aria-label="Comensales">
       <Users size={16} aria-hidden />
-      <button type="button" className="btn btn-ghost icon-btn" aria-label="Un comensal menos" disabled={!ticket.guests} onClick={() => void set((ticket.guests ?? 0) - 1)}><Minus size={14} /></button>
+      <button type="button" className="btn btn-ghost icon-btn" aria-label="Un comensal menos" disabled={disabled || !ticket.guests} onClick={() => void set((ticket.guests ?? 0) - 1)}><Minus size={14} /></button>
       <span className="num">{ticket.guests ?? 0}</span>
-      <button type="button" className="btn btn-ghost icon-btn" aria-label="Un comensal más" onClick={() => void set((ticket.guests ?? 0) + 1)}><Plus size={14} /></button>
+      <button type="button" className="btn btn-ghost icon-btn" aria-label="Un comensal más" disabled={disabled} onClick={() => void set((ticket.guests ?? 0) + 1)}><Plus size={14} /></button>
     </span>
   );
 }
