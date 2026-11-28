@@ -7,6 +7,7 @@ import { db } from '../database/db';
 import { MOVEMENT_TYPES, type MovementType, type StockMovement } from '../models';
 import { MOVEMENT_GROUPS, MOVEMENT_LABEL, editMovementReason, revertMovement, type MovementGroup } from '../services/stockService';
 import { Modal } from '../components/ui/Modal';
+import { MovementDetail } from '../components/MovementDetail';
 import { undoProduction } from '../services/productionService';
 import { menuLabel } from '../services/settingsService';
 import { useOutlets, useProducts, EMPTY } from '../hooks/useData';
@@ -72,6 +73,13 @@ export function MovementsPage() {
     if (await run(() => editMovementReason(editing.id, draftReason).then(() => true), 'Motivo corregido')) setEditing(null);
   };
   const canEditReason = (m: StockMovement) => can('stock.move') && m.origin !== 'deshacer';
+  const canRevert = (m: StockMovement) => can('stock.move') && m.origin !== 'deshacer' && m.origin !== 'remito' && m.origin !== 'factura' && name.has(m.productId) && !reverted.has(m.id);
+  const productLabel = (m: StockMovement) => name.get(m.productId) ?? (m.productName ? `${m.productName} (eliminado)` : '(producto eliminado)');
+  // Detalle de un movimiento: queda en la dirección (?mov=…) para poder volver o compartirlo.
+  const detailId = params.get('mov') ?? '';
+  const detail = detailId ? all.find((m) => m.id === detailId) : undefined;
+  const openDetail = (m: StockMovement) => setParam('mov', m.id);
+  const closeDetail = () => setParam('mov', '');
   const revert = async (m: StockMovement) => {
     // Una producción se deshace entera: vuelve lo producido y también los insumos que descontó la receta.
     const production = m.type === 'produccion';
@@ -82,6 +90,11 @@ export function MovementsPage() {
 
   return (
     <>
+      {detail && !editing && (
+        <MovementDetail movement={detail} all={all} productName={productLabel} placeOf={placeOf} originLabel={ORIGIN_LABEL[detail.origin]}
+          showPlace={outlets.length > 0} reverted={reverted.has(detail.id)} canEdit={canEditReason(detail)} canRevert={canRevert(detail)}
+          onEdit={() => openEdit(detail)} onRevert={() => void revert(detail)} onOpen={openDetail} onClose={closeDetail} />
+      )}
       {editing && (
         <Modal open title="Corregir motivo" onClose={() => setEditing(null)}
           footer={<><button type="button" className="btn" onClick={() => setEditing(null)}>Cancelar</button><button type="button" className="btn btn-primary" onClick={() => void saveReason()}>Guardar</button></>}>
@@ -137,14 +150,14 @@ export function MovementsPage() {
           <div className="list show-mobile">
             {list.slice(0, limit).map((m) => (
               <div key={m.id} className="list-item">
-                <div className="grow">
-                  <div className="list-title truncate">{name.get(m.productId) ?? (m.productName ? `${m.productName} (eliminado)` : '(producto eliminado)')}</div>
+                <button type="button" className="grow mov-open" onClick={() => openDetail(m)} aria-label={`Ver detalle: ${productLabel(m)}, ${fmtDate(m.createdAt)} ${fmtTime(m.createdAt)}`}>
+                  <div className="list-title truncate">{productLabel(m)}</div>
                   <div className="list-sub truncate">{MOVEMENT_LABEL[m.type]}{outlets.length > 0 && ` · ${placeOf(m)}`} · {fmtDate(m.createdAt).slice(0, 5)} {fmtTime(m.createdAt)}{m.performedBy ? ` · ${m.performedBy.name}` : ''}{m.sourceSystem === 'maxirest' ? ' · Maxirest' : ''}</div>
                   <div className="list-sub num truncate">{fmtNumber(m.quantityBefore)} → {fmtNumber(m.quantityAfter)}{m.reason ? ` · ${m.reason}` : ` · ${ORIGIN_LABEL[m.origin]}`}</div>
-                </div>
+                </button>
                 <strong className={`num ${m.delta >= 0 ? 'pos' : 'neg'}`}>{fmtSigned(m.delta)}</strong>
                 {canEditReason(m) && <button type="button" className="btn btn-sm btn-ghost icon-btn" aria-label="Corregir motivo" onClick={() => openEdit(m)}><Pencil size={16} /></button>}
-                {can('stock.move') && m.origin !== 'deshacer' && m.origin !== 'remito' && m.origin !== 'factura' && name.has(m.productId) && !reverted.has(m.id) && (
+                {canRevert(m) && (
                   <button type="button" className="btn btn-sm btn-ghost icon-btn" aria-label="Revertir movimiento" onClick={() => revert(m)}><Undo2 size={16} /></button>
                 )}
               </div>
@@ -157,8 +170,8 @@ export function MovementsPage() {
               </thead>
               <tbody>
                 {list.slice(0, limit).map((m) => (
-                  <tr key={m.id}>
-                    <td className="cell-title">{name.get(m.productId) ?? (m.productName ? `${m.productName} (eliminado)` : '(producto eliminado)')}</td>
+                  <tr key={m.id} className="row-link" onClick={(e) => { if (!(e.target as HTMLElement).closest('button')) openDetail(m); }}>
+                    <td className="cell-title"><button type="button" className="link-btn" onClick={() => openDetail(m)} aria-label={`Ver detalle: ${productLabel(m)}, ${fmtDate(m.createdAt)} ${fmtTime(m.createdAt)}`}>{productLabel(m)}</button></td>
                     <td data-label="Fecha">{fmtDate(m.createdAt)}</td>
                     <td data-label="Hora">{fmtTime(m.createdAt)}</td>
                     <td data-label="Tipo"><Badge>{MOVEMENT_LABEL[m.type]}</Badge></td>
@@ -175,7 +188,7 @@ export function MovementsPage() {
                     </td>
                     <td data-label="Acciones">
                       {canEditReason(m) && <button type="button" className="btn btn-sm btn-ghost icon-btn" aria-label="Corregir motivo" title="Corregir motivo" onClick={() => openEdit(m)}><Pencil size={16} /></button>}
-                      {can('stock.move') && m.origin !== 'deshacer' && m.origin !== 'remito' && m.origin !== 'factura' && name.has(m.productId) && !reverted.has(m.id) && (
+                      {canRevert(m) && (
                         <button type="button" className="btn btn-sm btn-ghost icon-btn" aria-label="Revertir movimiento" title="Revertir" onClick={() => revert(m)}><Undo2 size={16} /></button>
                       )}
                     </td>
