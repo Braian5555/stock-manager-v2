@@ -28,10 +28,10 @@ export const paidQty = (t: Pick<TableTicket, 'charges'>, lineId: string) => (t.c
 
 export const CHANNEL_LABEL: Record<TicketChannel, string> = { mesa: 'Mesa', mostrador: 'Mostrador', llevar: 'Para llevar', delivery: 'Delivery' };
 export const channelOf = (t: Pick<TableTicket, 'channel'>): TicketChannel => t.channel ?? 'mesa';
-/** "Mesa 4", "Mostrador · Ana", "Delivery #12". */
-export function ticketLabel(t: Pick<TableTicket, 'channel' | 'tableName' | 'customer' | 'number'>): string {
+/** "Mesa 4", "Mesa 4 · Cuenta 2", "Mostrador · Ana", "Delivery #12". */
+export function ticketLabel(t: Pick<TableTicket, 'channel' | 'tableName' | 'customer' | 'number' | 'tag'>): string {
   const ch = channelOf(t);
-  if (ch === 'mesa') return `Mesa ${t.tableName}`;
+  if (ch === 'mesa') return `Mesa ${t.tableName}${t.tag ? ` · ${t.tag}` : ''}`;
   return `${CHANNEL_LABEL[ch]} · ${t.customer?.name?.trim() || `#${t.number}`}`;
 }
 
@@ -180,7 +180,8 @@ export async function openTicket(tableId: string, guests?: number): Promise<Tabl
   const table = await db.diningTables.get(tableId);
   if (!table || !table.active) throw new Error('La mesa no existe.');
   return db.transaction('rw', db.tickets, async () => {
-    const open = await db.tickets.where('tableId').equals(tableId).filter(isOpen).first();
+    // Si la mesa ya tiene pedido (o varias cuentas), se abre la primera.
+    const open = (await db.tickets.where('tableId').equals(tableId).filter(isOpen).toArray()).sort((a, b) => a.openedAt.localeCompare(b.openedAt) || a.number - b.number)[0];
     if (open) return open;
     const number = await nextNumber();
     const t = nowIso();
@@ -203,6 +204,58 @@ export async function openTicket(tableId: string, guests?: number): Promise<Tabl
     await db.tickets.add(ticket);
     return ticket;
   });
+}
+
+/**
+ * Otra cuenta en la misma mesa (como las "ventas por comensal" de Fudo): cada una se pide,
+ * se imprime y se cobra por separado. Si las que ya estaban no tenían nombre, pasan a "Cuenta 1"…
+ */
+export async function openExtraTicket(tableId: string, tag?: string): Promise<TableTicket> {
+  const table = await db.diningTables.get(tableId);
+  if (!table || !table.active) throw new Error('La mesa no existe.');
+  return db.transaction('rw', db.tickets, async () => {
+    const open = (await db.tickets.where('tableId').equals(tableId).filter(isOpen).toArray()).sort((a, b) => a.openedAt.localeCompare(b.openedAt) || a.number - b.number);
+    const t = nowIso();
+    let n = 0;
+    for (const o of open) {
+      n++;
+      if (!o.tag) await db.tickets.update(o.id, { tag: `Cuenta ${n}`, updatedAt: t });
+    }
+    const name = tag?.trim() || `Cuenta ${open.length + 1}`;
+    if (open.some((o) => (o.tag ?? '').toLowerCase() === name.toLowerCase())) throw new Error(`Ya hay una "${name}" en la mesa ${table.name}.`);
+    const by = actor();
+    const ticket: TableTicket = {
+      id: uuid(), createdAt: t, updatedAt: t, tableId, tableName: table.name, number: await nextNumber(), channel: 'mesa',
+      openedAt: t, ...(by ? { openedBy: by } : {}), tag: name, status: 'abierta', lines: [], total: 0, subtotal: 0,
+    };
+    await db.tickets.add(ticket);
+    return ticket;
+  });
+}
+
+/** Le cambia el nombre a una cuenta de la mesa ("Cuenta 2" → "Juan"). Vacío lo saca. */
+export async function setTicketTag(ticketId: string, tag: string): Promise<TableTicket> {
+  return mutate(ticketId, (t) => {
+    mustBeOpen(t);
+    t.tag = tag.trim() || undefined;
+  });
+}
+
+/** Cambia el mozo a cargo del pedido. */
+export async function setWaiter(ticketId: string, waiter: { id: string; name: string }): Promise<TableTicket> {
+  return mutate(ticketId, (t) => {
+    mustBeOpen(t);
+    t.openedBy = { id: waiter.id, name: waiter.name };
+  });
+}
+
+/**
+ * ¿Este usuario tiene que pedir autorización para tocar el pedido? Como el PIN de autorización de Fudo:
+ * la mesa es de su mozo; otro mozo necesita el PIN del mozo o de un encargado. Quien cobra o administra, no.
+ */
+export function needsWaiterPin(t: Pick<TableTicket, 'openedBy'>, me: { id: string } | undefined, canManage: boolean): boolean {
+  if (canManage || !me || !t.openedBy) return false;
+  return t.openedBy.id !== me.id;
 }
 
 /** Pedido de mostrador, para llevar o delivery (sin mesa). Con envío, suma el ítem "Envío". */
